@@ -1,0 +1,14 @@
+{
+  "l0-bracket.json": {
+    "packet_hash": "sha384:6340f610f5dcd975f4478f44bfdfd749c1ccc2968d480c04de5a82ce0d7be911a3b4cd33a406b790b5df0cec96b4cf68",
+    "level": "L0"
+  },
+  "l1-quoted.json": {
+    "packet_hash": "sha384:b5a8667c068282884911ad76c24e8a64c119ad4f71e4fd75d8dd8038807b8e2f04e4b7e7e7eed9ac2b15aceb37dce118",
+    "level": "L1"
+  },
+  "l2-awarded.json": {
+    "packet_hash": "sha384:aaefa54716fb6b019d82f839a203aed380aed77e9e6892e49ccb2882d59e3a8f06ee6e1538560442f429d9b6f3e09e15",
+    "level": "L2"
+  }
+}

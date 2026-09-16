@@ -1,0 +1,158 @@
+{
+  "spec": "rivlet-packet/0.0.1",
+  "note": "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. Invalid: implementations MUST refuse to canonicalize `value`. Integers above 2^53-1 are also refused but cannot be expressed in a shared JSON vector file (JSON.parse in JavaScript loses their precision), so that rule is covered by language-local unit tests on both sides.",
+  "valid": [
+    {
+      "name": "sorted-keys",
+      "value": {
+        "b": 1,
+        "a": 2
+      },
+      "canonical": "{\"a\":2,\"b\":1}",
+      "sha384": "sha384:726f41a2a7dff459c28343215d8366c197f0e9ea79370f66983263768c1543ade6916bea8455f60c340922ec1ac10488"
+    },
+    {
+      "name": "nested-sort",
+      "value": {
+        "z": {
+          "d": 4,
+          "c": [
+            3,
+            {
+              "b": 2,
+              "a": 1
+            }
+          ]
+        },
+        "a": null
+      },
+      "canonical": "{\"a\":null,\"z\":{\"c\":[3,{\"a\":1,\"b\":2}],\"d\":4}}",
+      "sha384": "sha384:050dd2886c25a30ce4420c2a0914652d28f99f3434936792f8f2f30e25b1440df03fc60436414ecd5287e4ca3cdeed99"
+    },
+    {
+      "name": "integer",
+      "value": {
+        "t": 10
+      },
+      "canonical": "{\"t\":10}",
+      "sha384": "sha384:8a276048aa5d2cff3039c3a0bda6fb5a2f660c9f4039245b4401fcbfda84b2eaa35654adabacacc209e4cb7115a8360a"
+    },
+    {
+      "name": "decimal",
+      "value": {
+        "t": 9.53
+      },
+      "canonical": "{\"t\":9.53}",
+      "sha384": "sha384:0851da382f4ad7fbab927226233cb051b02d3f3d27fcde1022a9b8bf6b6dc9306b2839e65c3a49fb8e59716c6e380d88"
+    },
+    {
+      "name": "negative-zero",
+      "value": {
+        "t": 0
+      },
+      "canonical": "{\"t\":0}",
+      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
+    },
+    {
+      "name": "min-fraction",
+      "value": {
+        "t": 0.00001
+      },
+      "canonical": "{\"t\":0.00001}",
+      "sha384": "sha384:4eef7a00ae80f4f5beb7ade9cb637335e335c201879e6f682bc6edd60728621aad7c4ce6beae1b53e6ce0d72cb7fa7f6"
+    },
+    {
+      "name": "max-safe-integer",
+      "value": {
+        "t": 9007199254740991
+      },
+      "canonical": "{\"t\":9007199254740991}",
+      "sha384": "sha384:7768376bb10cebee8433bde80d6c9a67b055e8554d22d9d6697c36362eb7ed5fa3d32b9dcda9d323ee55d6907ad28b6b"
+    },
+    {
+      "name": "negative-decimal",
+      "value": {
+        "t": -12.75
+      },
+      "canonical": "{\"t\":-12.75}",
+      "sha384": "sha384:4f7cbe1487f51afee51d1df8a7bbf29adfb1c4ab3c4b2136dd5932be0fbbdf1d9e3e3119f5a3345d4718e2f513b1cba8"
+    },
+    {
+      "name": "string-escapes",
+      "value": {
+        "s": "a\"b\\c\nd\te"
+      },
+      "canonical": "{\"s\":\"a\\\"b\\\\c\\nd\\te\"}",
+      "sha384": "sha384:0f3d1c519b7c93b2b042e70d66fdb1296d82e6823f063e8749bc27ba44559b1c899861f1d6e07eb0a4b6aabe4e8e2b91"
+    },
+    {
+      "name": "unicode-raw-utf8",
+      "value": {
+        "s": "café ± µm Ø12"
+      },
+      "canonical": "{\"s\":\"café ± µm Ø12\"}",
+      "sha384": "sha384:52795808e5aed6b84cba15a4f4ac93b96c44bdc2379dbaf9b0297dbfad2a3d4102e74ff4f748581d01e4130f8e133422"
+    },
+    {
+      "name": "empty-structures",
+      "value": {
+        "obj": {},
+        "arr": [],
+        "s": ""
+      },
+      "canonical": "{\"arr\":[],\"obj\":{},\"s\":\"\"}",
+      "sha384": "sha384:8385ff5cb47ba32b9b0e283909849e90ddd9dd714a905cf6237228c4f504b9da1e5ad83b7a960b0f26357369e30a6446"
+    },
+    {
+      "name": "booleans-null",
+      "value": {
+        "t": true,
+        "f": false,
+        "n": null
+      },
+      "canonical": "{\"f\":false,\"n\":null,\"t\":true}",
+      "sha384": "sha384:75f952da878ee9d9b82e99520c8f86b4203c8a92abd04ed71a86ee7daf83b6babe3a4526ea21338ce95eb5b2660ec262"
+    },
+    {
+      "name": "key-order-digits",
+      "value": {
+        "2": 2,
+        "10": 1,
+        "A": 3,
+        "a": 4
+      },
+      "canonical": "{\"10\":1,\"2\":2,\"A\":3,\"a\":4}",
+      "sha384": "sha384:9bea5f70233cc64deb51ed50f1bcde475ccebd8aa0322a692fe0ee818390a27c1ac0d605850845a03a8c43fa40864196"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "exp-large",
+      "value": {
+        "t": 1e+21
+      },
+      "reason": "renders exponential (1e+21 vs 1e21)"
+    },
+    {
+      "name": "exp-small",
+      "value": {
+        "t": 1e-7
+      },
+      "reason": "renders exponential"
+    },
+    {
+      "name": "below-min-fraction",
+      "value": {
+        "t": 0.000001
+      },
+      "reason": "ryu renders 1e-6, JS stays fixed"
+    },
+    {
+      "name": "negative-exp-large",
+      "value": {
+        "t": -1e+21
+      },
+      "reason": "renders exponential"
+    }
+  ]
+}

@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --test src/lib/packet/packet.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/packet/packet.test.ts src/lib/packet/vectors.test.ts src/lib/packet/store.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

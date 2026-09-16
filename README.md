@@ -29,6 +29,8 @@ This repo contains:
 | `crates/rivlet-packet/` | Independent **Rust** implementation + CLI (`rivlet-packet hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
 | `examples/` | A worked example packet and how to verify it with both implementations |
+| `conformance/` | Language-agnostic conformance vectors — both implementations run the same files in CI |
+| `docs/CLAIMS.md` | The claims register: every written security claim mapped to the test that proves it |
 | `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.rivpkt.enc`) |
 | `TRUST.md` | Honest SOC 2 TSC mapping: what this gives you, what it does not |
 | `SECURITY.md` | Threat model and how to report issues |
@@ -44,6 +46,11 @@ same hash for the same body, byte for byte. Numbers that would render
 differently across languages (exponential notation) are **refused by both
 sides** rather than hashed ambiguously; see the canonicalization rules in
 [`docs/SPEC.md`](docs/SPEC.md).
+
+**Every security claim is meant to be checkable.** [`docs/CLAIMS.md`](docs/CLAIMS.md)
+maps each written claim to the test that proves it — and says plainly which
+statements are still drafts with no proof yet. If a claim is not in that
+register with a passing test, treat it as unverified.
 
 ## Quickstart — the desk
 

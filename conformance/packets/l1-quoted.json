@@ -1,0 +1,79 @@
+{
+  "spec": "rivlet-packet/0.0.1",
+  "packet_id": "pkt_conform0l1",
+  "revision": 1,
+  "created_at": "2026-09-15T17:00:00.000Z",
+  "buyer": {
+    "org_id": "org_northline",
+    "name": "Northline Equipment",
+    "city": "Reno",
+    "region": "NV",
+    "contact": "buyer@northline.example"
+  },
+  "part": {
+    "family": "CNC bracket",
+    "part_number": "NL-BRK-4410",
+    "description": "Mounting bracket, brushed, deburred",
+    "drawing_rev": "C",
+    "material": {
+      "spec": "6061-T6",
+      "form": "plate",
+      "thickness_mm": 6.35
+    },
+    "qty": {
+      "target": 250,
+      "breaks": [
+        100,
+        250,
+        500
+      ]
+    },
+    "processes": [
+      "laser",
+      "cnc-mill",
+      "deburr"
+    ],
+    "finish": "brushed",
+    "tolerances": "±0.13 mm unless noted",
+    "notes": "Break all edges. No tooling marks on show face."
+  },
+  "need_by": "2026-10-30",
+  "incoterms": "FOB",
+  "itar": false,
+  "quotes": [
+    {
+      "quote_id": "qot_conform01",
+      "seller": {
+        "org_id": "org_summitfab",
+        "name": "Summit Fabrication",
+        "city": "Sparks",
+        "region": "NV",
+        "certs": [
+          "ISO 9001"
+        ]
+      },
+      "packet_hash_quoted": "sha384:b5a8667c068282884911ad76c24e8a64c119ad4f71e4fd75d8dd8038807b8e2f04e4b7e7e7eed9ac2b15aceb37dce118",
+      "created_at": "2026-09-16T12:00:00.000Z",
+      "valid_until": "2039-01-01T00:00:00.000Z",
+      "lead_time_days": 21,
+      "pricing": {
+        "currency": "USD",
+        "nre": 350,
+        "lines": [
+          {
+            "qty": 100,
+            "unit": 18.5
+          },
+          {
+            "qty": 250,
+            "unit": 14.2
+          },
+          {
+            "qty": 500,
+            "unit": 11.75
+          }
+        ]
+      }
+    }
+  ]
+}

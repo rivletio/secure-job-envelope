@@ -36,6 +36,13 @@ future versions:
   levels without invalidating prices) — a quote's own content is covered
   only by the archive's META.json digests, not by `packet_hash`.
 
+## Proving these claims
+
+Every claim in this document is either proven by a named test (both
+implementations, in CI) or explicitly labeled a draft. The mapping lives
+in [docs/CLAIMS.md](docs/CLAIMS.md); the shared vector corpus lives in
+[conformance/](conformance/).
+
 ## Post-quantum posture
 
 - **Hashing: SHA-384.** The content address must hold ≥128-bit collision

@@ -43,7 +43,12 @@ not non-repudiation.** 0.0.1 does not authenticate parties.
 
 RFC 8785-inspired, restricted for cross-language byte equality:
 
-1. Object keys sorted lexicographically; compact output (no whitespace).
+1. Object keys sorted **lexicographically by code unit**; compact output
+   (no whitespace). Implementations must emit in that order explicitly —
+   in particular, JavaScript implementations must not serialize a rebuilt
+   object, because JS enumerates integer-like keys ("2", "10") in numeric
+   order regardless of insertion order. Conformance vector
+   `key-order-digits` pins this.
 2. `undefined` / absent members are omitted entirely.
 3. Strings escape per standard JSON. **Field names in 0.0.1 are ASCII**;
    implementations must not rely on non-ASCII key ordering (JS sorts by
