@@ -1,6 +1,6 @@
 export const PACKET_SPEC = "rivlet-packet/0.0.1" as const;
 export const PACKET_MEDIA = "application/vnd.rivlet.packet+json" as const;
-export const HASH_RE = /^sha256:[0-9a-f]{64}$/;
+export const HASH_RE = /^sha384:[0-9a-f]{96}$/;
 export const PACKET_ID_RE = /^[a-z]{3}_[a-z0-9]{6,24}$/;
 export const CURRENCY_RE = /^[A-Z]{3}$/;
 export const COUNTRY_RE = /^[A-Z]{2}$/;

@@ -43,7 +43,7 @@ function TrustPage() {
             tenancy, not least-privilege.
           </li>
           <li>
-            <code className="font-mono text-foreground">packet_hash</code> is SHA-256 of a closed
+            <code className="font-mono text-foreground">packet_hash</code> is SHA-384 of a closed
             quoteable body. It is integrity, not a signature and not non-repudiation.
           </li>
           <li>

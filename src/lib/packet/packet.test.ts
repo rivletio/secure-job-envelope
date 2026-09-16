@@ -25,7 +25,7 @@ function validQuote(over: Partial<Quote> & { packet_hash_quoted: string }): Quot
 describe("rivlet packet 0.0.1", () => {
   it("hashes the golden quoteable body", () => {
     const hash = hashQuoteable(GOLDEN_QUOTEABLE);
-    assert.match(hash, /^sha256:[0-9a-f]{64}$/);
+    assert.match(hash, /^sha384:[0-9a-f]{96}$/);
     assert.equal(hash, GOLDEN_HASH);
   });
 
@@ -74,7 +74,7 @@ describe("rivlet packet 0.0.1", () => {
   });
 
   it("rejects negative unit prices and non-ISO currency", () => {
-    const hash = "sha256:" + "a".repeat(64);
+    const hash = "sha384:" + "a".repeat(64);
     assert.equal(
       quoteSchema.safeParse(validQuote({ packet_hash_quoted: hash, pricing: { currency: "USD", lines: [{ qty: 1, unit: -5 }] } }))
         .success,

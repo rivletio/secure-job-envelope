@@ -9,7 +9,7 @@ quotes it attracted, and the award. It is **not** a shop OS and **not** a
 marketplace. Coordination happens through the *file*: shops exchange
 `{packet_id}.rivpkt.zip` archives over whatever channel they already use, and
 every implementation that follows this spec computes the same
-`sha256:…` hash for the same quoteable body — so a quote can bind to
+`sha384:…` hash for the same quoteable body — so a quote can bind to
 *exactly* the revision it priced.
 
 ```
@@ -31,6 +31,10 @@ This repo contains:
 | `examples/` | A worked example packet and how to verify it with both implementations |
 | `TRUST.md` | Honest SOC 2 TSC mapping: what this gives you, what it does not |
 | `SECURITY.md` | Threat model and how to report issues |
+
+Hashing is **SHA-384** — chosen for post-quantum collision margins (see
+`SECURITY.md`), locked in before anything shipped so no deployed hash ever
+has to migrate.
 
 The TypeScript and Rust implementations are deliberately independent — no
 shared code, no wasm bridge — and are held together by a **golden test

@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { canonicalJson } from "./canonical.ts";
 import { parsePacket } from "./conformance.ts";
-import { packetHash, quoteableBody, sha256Hex } from "./hash.ts";
+import { packetHash, quoteableBody, sha384Hex } from "./hash.ts";
 import {
   MAX_ARCHIVE_BYTES,
   MAX_PACKET_JSON_BYTES,
@@ -59,7 +59,7 @@ export async function packetToZip(packet: Packet): Promise<Blob> {
         spec: PACKET_SPEC,
         packet_id: packet.packet_id,
         packet_hash: hash,
-        packet_json_sha256: sha256Hex(packetJson),
+        packet_json_sha384: sha384Hex(packetJson),
         archive: archiveName(packet.packet_id),
         itar: Boolean(packet.itar),
         export_control: packet.itar ? "ITAR-self-declared" : "none",
@@ -127,7 +127,7 @@ async function importZip(buf: ArrayBuffer): Promise<Packet> {
   if (typeof rec.spec === "string" && rec.spec !== PACKET_SPEC) {
     throw new Error("META.json spec does not match rivlet-packet/0.0.1");
   }
-  if (typeof rec.packet_json_sha256 === "string" && rec.packet_json_sha256 !== sha256Hex(text)) {
+  if (typeof rec.packet_json_sha384 === "string" && rec.packet_json_sha384 !== sha384Hex(text)) {
     throw new Error("packet.json does not match archive digest");
   }
 

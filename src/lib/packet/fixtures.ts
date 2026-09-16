@@ -80,7 +80,7 @@ export function seedPackets(): Packet[] {
       {
         quote_id: "qte_huron4410",
         seller: huron,
-        packet_hash_quoted: "sha256:pending",
+        packet_hash_quoted: "sha384:pending",
         created_at: "2026-09-09T18:40:00.000Z",
         valid_until: "2026-09-30T00:00:00.000Z",
         lead_time_days: 12,
@@ -102,7 +102,7 @@ export function seedPackets(): Packet[] {
       {
         quote_id: "qte_red4410",
         seller: redRiver,
-        packet_hash_quoted: "sha256:pending",
+        packet_hash_quoted: "sha384:pending",
         created_at: "2026-09-10T13:05:00.000Z",
         valid_until: "2026-09-28T00:00:00.000Z",
         lead_time_days: 18,
@@ -176,7 +176,7 @@ export function seedPackets(): Packet[] {
       {
         quote_id: "qte_casc1601",
         seller: cascade,
-        packet_hash_quoted: "sha256:pending",
+        packet_hash_quoted: "sha384:pending",
         created_at: "2026-09-04T16:22:00.000Z",
         valid_until: "2026-09-25T00:00:00.000Z",
         lead_time_days: 15,
@@ -230,7 +230,7 @@ export function seedPackets(): Packet[] {
       {
         quote_id: "qte_lake303",
         seller: lakeshore,
-        packet_hash_quoted: "sha256:pending",
+        packet_hash_quoted: "sha384:pending",
         created_at: "2026-09-12T20:00:00.000Z",
         valid_until: "2026-10-03T00:00:00.000Z",
         lead_time_days: 21,

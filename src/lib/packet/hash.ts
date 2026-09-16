@@ -1,10 +1,10 @@
-import { sha256 } from "js-sha256";
+import { sha384 } from "js-sha512";
 import { canonicalJson } from "./canonical.ts";
 import type { Org, Packet, Part, QuoteableBody } from "./types.ts";
 import { PACKET_SPEC } from "./types.ts";
 
 export const GOLDEN_HASH =
-  "sha256:f1acf3b6822b1c27918d67c9aad36090b9fb90637e74db99b0bf52aea9ef2cd2";
+  "sha384:6892aec9ee18e89bd189a646808a4920ca0972a41225d8f8556d796687a14e6213182ea8a657c694023856a712773fac";
 
 function present(s?: string): string | undefined {
   return s && s.length > 0 ? s : undefined;
@@ -62,17 +62,17 @@ export function packetHash(packet: Packet): string {
 }
 
 export function hashQuoteable(body: QuoteableBody): string {
-  return `sha256:${sha256(canonicalJson(body))}`;
+  return `sha384:${sha384(canonicalJson(body))}`;
 }
 
-export function sha256Hex(bytes: string): string {
-  return `sha256:${sha256(bytes)}`;
+export function sha384Hex(bytes: string): string {
+  return `sha384:${sha384(bytes)}`;
 }
 
 export function shortHash(hash: string): string {
-  const hex = hash.startsWith("sha256:") ? hash.slice(7) : hash;
+  const hex = hash.startsWith("sha384:") ? hash.slice(7) : hash;
   if (hex.length < 12) return hash;
-  return `sha256:${hex.slice(0, 8)}…${hex.slice(-6)}`;
+  return `sha384:${hex.slice(0, 8)}…${hex.slice(-6)}`;
 }
 
 export function isBoundQuote(packet: Packet, quote: { packet_hash_quoted: string }): boolean {

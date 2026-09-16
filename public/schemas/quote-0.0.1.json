@@ -37,7 +37,7 @@
     },
     "packet_hash_quoted": {
       "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
+      "pattern": "^sha384:[0-9a-f]{96}$"
     },
     "created_at": { "type": "string" },
     "valid_until": { "type": "string" },

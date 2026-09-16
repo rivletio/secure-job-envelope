@@ -5,13 +5,13 @@ Archive name `{packet_id}.rivpkt.zip`. License Apache-2.0.
 
 A packet is the job object — one part family between a buyer and sellers —
 not a shop OS and not a marketplace. Quotes bind to `packet_hash_quoted`,
-a SHA-256 of the canonical **quoteable body**.
+a SHA-384 of the canonical **quoteable body**.
 
 ## Identifiers
 
 ```
 packet_id / quote_id : ^[a-z]{3}_[a-z0-9]{6,24}$     (e.g. pkt_8kq2mfn3, qot_x91k2p)
-hash                 : ^sha256:[0-9a-f]{64}$
+hash                 : ^sha384:[0-9a-f]{96}$
 currency             : ^[A-Z]{3}$    country: ^[A-Z]{2}$
 created_at           : ISO-8601 UTC with trailing Z
 ```
@@ -67,7 +67,13 @@ RFC 8785-inspired, restricted for cross-language byte equality:
    diverge. Non-finite numbers are refused outright. The JSON Schemas
    bound every numeric field inside this range.
 
-The hash is `"sha256:" + lowercase-hex(SHA-256(canonical_json_bytes))`.
+The hash is `"sha384:" + lowercase-hex(SHA-384(canonical_json_bytes))`.
+
+**Why SHA-384:** the spec targets ≥128-bit collision resistance against a
+quantum adversary. SHA-256's classical 128-bit collision bound degrades
+under quantum collision search; SHA-384 keeps ≥128-bit collision and
+≥192-bit (Grover) preimage margins post-quantum, at the cost of a longer
+hash string. Chosen pre-release so no deployed hashes ever migrate.
 
 Both reference implementations must reproduce the golden vector
 (`crates/rivlet-packet/tests/golden.json`) exactly.
@@ -103,7 +109,7 @@ Allowlisted members only (max 3):
 
 ```
 packet.json        the packet document (required, root only)
-META.json          { spec, packet_hash, packet_json_sha256 } (recommended)
+META.json          { spec, packet_hash, packet_json_sha384 } (recommended)
 NOTES.txt          free text (optional)
 ```
 

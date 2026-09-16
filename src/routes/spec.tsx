@@ -11,7 +11,7 @@ function SpecPage() {
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-soft">
         Implementable draft. A packet is the job object — not the shop OS and not a
         marketplace. Archive name is {"{packet_id}.rivpkt.zip"}. Quotes bind to{" "}
-        <code className="font-mono text-foreground">packet_hash_quoted</code>, a SHA-256
+        <code className="font-mono text-foreground">packet_hash_quoted</code>, a SHA-384
         of the canonical quoteable body.
       </p>
 
@@ -47,7 +47,7 @@ function SpecPage() {
             Canonical JSON (sorted keys, compact, JS number encoding) of a closed field set:
             spec, packet_id, revision, created_at, buyer, part, need_by, incoterms, itar.
             Extra keys do not enter the hash. Prefixed{" "}
-            <code className="font-mono text-foreground">sha256:</code> plus 64 lowercase hex.
+            <code className="font-mono text-foreground">sha384:</code> plus 96 lowercase hex.
             Quotes, award, ops, and ship-to are outside the hash so a packet can climb L0→L2
             without invalidating quotes. The hash is not a signature.
           </p>
@@ -84,7 +84,7 @@ rivlet-packet level packet.json`}
           valid_until, lead_time_days, pricing
 pricing.required: currency, lines[]
 lines[]: { qty >= 1, unit >= 0 finite }
-packet_hash_quoted: ^sha256:[0-9a-f]{64}$
+packet_hash_quoted: ^sha384:[0-9a-f]{96}$
 packet_id / quote_id: ^[a-z]{3}_[a-z0-9]{6,24}$
 currency: ^[A-Z]{3}$`}
         </pre>
@@ -93,7 +93,7 @@ currency: ^[A-Z]{3}$`}
       <section className="mt-10">
         <h2 className="text-lg font-medium text-paper">Security</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          <code className="font-mono text-foreground">packet_hash</code> is SHA-256 of a closed
+          <code className="font-mono text-foreground">packet_hash</code> is SHA-384 of a closed
           field set (spec, packet_id, revision, created_at, buyer, part, need_by, incoterms, itar).
           Extra keys are ignored. Canonical JSON sorts keys and encodes numbers the way{" "}
           <code className="font-mono text-foreground">JSON.stringify</code> does, so the TypeScript
@@ -114,7 +114,7 @@ currency: ^[A-Z]{3}$`}
             Import accepts only root <code className="font-mono text-foreground">packet.json</code>,
             caps size, refuses path traversal, and checks META.json{" "}
             <code className="font-mono text-foreground">packet_hash</code> /{" "}
-            <code className="font-mono text-foreground">packet_json_sha256</code> when present.
+            <code className="font-mono text-foreground">packet_json_sha384</code> when present.
           </li>
           <li>
             Role on this desk is a local switch. It is not identity, tenancy, or access control.

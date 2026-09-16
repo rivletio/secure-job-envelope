@@ -9,7 +9,7 @@ and Incoterms set, ITAR false.
 ```bash
 cd crates/rivlet-packet
 cargo run -- hash  ../../examples/bracket.packet.json
-# sha256:43ad37e1fdf3d93530f13f7a45fe397682dc1f942d4c82257932aa22c750daf4
+# sha384:358d7ec8f817372c857602be6c8d08641874f425f7280bb443fe5edce8bfa2cc04cee92b5ade35b4cf06f8ee33f1694b
 cargo run -- level ../../examples/bracket.packet.json
 # L0 Quoteable
 ```
@@ -24,8 +24,8 @@ import { packetHash } from "../src/lib/packet/hash.ts";
 import { levelOf, parsePacket } from "../src/lib/packet/conformance.ts";
 import { readFileSync } from "node:fs";
 
-const packet = parsePacket(readFileSync("examples/bracket.packet.json", "utf8"));
-console.log(packetHash(packet)); // sha256:43ad37e1…50daf4 — same as the CLI
+const packet = parsePacket(JSON.parse(readFileSync("examples/bracket.packet.json", "utf8")));
+console.log(packetHash(packet)); // sha384:358d7ec8…f1694b — same as the CLI
 console.log(levelOf(packet).code); // L0
 ```
 

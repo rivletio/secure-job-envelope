@@ -1,19 +1,19 @@
 //! Rivlet Packet 0.0.1
 //!
 //! Content-addressed envelope for one part family moving between two manufacturers.
-//! Quotes bind to `sha256:` + hex of canonical JSON of the quoteable body.
+//! Quotes bind to `sha384:` + hex of canonical JSON of the quoteable body.
 //!
 //! The hash is integrity of the buyer-authored body, not a signature. 0.0.1 does
 //! not authenticate parties, implement ITAR/EAR access control, or form a contract.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha384};
 
 pub const SPEC: &str = "rivlet-packet/0.0.1";
 pub const MEDIA_TYPE: &str = "application/vnd.rivlet.packet+json";
 pub const GOLDEN_HASH: &str =
-    "sha256:f1acf3b6822b1c27918d67c9aad36090b9fb90637e74db99b0bf52aea9ef2cd2";
+    "sha384:6892aec9ee18e89bd189a646808a4920ca0972a41225d8f8556d796687a14e6213182ea8a657c694023856a712773fac";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -357,8 +357,8 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
 pub fn hash_quoteable(body: &Quoteable) -> Result<String, Error> {
     let value = serde_json::to_value(body).expect("quoteable value");
     let bytes = canonical_json(&value)?;
-    let digest = Sha256::digest(bytes.as_bytes());
-    Ok(format!("sha256:{}", hex::encode(digest)))
+    let digest = Sha384::digest(bytes.as_bytes());
+    Ok(format!("sha384:{}", hex::encode(digest)))
 }
 
 pub fn packet_hash(packet: &Packet) -> Result<String, Error> {
@@ -394,8 +394,8 @@ fn money_ok(n: f64) -> bool {
 
 fn quote_ok(q: &Quote, packet: &Packet) -> bool {
     let currency = q.pricing.currency.as_bytes();
-    let hash_ok = q.packet_hash_quoted.starts_with("sha256:")
-        && q.packet_hash_quoted.len() == "sha256:".len() + 64
+    let hash_ok = q.packet_hash_quoted.starts_with("sha384:")
+        && q.packet_hash_quoted.len() == "sha384:".len() + 96
         && q.packet_hash_quoted[7..].bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
     let itar_ok = !packet.itar.unwrap_or(false) || q.seller.itar == Some(true);
     !q.quote_id.is_empty()
@@ -604,7 +604,7 @@ mod tests {
           "quotes":[{
             "quote_id":"qte_notitar01",
             "seller":{"name":"Red River Machine","itar":false},
-            "packet_hash_quoted":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "packet_hash_quoted":"sha384:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "created_at":"2026-09-09T00:00:00.000Z",
             "valid_until":"2026-09-30T00:00:00.000Z",
             "lead_time_days":12,
@@ -628,7 +628,7 @@ mod tests {
           "quotes":[{
             "quote_id":"qte_negunit01",
             "seller":{"name":"Huron Precision","itar":true},
-            "packet_hash_quoted":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "packet_hash_quoted":"sha384:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "created_at":"2026-09-09T00:00:00.000Z",
             "valid_until":"2026-09-30T00:00:00.000Z",
             "lead_time_days":12,
