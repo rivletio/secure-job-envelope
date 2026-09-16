@@ -14,7 +14,7 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 
 | # | Claim (where written) | Proof | Status |
 |---|---|---|---|
-| C1 | Both implementations produce byte-identical canonical JSON and identical SHA-384 hashes for the same body (README, SPEC) | Shared vectors `conformance/canonical.json` run by `src/lib/traveler/vectors.test.ts` (TS) **and** `crates/opentraveler/tests/vectors.rs` (Rust); golden vector `crates/opentraveler/tests/golden.json` asserted in `traveler.test.ts` and `lib.rs::golden_hash_matches_ts` | ✅ |
+| C1 | Both implementations produce byte-identical canonical JSON and identical SHA-384 hashes for the same body (README, SPEC) | Shared vectors `conformance/canonical.json` run by `src/lib/traveler/vectors.test.ts` (TS) **and** `crates/jobseal/tests/vectors.rs` (Rust); golden vector `crates/jobseal/tests/golden.json` asserted in `traveler.test.ts` and `lib.rs::golden_hash_matches_ts` | ✅ |
 | C2 | The hash covers a closed field set; extra keys never enter it (SPEC, SECURITY) | `traveler.test.ts` closed-field-set case; `lib.rs::contact_is_in_the_hash` (field present vs absent changes hash; unknown keys do not) | ✅ |
 | C3 | Numbers outside the canonical range (non-finite, >2^53−1, non-integer <1e-5, exponential rendering) are refused, not hashed (SPEC §Canonical JSON) | `conformance/canonical.json` invalid vectors, both runners; `traveler.test.ts` fixed-notation parity case; `lib.rs::canonical_refuses_exponential_notation` | ✅ |
 | C4 | Integer-valued floats, `-0`, and unicode strings canonicalize identically across languages (SPEC) | `canonical.json` vectors `integer`, `negative-zero`, `unicode-raw-utf8`; `lib.rs::integer_valued_float_matches_json_stringify` | ✅ |
@@ -53,6 +53,6 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 
 ```bash
 npm test                                # TS: vectors + traveler suite + store state machine
-cd crates/opentraveler && cargo test   # Rust: unit + golden + the same shared vectors
+cd crates/jobseal && cargo test   # Rust: unit + golden + the same shared vectors
 node --experimental-strip-types conformance/generate.ts   # regenerate vectors (TS is generator, Rust is independent verifier)
 ```

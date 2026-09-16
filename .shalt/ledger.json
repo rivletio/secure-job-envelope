@@ -2117,7 +2117,7 @@
       "last_run_at": null,
       "line": 6,
       "mutants_killed": null,
-      "name": "Traveler requires opentraveler/0.0.1 spec and id shape",
+      "name": "Traveler requires jobseal/0.0.1 spec and id shape",
       "rid": "S-b3a29bb1",
       "spec_hash": "sha256:77745da479c43ffd7086417815bc3185",
       "status": "pending",

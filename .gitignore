@@ -4,7 +4,7 @@ dist/
 .nitro/
 .tanstack/
 .vercel/
-crates/opentraveler/target/
+crates/jobseal/target/
 *.log
 .DS_Store
 .env

@@ -14,7 +14,7 @@ function TrustPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "opentraveler-audit.json";
+    a.download = "jobseal-audit.json";
     a.rel = "noopener";
     a.click();
     URL.revokeObjectURL(url);
@@ -28,7 +28,7 @@ function TrustPage() {
         <em className="font-normal text-accent italic">This desk is not that system.</em>
       </h1>
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-soft">
-        OpenTraveler is a content-addressed job object. Identity, signatures, CUI handling, and
+        JobSeal is a content-addressed job object. Identity, signatures, CUI handling, and
         a production control environment are out of band in 0.0.1. SOC 2 Type II is an org’s
         attestation over <em>their</em> system — it does not transfer to a protocol, a hash, or
         this browser desk.

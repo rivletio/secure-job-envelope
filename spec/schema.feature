@@ -3,7 +3,7 @@ Feature: Traveler and quote schema validation
   Strict Zod schemas gate what the desk will store or import.
 
   @rid:S-b3a29bb1
-  Scenario: Traveler requires opentraveler/0.0.1 spec and id shape
+  Scenario: Traveler requires jobseal/0.0.1 spec and id shape
     When a document with spec "nope" is parsed as a traveler
     Then parse fails with a message starting "Invalid traveler"
 

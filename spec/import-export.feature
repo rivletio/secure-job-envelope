@@ -18,7 +18,7 @@ Feature: Import and export Rivlet traveler archives
   Scenario: Export JSON downloads traveler json
     When the user opens "/p/tvl_wldcart12"
     And the user clicks "JSON"
-    Then a file "tvl_wldcart12.json" is downloaded with media type application/vnd.opentraveler+json
+    Then a file "tvl_wldcart12.json" is downloaded with media type application/vnd.jobseal+json
 
   @rid:S-a3fc34f2
   Scenario: Round-trip zip preserves traveler id and hash

@@ -1,9 +1,9 @@
 {
-  "name": "opentraveler",
+  "name": "jobseal",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "OpenTraveler — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/opentraveler.",
+  "description": "JobSeal — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/jobseal.",
   "type": "module",
   "sideEffects": false,
   "scripts": {

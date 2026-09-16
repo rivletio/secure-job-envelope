@@ -1,5 +1,5 @@
 {
-  "spec": "opentraveler/0.0.1",
+  "spec": "jobseal/0.0.1",
   "note": "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. Invalid: implementations MUST refuse to canonicalize `value`. Integers above 2^53-1 are also refused but cannot be expressed in a shared JSON vector file (JSON.parse in JavaScript loses their precision), so that rule is covered by language-local unit tests on both sides.",
   "valid": [
     {

@@ -1,6 +1,6 @@
-# OpenTraveler — spec 0.0.1
+# JobSeal — spec 0.0.1
 
-Implementable draft. Media type `application/vnd.opentraveler+json`.
+Implementable draft. Media type `application/vnd.jobseal+json`.
 Archive name `{traveler_id}.traveler.zip`. License Apache-2.0.
 
 A traveler is the job object — one part family between a buyer and sellers —
@@ -81,7 +81,7 @@ under quantum collision search; SHA-384 keeps ≥128-bit collision and
 hash string. Chosen pre-release so no deployed hashes ever migrate.
 
 Both reference implementations must reproduce the golden vector
-(`crates/opentraveler/tests/golden.json`) exactly.
+(`crates/jobseal/tests/golden.json`) exactly.
 
 ## Conformance ladder
 
@@ -145,4 +145,4 @@ both digests against the received `traveler.json`; re-canonicalize and check
 ## JSON Schemas
 
 `public/schemas/traveler-0.0.1.json` and `public/schemas/quote-0.0.1.json`
-(JSON Schema 2020-12, `$id` under `https://opentraveler.org/schemas/`).
+(JSON Schema 2020-12, `$id` under `https://jobseal.org/schemas/`).

@@ -1,14 +1,14 @@
 {
   "l0-bracket.json": {
-    "traveler_hash": "sha384:55ccb48a31a96aa29db3d40ad597fe7f60b2700400e2d6d6a5fd4d74b80d72956cddbddc8d663656d25943e2527a028e",
+    "traveler_hash": "sha384:f06463d1925141e233ce5500343cdc550100bdd05fbb8e1bb4f8dd160eba7d46b6da7433be30accb59751eceeb776b78",
     "level": "L0"
   },
   "l1-quoted.json": {
-    "traveler_hash": "sha384:135ce852db772112d6f378cb4fa19c75f3f10c26330e934f47d11a5ef761ac3ede68f9a0d8ab881ab5594225bbd7d207",
+    "traveler_hash": "sha384:52f21103d0c7ff250f501fea157d1e19a173b1a398956e0c325b6578d8aec3f18ea946ac44f051a43aa3c3fd455edfa7",
     "level": "L1"
   },
   "l2-awarded.json": {
-    "traveler_hash": "sha384:5b81b41b573b0012f09e2faac294797d11a7f5bb23ac5171c110fe28529a97b8705c4635948a8ac5ddfcb156d0d692b6",
+    "traveler_hash": "sha384:fe9b89dee5a49901cbd92243bead683ced46bec8783dec428c457bfb755c425d418ad073cd72b5c2834492ee6127b4dc",
     "level": "L2"
   }
 }

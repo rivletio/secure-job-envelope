@@ -1,7 +1,7 @@
-# OpenTraveler
+# JobSeal
 
 **A content-addressed job envelope for parts manufacturing.**
-`application/vnd.opentraveler+json` · spec `opentraveler/0.0.1` · Apache-2.0
+`application/vnd.jobseal+json` · spec `jobseal/0.0.1` · Apache-2.0
 
 A **traveler** is the job object — one part family moving between a buyer and a
 seller: part, material, quantity (with price breaks), need-by, ship-to, the
@@ -28,12 +28,12 @@ This repo contains:
 | `docs/SPEC.md` | The 0.0.1 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
 | `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |
-| `crates/opentraveler/` | Independent **Rust** implementation + CLI (`opentraveler hash|level`) |
+| `crates/jobseal/` | Independent **Rust** implementation + CLI (`jobseal hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
 | `examples/` | A worked example traveler and how to verify it with both implementations |
 | `conformance/` | Language-agnostic conformance vectors — both implementations run the same files in CI |
 | `docs/CLAIMS.md` | The claims register: every written security claim mapped to the test that proves it |
-| `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.traveler.enc`) |
+| `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.jobseal`) |
 | `TRUST.md` | Honest SOC 2 TSC mapping: what this gives you, what it does not |
 | `SECURITY.md` | Threat model and how to report issues |
 
@@ -43,7 +43,7 @@ has to migrate.
 
 The TypeScript and Rust implementations are deliberately independent — no
 shared code, no wasm bridge — and are held together by a **golden test
-vector** (`crates/opentraveler/tests/golden.json`): both must produce the
+vector** (`crates/jobseal/tests/golden.json`): both must produce the
 same hash for the same body, byte for byte. Numbers that would render
 differently across languages (exponential notation) are **refused by both
 sides** rather than hashed ambiguously; see the canonicalization rules in
@@ -70,7 +70,7 @@ toggle is a *view*, not authentication (see `TRUST.md`).
 ## Quickstart — the Rust verifier
 
 ```bash
-cd crates/opentraveler
+cd crates/jobseal
 cargo test         # includes the shared golden vector
 cargo run -- hash  ../../examples/bracket.traveler.json
 cargo run -- level ../../examples/bracket.traveler.json

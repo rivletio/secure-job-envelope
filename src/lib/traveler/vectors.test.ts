@@ -1,6 +1,6 @@
 /** Conformance vector runner (TypeScript side).
  *  The same files are independently verified by the Rust implementation
- *  (crates/opentraveler/tests/vectors.rs); agreement across both is the
+ *  (crates/jobseal/tests/vectors.rs); agreement across both is the
  *  cross-implementation proof. See conformance/README.md.
  */
 import assert from "node:assert/strict";

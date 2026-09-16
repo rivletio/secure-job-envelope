@@ -1,7 +1,7 @@
 # Conformance vectors
 
 Language-agnostic test vectors that define what a conforming
-`opentraveler/0.0.1` implementation must do. The TypeScript and Rust
+`jobseal/0.0.1` implementation must do. The TypeScript and Rust
 reference implementations both run these exact files in CI; a third
 implementation proves itself the same way.
 
@@ -13,7 +13,7 @@ implementation proves itself the same way.
 | `travelers/reject/*.json` | Refuse the document at parse time |
 
 Runners: `src/lib/traveler/vectors.test.ts` (TypeScript),
-`crates/opentraveler/tests/vectors.rs` (Rust).
+`crates/jobseal/tests/vectors.rs` (Rust).
 
 `generate.ts` regenerates the expected values **from the TypeScript
 implementation**; the Rust side never generates, only verifies — so

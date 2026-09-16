@@ -1,6 +1,6 @@
 # Trust — what this gives you, and what it does not
 
-OpenTraveler is a content-addressed job object. Identity, signatures, CUI
+JobSeal is a content-addressed job object. Identity, signatures, CUI
 handling, and a production control environment are **out of band in 0.0.1**.
 This page maps the desk honestly against SOC 2 Trust Services Criteria so a
 shop that already has SOC 2 knows exactly what is theirs to provide.

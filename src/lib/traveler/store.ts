@@ -192,7 +192,7 @@ export const useTravelerStore = create<TravelerState>()(
         })),
     }),
     {
-      name: "opentraveler-001",
+      name: "jobseal-001",
       skipHydration: true,
       partialize: (s) => ({
         travelers: s.travelers,

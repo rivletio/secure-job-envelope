@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: crates/opentraveler
+        working-directory: crates/jobseal
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

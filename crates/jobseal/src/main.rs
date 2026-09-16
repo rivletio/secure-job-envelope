@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::process;
 
-use opentraveler::{level, traveler_hash, parse_traveler};
+use jobseal::{level, traveler_hash, parse_traveler};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -29,9 +29,9 @@ fn main() {
             }
         }
         _ => {
-            eprintln!("traveler (opentraveler) 0.0.1");
-            eprintln!("  traveler hash [traveler.json]");
-            eprintln!("  traveler level [traveler.json]");
+            eprintln!("jobseal 0.0.1");
+            eprintln!("  jobseal hash [traveler.json]");
+            eprintln!("  jobseal level [traveler.json]");
             eprintln!("stdin is used when no file is given.");
         }
     }

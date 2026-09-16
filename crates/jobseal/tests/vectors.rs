@@ -3,7 +3,7 @@
 //! implementation (src/lib/traveler/vectors.test.ts); agreement across both
 //! is the cross-implementation proof. See conformance/README.md.
 
-use opentraveler::{canonical_json, level, traveler_hash, parse_traveler};
+use jobseal::{canonical_json, level, traveler_hash, parse_traveler};
 use serde_json::Value;
 use sha2::{Digest, Sha384};
 use std::fs;
