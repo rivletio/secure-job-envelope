@@ -23,6 +23,8 @@ This repo contains:
 
 | Path | What it is |
 |---|---|
+| `docs/PLAN.md` | Project plan: goals, milestones, current state (shalt manages the live copy in `.shalt/plan.md`) |
+| `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |
 | `docs/SPEC.md` | The 0.0.1 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for packet and quote |
 | `src/lib/packet/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |

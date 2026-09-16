@@ -1,0 +1,1135 @@
+{
+  "schema": "shalt.board/1",
+  "goals": [
+    {
+      "id": "g-envelope",
+      "title": "Shops exchange a hash-bound job packet without a shared database",
+      "project_ids": []
+    },
+    {
+      "id": "g-desk",
+      "title": "Buyer and seller compose, quote, and award from a local desk",
+      "project_ids": []
+    },
+    {
+      "id": "g-trust",
+      "title": "Integrity and export-control claims are checkable, not marketing",
+      "project_ids": []
+    }
+  ],
+  "milestones": [
+    {
+      "id": "m-format",
+      "title": "0.0.1 format locked — hash, schema, conformance ladder",
+      "target": null
+    },
+    {
+      "id": "m-flow",
+      "title": "Desk flow L0→L2 green — compose, quote, award, amend, archive, ITAR",
+      "target": null
+    },
+    {
+      "id": "m-desk",
+      "title": "Desk product — list, packet view, shell, roles, spec, trust audit",
+      "target": null
+    },
+    {
+      "id": "m-envelope",
+      "title": "0.1 encrypted envelope (.rivpkt.enc)",
+      "target": null
+    }
+  ],
+  "sprints": [
+    {
+      "id": "C-1",
+      "title": "Sprint 1",
+      "start": "2026-09-16",
+      "end": null,
+      "enabled": true,
+      "closed_at": null,
+      "estimated": 0,
+      "spent": 0
+    }
+  ],
+  "items": [
+    {
+      "rid": "S-1944528f",
+      "rank": 1,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4.5"
+    },
+    {
+      "rid": "S-ca8a13fd",
+      "rank": 2,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-6428f647",
+      "rank": 3,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-3d08634f",
+      "rank": 4,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-8cf485e5",
+      "rank": 5,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-ffb48ccf",
+      "rank": 6,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-3c28a4e7",
+      "rank": 7,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-8567ecbe",
+      "rank": 8,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-b04f169e",
+      "rank": 9,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-c7c5b590",
+      "rank": 10,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-a493899f",
+      "rank": 11,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-7cd6dc95",
+      "rank": 12,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-8c76ba69",
+      "rank": 13,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-31b13e28",
+      "rank": 14,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-fb69dc1d",
+      "rank": 15,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-addded0e",
+      "rank": 16,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-f6d7fcdc",
+      "rank": 17,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-ef846a17",
+      "rank": 18,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-d1b8a147",
+      "rank": 19,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-ec689298",
+      "rank": 20,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-89a6df2d",
+      "rank": 21,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-a3ab4c9d",
+      "rank": 22,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-9b6c36d9",
+      "rank": 23,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-4006e8e8",
+      "rank": 24,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-89278d6f",
+      "rank": 25,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-661e8d23",
+      "rank": 26,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-a9928cd6",
+      "rank": 27,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-b6290ddd",
+      "rank": 28,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-d3e99edd",
+      "rank": 29,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-7a1d7a4a",
+      "rank": 30,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-34a0777b",
+      "rank": 31,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-fc5bad61",
+      "rank": 32,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-eccb855a",
+      "rank": 33,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-9b54f554",
+      "rank": 34,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-b1b7c6e3",
+      "rank": 35,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-2b9028c4",
+      "rank": 36,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-2f13412c",
+      "rank": 37,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-81f75882",
+      "rank": 38,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-a3fc34f2",
+      "rank": 39,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-5f007835",
+      "rank": 40,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-947d4869",
+      "rank": 41,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-426f614a",
+      "rank": 42,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-f6d69aaa",
+      "rank": 43,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-27956542",
+      "rank": 44,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-8fc9037d",
+      "rank": 45,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-5b35da2f",
+      "rank": 46,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-c1c6d06f",
+      "rank": 47,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-592f14fc",
+      "rank": 48,
+      "goal_id": "g-trust",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-93b9ae51",
+      "rank": 49,
+      "goal_id": "g-trust",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-b6d7545e",
+      "rank": 50,
+      "goal_id": "g-trust",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-fc1aafa4",
+      "rank": 51,
+      "goal_id": "g-trust",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-2b55a99f",
+      "rank": 52,
+      "goal_id": "g-trust",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-e970044a",
+      "rank": 53,
+      "goal_id": "g-trust",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-58ea8df3",
+      "rank": 54,
+      "goal_id": "g-trust",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-485d185d",
+      "rank": 55,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-7eefbd72",
+      "rank": 56,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-56ed3456",
+      "rank": 57,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-9e04747d",
+      "rank": 58,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-e321229f",
+      "rank": 59,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-0b3a81e6",
+      "rank": 60,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-2c7a2f1e",
+      "rank": 61,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-d0d7ab2e",
+      "rank": 62,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-8b2475af",
+      "rank": 63,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-ed931467",
+      "rank": 64,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-3d848957",
+      "rank": 65,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-72c55cae",
+      "rank": 66,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-21f49a9e",
+      "rank": 67,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-39a5c4ae",
+      "rank": 68,
+      "goal_id": "g-desk",
+      "milestone_id": "m-flow",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-c24600bb",
+      "rank": 69,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-873fb7a6",
+      "rank": 70,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-f75277fd",
+      "rank": 71,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-10a2b061",
+      "rank": 72,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-b3a29bb1",
+      "rank": 73,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-25ff4dda",
+      "rank": 74,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-892f8a4f",
+      "rank": 75,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-d9f02391",
+      "rank": 76,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "rid": "S-cd4463f3",
+      "rank": 77,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-796ddcb3",
+      "rank": 78,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-fc3729f4",
+      "rank": 79,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-34356641",
+      "rank": 80,
+      "goal_id": "g-envelope",
+      "milestone_id": "m-format",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-75b0c3d7",
+      "rank": 81,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-079c0655",
+      "rank": 82,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-ca67769a",
+      "rank": 83,
+      "goal_id": "g-desk",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-70d49ee2",
+      "rank": 84,
+      "goal_id": "g-trust",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-5a455334",
+      "rank": 85,
+      "goal_id": "g-trust",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "rid": "S-00b5968f",
+      "rank": 86,
+      "goal_id": "g-trust",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    },
+    {
+      "rid": "S-f2b00280",
+      "rank": 87,
+      "goal_id": "g-trust",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 450,
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "rid": "S-d639a435",
+      "rank": 88,
+      "goal_id": "g-trust",
+      "milestone_id": "m-desk",
+      "sprint_id": "C-1",
+      "token_estimate": 100000,
+      "time_estimate_secs": 180,
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    }
+  ],
+  "epics": [
+    {
+      "name": "lifecycle",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "award",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "compose",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "conformance",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "desk",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "hash",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "archive",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "itar",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "shell",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "packet",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "quote",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "role",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "schema",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "docs",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    },
+    {
+      "name": "trust",
+      "token_estimate": 0,
+      "backend": "",
+      "model": ""
+    }
+  ],
+  "pool": [
+    {
+      "backend": "qwen",
+      "model": "qwen3.8:27b-mlx"
+    },
+    {
+      "backend": "grok",
+      "model": "grok-4"
+    },
+    {
+      "backend": "claude",
+      "model": "claude-sonnet-4-5"
+    },
+    {
+      "backend": "codex",
+      "model": "gpt-5-codex"
+    }
+  ],
+  "prefer": "balanced"
+}

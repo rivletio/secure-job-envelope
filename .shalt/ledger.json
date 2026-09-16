@@ -1,0 +1,2752 @@
+{
+  "generated_at": "2026-09-16T15:36:20Z",
+  "mutation": null,
+  "regressions": [],
+  "scenarios": {
+    "S-00b5968f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "trust",
+      "failure": null,
+      "feature": "Trust page and local audit log",
+      "feature_file": "trust-audit.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:f557343456ca7c32154d77afe1715f43"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 21,
+      "mutants_killed": null,
+      "name": "Audit lists newest first after desk activity",
+      "rid": "S-00b5968f",
+      "spec_hash": "sha256:f557343456ca7c32154d77afe1715f43",
+      "status": "pending",
+      "tags": [
+        "@rid:S-00b5968f",
+        "@epic:trust"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-079c0655": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "docs",
+      "failure": null,
+      "feature": "Spec documentation page",
+      "feature_file": "spec-page.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:64338ba5e9d53cfcdf11113c99e7bebb"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 14,
+      "mutants_killed": null,
+      "name": "Conformance table lists L0 through L3",
+      "rid": "S-079c0655",
+      "spec_hash": "sha256:64338ba5e9d53cfcdf11113c99e7bebb",
+      "status": "pending",
+      "tags": [
+        "@rid:S-079c0655",
+        "@epic:docs"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-0b3a81e6": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "packet",
+      "failure": null,
+      "feature": "View a packet on the desk",
+      "feature_file": "packet-view.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:ffa7b15449b69ac22ce4960387145a8b"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 15,
+      "mutants_killed": null,
+      "name": "L0 weldment shows quoteable body and no bound quotes",
+      "rid": "S-0b3a81e6",
+      "spec_hash": "sha256:ffa7b15449b69ac22ce4960387145a8b",
+      "status": "pending",
+      "tags": [
+        "@rid:S-0b3a81e6",
+        "@epic:packet"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-10a2b061": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "role",
+      "failure": null,
+      "feature": "Buyer and seller role switch",
+      "feature_file": "role.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:8414aac0fd08dfc966653bc726c0e66c"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 26,
+      "mutants_killed": null,
+      "name": "Primary nav is always available",
+      "rid": "S-10a2b061",
+      "spec_hash": "sha256:8414aac0fd08dfc966653bc726c0e66c",
+      "status": "pending",
+      "tags": [
+        "@rid:S-10a2b061",
+        "@epic:role"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-1944528f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "lifecycle",
+      "failure": null,
+      "feature": "Amend revision and lock executable packets",
+      "feature_file": "amend-lock.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:30718b49cf7e0ce6fde7725f7bdf7e16"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 7,
+      "mutants_killed": null,
+      "name": "Amend bumps revision and drops bound quotes to stale",
+      "rid": "S-1944528f",
+      "spec_hash": "sha256:30718b49cf7e0ce6fde7725f7bdf7e16",
+      "status": "pending",
+      "tags": [
+        "@rid:S-1944528f",
+        "@epic:lifecycle"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-21f49a9e": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "quote",
+      "failure": null,
+      "feature": "Bind a structured quote to a packet hash",
+      "feature_file": "quote.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:d7ea7fed1159a25084e890a9fcfeb950"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 44,
+      "mutants_killed": null,
+      "name": "Same seller cannot place a second quote on the same revision",
+      "rid": "S-21f49a9e",
+      "spec_hash": "sha256:d7ea7fed1159a25084e890a9fcfeb950",
+      "status": "pending",
+      "tags": [
+        "@rid:S-21f49a9e",
+        "@epic:quote"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-25ff4dda": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:2bde976fc0253d7d88825c1570018c43"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 11,
+      "mutants_killed": null,
+      "name": "Packet id must match pkt_ style token",
+      "rid": "S-25ff4dda",
+      "spec_hash": "sha256:2bde976fc0253d7d88825c1570018c43",
+      "status": "pending",
+      "tags": [
+        "@rid:S-25ff4dda",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-27956542": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:9f6d45b58f7ff4ff1b48f9eb5471e0f9"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 57,
+      "mutants_killed": null,
+      "name": "META packet_hash mismatch is rejected",
+      "rid": "S-27956542",
+      "spec_hash": "sha256:9f6d45b58f7ff4ff1b48f9eb5471e0f9",
+      "status": "pending",
+      "tags": [
+        "@rid:S-27956542",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-2b55a99f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "itar",
+      "failure": null,
+      "feature": "ITAR self-declaration guards",
+      "feature_file": "itar.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:2947ea5da4cf582ee05e60f7918b2670"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 41,
+      "mutants_killed": null,
+      "name": "Cancel ITAR import leaves the desk unchanged",
+      "rid": "S-2b55a99f",
+      "spec_hash": "sha256:2947ea5da4cf582ee05e60f7918b2670",
+      "status": "pending",
+      "tags": [
+        "@rid:S-2b55a99f",
+        "@epic:itar"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-2b9028c4": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "hash",
+      "failure": null,
+      "feature": "Content-addressed packet hash",
+      "feature_file": "hash.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:8f21d8fbccf52fe421ae121918ac7a67"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 54,
+      "mutants_killed": null,
+      "name": "Non-finite and out-of-range numbers are refused by canonicalization",
+      "rid": "S-2b9028c4",
+      "spec_hash": "sha256:8f21d8fbccf52fe421ae121918ac7a67",
+      "status": "pending",
+      "tags": [
+        "@rid:S-2b9028c4",
+        "@epic:hash"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-2c7a2f1e": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "packet",
+      "failure": null,
+      "feature": "View a packet on the desk",
+      "feature_file": "packet-view.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:9bcb24784629758623417825d5fcc4c0"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 26,
+      "mutants_killed": null,
+      "name": "L1 bracket lists two quotes bound to the current hash",
+      "rid": "S-2c7a2f1e",
+      "spec_hash": "sha256:9bcb24784629758623417825d5fcc4c0",
+      "status": "pending",
+      "tags": [
+        "@rid:S-2c7a2f1e",
+        "@epic:packet"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-2f13412c": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:637ccbd332c26000a6969965ba795e7f"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 10,
+      "mutants_killed": null,
+      "name": "Export rivpkt zip downloads the archive and audits",
+      "rid": "S-2f13412c",
+      "spec_hash": "sha256:637ccbd332c26000a6969965ba795e7f",
+      "status": "pending",
+      "tags": [
+        "@rid:S-2f13412c",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-31b13e28": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "compose",
+      "failure": null,
+      "feature": "Compose a new L0 packet",
+      "feature_file": "compose.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:63b6a55e40615b387e2069c5e9c4b5a4"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 20,
+      "mutants_killed": null,
+      "name": "Draft missing material stays Draft",
+      "rid": "S-31b13e28",
+      "spec_hash": "sha256:63b6a55e40615b387e2069c5e9c4b5a4",
+      "status": "pending",
+      "tags": [
+        "@rid:S-31b13e28",
+        "@epic:compose"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-34356641": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:a5601b971f633b1e1cdbfbe701a3b91b"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 50,
+      "mutants_killed": null,
+      "name": "Seed packets all parse and bind",
+      "rid": "S-34356641",
+      "spec_hash": "sha256:a5601b971f633b1e1cdbfbe701a3b91b",
+      "status": "pending",
+      "tags": [
+        "@rid:S-34356641",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-34a0777b": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "hash",
+      "failure": null,
+      "feature": "Content-addressed packet hash",
+      "feature_file": "hash.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:6fcdc328bed4b343a6713a6664b2fc1c"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 7,
+      "mutants_killed": null,
+      "name": "Golden quoteable body matches the published vector",
+      "rid": "S-34a0777b",
+      "spec_hash": "sha256:6fcdc328bed4b343a6713a6664b2fc1c",
+      "status": "pending",
+      "tags": [
+        "@rid:S-34a0777b",
+        "@epic:hash"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-39a5c4ae": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "quote",
+      "failure": null,
+      "feature": "Bind a structured quote to a packet hash",
+      "feature_file": "quote.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:72dfe4c1d40225373527a13f01260fec"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 50,
+      "mutants_killed": null,
+      "name": "Quote on a Draft packet is not offered",
+      "rid": "S-39a5c4ae",
+      "spec_hash": "sha256:72dfe4c1d40225373527a13f01260fec",
+      "status": "pending",
+      "tags": [
+        "@rid:S-39a5c4ae",
+        "@epic:quote"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-3c28a4e7": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "award",
+      "failure": null,
+      "feature": "Award a bound quote and make the packet executable",
+      "feature_file": "award.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:0f647366098dd359e2fabe0e8582ce9a"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 31,
+      "mutants_killed": null,
+      "name": "Award requires a complete ship-to",
+      "rid": "S-3c28a4e7",
+      "spec_hash": "sha256:0f647366098dd359e2fabe0e8582ce9a",
+      "status": "pending",
+      "tags": [
+        "@rid:S-3c28a4e7",
+        "@epic:award"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-3d08634f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "lifecycle",
+      "failure": null,
+      "feature": "Amend revision and lock executable packets",
+      "feature_file": "amend-lock.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:ea3667da5474e5e1388a2a2b4c46e48c"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 33,
+      "mutants_killed": null,
+      "name": "Executable packet refuses new quotes",
+      "rid": "S-3d08634f",
+      "spec_hash": "sha256:ea3667da5474e5e1388a2a2b4c46e48c",
+      "status": "pending",
+      "tags": [
+        "@rid:S-3d08634f",
+        "@epic:lifecycle"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-3d848957": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "quote",
+      "failure": null,
+      "feature": "Bind a structured quote to a packet hash",
+      "feature_file": "quote.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:7a843bfc2e2fb326051854eb8d6f716e"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 20,
+      "mutants_killed": null,
+      "name": "Bind quote promotes packet from L0 to L1",
+      "rid": "S-3d848957",
+      "spec_hash": "sha256:7a843bfc2e2fb326051854eb8d6f716e",
+      "status": "pending",
+      "tags": [
+        "@rid:S-3d848957",
+        "@epic:quote"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-4006e8e8": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "desk",
+      "failure": null,
+      "feature": "Desk packet list",
+      "feature_file": "desk.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:5e23dd85cb6bb39f5052ebcbd668027d"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 10,
+      "mutants_killed": null,
+      "name": "Seed desk shows four packets across conformance levels",
+      "rid": "S-4006e8e8",
+      "spec_hash": "sha256:5e23dd85cb6bb39f5052ebcbd668027d",
+      "status": "pending",
+      "tags": [
+        "@rid:S-4006e8e8",
+        "@epic:desk"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-426f614a": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:2c2ba2ba3c00a89343c6eeb27a132252"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 45,
+      "mutants_killed": null,
+      "name": "Zip with path traversal is rejected",
+      "rid": "S-426f614a",
+      "spec_hash": "sha256:2c2ba2ba3c00a89343c6eeb27a132252",
+      "status": "pending",
+      "tags": [
+        "@rid:S-426f614a",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-485d185d": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "shell",
+      "failure": null,
+      "feature": "App shell navigation",
+      "feature_file": "navigation.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:fdd9e2a9338737ef2be5a30a3e5a34d4"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 6,
+      "mutants_killed": null,
+      "name": "Skip link targets main desk content",
+      "rid": "S-485d185d",
+      "spec_hash": "sha256:fdd9e2a9338737ef2be5a30a3e5a34d4",
+      "status": "pending",
+      "tags": [
+        "@rid:S-485d185d",
+        "@epic:shell"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-56ed3456": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "shell",
+      "failure": null,
+      "feature": "App shell navigation",
+      "feature_file": "navigation.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:bc492db2eef341bbba4fe040ca56cf1a"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 17,
+      "mutants_killed": null,
+      "name": "Active nav reflects the current path",
+      "rid": "S-56ed3456",
+      "spec_hash": "sha256:bc492db2eef341bbba4fe040ca56cf1a",
+      "status": "pending",
+      "tags": [
+        "@rid:S-56ed3456",
+        "@epic:shell"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-58ea8df3": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "itar",
+      "failure": null,
+      "feature": "ITAR self-declaration guards",
+      "feature_file": "itar.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:d058c7d292dc0e1cc13ddde71c66c0b1"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 56,
+      "mutants_killed": null,
+      "name": "Packet schema rejects ITAR packet carrying a non-ITAR seller quote",
+      "rid": "S-58ea8df3",
+      "spec_hash": "sha256:d058c7d292dc0e1cc13ddde71c66c0b1",
+      "status": "pending",
+      "tags": [
+        "@rid:S-58ea8df3",
+        "@epic:itar"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-592f14fc": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "itar",
+      "failure": null,
+      "feature": "ITAR self-declaration guards",
+      "feature_file": "itar.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:1740e88c0b79037282686fbf0ed44687"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 7,
+      "mutants_killed": null,
+      "name": "Non-ITAR seller cannot quote an ITAR packet",
+      "rid": "S-592f14fc",
+      "spec_hash": "sha256:1740e88c0b79037282686fbf0ed44687",
+      "status": "pending",
+      "tags": [
+        "@rid:S-592f14fc",
+        "@epic:itar"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-5a455334": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "trust",
+      "failure": null,
+      "feature": "Trust page and local audit log",
+      "feature_file": "trust-audit.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:a33f1d60e13a470f281092d3df17a761"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 14,
+      "mutants_killed": null,
+      "name": "Empty audit shows a placeholder",
+      "rid": "S-5a455334",
+      "spec_hash": "sha256:a33f1d60e13a470f281092d3df17a761",
+      "status": "pending",
+      "tags": [
+        "@rid:S-5a455334",
+        "@epic:trust"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-5b35da2f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:9bb81ed3a48ab3964d54dbf917d4d1a0"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 69,
+      "mutants_killed": null,
+      "name": "File larger than 2 MB is rejected",
+      "rid": "S-5b35da2f",
+      "spec_hash": "sha256:9bb81ed3a48ab3964d54dbf917d4d1a0",
+      "status": "pending",
+      "tags": [
+        "@rid:S-5b35da2f",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-5f007835": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:f0ec899e724c756fcab1ea7710c60490"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 32,
+      "mutants_killed": null,
+      "name": "Open plain packet JSON from the desk",
+      "rid": "S-5f007835",
+      "spec_hash": "sha256:f0ec899e724c756fcab1ea7710c60490",
+      "status": "pending",
+      "tags": [
+        "@rid:S-5f007835",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-6428f647": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "lifecycle",
+      "failure": null,
+      "feature": "Amend revision and lock executable packets",
+      "feature_file": "amend-lock.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:0620d2bb5beb67f19ffead70b55f084f"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 25,
+      "mutants_killed": null,
+      "name": "Executable packet ignores amend",
+      "rid": "S-6428f647",
+      "spec_hash": "sha256:0620d2bb5beb67f19ffead70b55f084f",
+      "status": "pending",
+      "tags": [
+        "@rid:S-6428f647",
+        "@epic:lifecycle"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-661e8d23": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "desk",
+      "failure": null,
+      "feature": "Desk packet list",
+      "feature_file": "desk.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:fa9e4cbea8d73f5dbbe5044132b9c34a"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 23,
+      "mutants_killed": null,
+      "name": "Filter desk to L2 executable packets",
+      "rid": "S-661e8d23",
+      "spec_hash": "sha256:fa9e4cbea8d73f5dbbe5044132b9c34a",
+      "status": "pending",
+      "tags": [
+        "@rid:S-661e8d23",
+        "@epic:desk"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-70d49ee2": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "trust",
+      "failure": null,
+      "feature": "Trust page and local audit log",
+      "feature_file": "trust-audit.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:ebefc1b5dc0d348371841113fccdd3a4"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 7,
+      "mutants_killed": null,
+      "name": "Trust page explains the local boundary",
+      "rid": "S-70d49ee2",
+      "spec_hash": "sha256:ebefc1b5dc0d348371841113fccdd3a4",
+      "status": "pending",
+      "tags": [
+        "@rid:S-70d49ee2",
+        "@epic:trust"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-72c55cae": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "quote",
+      "failure": null,
+      "feature": "Bind a structured quote to a packet hash",
+      "feature_file": "quote.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:7d1dd10d62da7db4495e6a6cd8fd80e3"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 35,
+      "mutants_killed": null,
+      "name": "Cannot bind a quote with no priced lines",
+      "rid": "S-72c55cae",
+      "spec_hash": "sha256:7d1dd10d62da7db4495e6a6cd8fd80e3",
+      "status": "pending",
+      "tags": [
+        "@rid:S-72c55cae",
+        "@epic:quote"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-75b0c3d7": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "docs",
+      "failure": null,
+      "feature": "Spec documentation page",
+      "feature_file": "spec-page.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:caa4e1bfdfd0ed447e00deb541d07fc5"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 6,
+      "mutants_killed": null,
+      "name": "Spec page states media type and hash rule",
+      "rid": "S-75b0c3d7",
+      "spec_hash": "sha256:caa4e1bfdfd0ed447e00deb541d07fc5",
+      "status": "pending",
+      "tags": [
+        "@rid:S-75b0c3d7",
+        "@epic:docs"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-796ddcb3": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:011fa9edcdaf1f5b1297a7aa433b23b2"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 37,
+      "mutants_killed": null,
+      "name": "Quote valid_until must be after created_at",
+      "rid": "S-796ddcb3",
+      "spec_hash": "sha256:011fa9edcdaf1f5b1297a7aa433b23b2",
+      "status": "pending",
+      "tags": [
+        "@rid:S-796ddcb3",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-7a1d7a4a": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "desk",
+      "failure": null,
+      "feature": "Desk packet list",
+      "feature_file": "desk.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:768bd003ec14f89f7ba2186c53c2ff2c"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 49,
+      "mutants_killed": null,
+      "name": "Buyer sees New packet; seller sees Spec instead",
+      "rid": "S-7a1d7a4a",
+      "spec_hash": "sha256:768bd003ec14f89f7ba2186c53c2ff2c",
+      "status": "pending",
+      "tags": [
+        "@rid:S-7a1d7a4a",
+        "@epic:desk"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-7cd6dc95": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "award",
+      "failure": null,
+      "feature": "Award a bound quote and make the packet executable",
+      "feature_file": "award.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:cfa0179b9900a5dc5ce45065d680587d"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 74,
+      "mutants_killed": null,
+      "name": "Award is refused when the packet is already executable",
+      "rid": "S-7cd6dc95",
+      "spec_hash": "sha256:cfa0179b9900a5dc5ce45065d680587d",
+      "status": "pending",
+      "tags": [
+        "@rid:S-7cd6dc95",
+        "@epic:award"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-7eefbd72": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "shell",
+      "failure": null,
+      "feature": "App shell navigation",
+      "feature_file": "navigation.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:67e2f41a037da2e49b4045ef207a7fe1"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 11,
+      "mutants_killed": null,
+      "name": "Brand returns home",
+      "rid": "S-7eefbd72",
+      "spec_hash": "sha256:67e2f41a037da2e49b4045ef207a7fe1",
+      "status": "pending",
+      "tags": [
+        "@rid:S-7eefbd72",
+        "@epic:shell"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-81f75882": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:e00527f76f6969d20db5578ac424c07f"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 18,
+      "mutants_killed": null,
+      "name": "Export JSON downloads packet json",
+      "rid": "S-81f75882",
+      "spec_hash": "sha256:e00527f76f6969d20db5578ac424c07f",
+      "status": "pending",
+      "tags": [
+        "@rid:S-81f75882",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-8567ecbe": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "award",
+      "failure": null,
+      "feature": "Award a bound quote and make the packet executable",
+      "feature_file": "award.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:fc89c458a32bf5c78accf2000507279e"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 41,
+      "mutants_killed": null,
+      "name": "Award requires at least one op",
+      "rid": "S-8567ecbe",
+      "spec_hash": "sha256:fc89c458a32bf5c78accf2000507279e",
+      "status": "pending",
+      "tags": [
+        "@rid:S-8567ecbe",
+        "@epic:award"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-873fb7a6": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "role",
+      "failure": null,
+      "feature": "Buyer and seller role switch",
+      "feature_file": "role.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:b95c75baa22f6b34691c5e3d9326e57e"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 13,
+      "mutants_killed": null,
+      "name": "Switch to seller reveals quoting-as shop picker",
+      "rid": "S-873fb7a6",
+      "spec_hash": "sha256:b95c75baa22f6b34691c5e3d9326e57e",
+      "status": "pending",
+      "tags": [
+        "@rid:S-873fb7a6",
+        "@epic:role"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-89278d6f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "desk",
+      "failure": null,
+      "feature": "Desk packet list",
+      "feature_file": "desk.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:4801687016dd7c37136333157ae94640"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 16,
+      "mutants_killed": null,
+      "name": "Filter desk to L0 quoteable packets",
+      "rid": "S-89278d6f",
+      "spec_hash": "sha256:4801687016dd7c37136333157ae94640",
+      "status": "pending",
+      "tags": [
+        "@rid:S-89278d6f",
+        "@epic:desk"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-892f8a4f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:248ea1294d472fc0f2532446bc30e588"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 16,
+      "mutants_killed": null,
+      "name": "Quote rejects negative unit price",
+      "rid": "S-892f8a4f",
+      "spec_hash": "sha256:248ea1294d472fc0f2532446bc30e588",
+      "status": "pending",
+      "tags": [
+        "@rid:S-892f8a4f",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-89a6df2d": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "conformance",
+      "failure": null,
+      "feature": "Packet conformance levels",
+      "feature_file": "conformance.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:0b5c88d4d0dd37b34b94e63a32cfc043"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 40,
+      "mutants_killed": null,
+      "name": "Executable L2 has award, ops, and ship-to",
+      "rid": "S-89a6df2d",
+      "spec_hash": "sha256:0b5c88d4d0dd37b34b94e63a32cfc043",
+      "status": "pending",
+      "tags": [
+        "@rid:S-89a6df2d",
+        "@epic:conformance"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-8b2475af": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "packet",
+      "failure": null,
+      "feature": "View a packet on the desk",
+      "feature_file": "packet-view.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:5887c1cfefba4a89bba986b8655b1a4b"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 43,
+      "mutants_killed": null,
+      "name": "Sidebar checklist advances with level",
+      "rid": "S-8b2475af",
+      "spec_hash": "sha256:5887c1cfefba4a89bba986b8655b1a4b",
+      "status": "pending",
+      "tags": [
+        "@rid:S-8b2475af",
+        "@epic:packet"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-8c76ba69": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "compose",
+      "failure": null,
+      "feature": "Compose a new L0 packet",
+      "feature_file": "compose.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:4e1f86d504749abe6ff8c49c7dd8e3b0"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 7,
+      "mutants_killed": null,
+      "name": "Live draft is L0 when material and qty are filled",
+      "rid": "S-8c76ba69",
+      "spec_hash": "sha256:4e1f86d504749abe6ff8c49c7dd8e3b0",
+      "status": "pending",
+      "tags": [
+        "@rid:S-8c76ba69",
+        "@epic:compose"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-8cf485e5": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "lifecycle",
+      "failure": null,
+      "feature": "Amend revision and lock executable packets",
+      "feature_file": "amend-lock.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:2329b55e3a138c30a3c721caab9b4ef4"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 40,
+      "mutants_killed": null,
+      "name": "Upserting over an executable packet is refused",
+      "rid": "S-8cf485e5",
+      "spec_hash": "sha256:2329b55e3a138c30a3c721caab9b4ef4",
+      "status": "pending",
+      "tags": [
+        "@rid:S-8cf485e5",
+        "@epic:lifecycle"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-8fc9037d": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:a333c6129a047aab92cb9f4a25365bea"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 63,
+      "mutants_killed": null,
+      "name": "META packet_id mismatch is rejected",
+      "rid": "S-8fc9037d",
+      "spec_hash": "sha256:a333c6129a047aab92cb9f4a25365bea",
+      "status": "pending",
+      "tags": [
+        "@rid:S-8fc9037d",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-93b9ae51": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "itar",
+      "failure": null,
+      "feature": "ITAR self-declaration guards",
+      "feature_file": "itar.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:e1d93bc708b4c2a4f8e808ab8bd75582"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 17,
+      "mutants_killed": null,
+      "name": "ITAR-registered seller can quote an ITAR packet",
+      "rid": "S-93b9ae51",
+      "spec_hash": "sha256:e1d93bc708b4c2a4f8e808ab8bd75582",
+      "status": "pending",
+      "tags": [
+        "@rid:S-93b9ae51",
+        "@epic:itar"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-947d4869": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:a1440e04048036b2052e083902a78114"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 39,
+      "mutants_killed": null,
+      "name": "Zip without META.json is rejected",
+      "rid": "S-947d4869",
+      "spec_hash": "sha256:a1440e04048036b2052e083902a78114",
+      "status": "pending",
+      "tags": [
+        "@rid:S-947d4869",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-9b54f554": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "hash",
+      "failure": null,
+      "feature": "Content-addressed packet hash",
+      "feature_file": "hash.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:e15f436dcf169e343b126cfc7f21260c"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 42,
+      "mutants_killed": null,
+      "name": "Buyer contact is hashed when present",
+      "rid": "S-9b54f554",
+      "spec_hash": "sha256:e15f436dcf169e343b126cfc7f21260c",
+      "status": "pending",
+      "tags": [
+        "@rid:S-9b54f554",
+        "@epic:hash"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-9b6c36d9": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "conformance",
+      "failure": null,
+      "feature": "Packet conformance levels",
+      "feature_file": "conformance.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:8d0adeec01b4e252e323d967ac1f1fbd"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 56,
+      "mutants_killed": null,
+      "name": "Non-ITAR seller quote is excluded from bound set on an ITAR packet",
+      "rid": "S-9b6c36d9",
+      "spec_hash": "sha256:8d0adeec01b4e252e323d967ac1f1fbd",
+      "status": "pending",
+      "tags": [
+        "@rid:S-9b6c36d9",
+        "@epic:conformance"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-9e04747d": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "shell",
+      "failure": null,
+      "feature": "App shell navigation",
+      "feature_file": "navigation.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:3a77b363cd1142e0d902b6b369021b17"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 23,
+      "mutants_killed": null,
+      "name": "Unknown packet still renders the shell",
+      "rid": "S-9e04747d",
+      "spec_hash": "sha256:3a77b363cd1142e0d902b6b369021b17",
+      "status": "pending",
+      "tags": [
+        "@rid:S-9e04747d",
+        "@epic:shell"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-a3ab4c9d": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "conformance",
+      "failure": null,
+      "feature": "Packet conformance levels",
+      "feature_file": "conformance.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:bfcb3269342e40e0fae297e1dd649d11"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 48,
+      "mutants_killed": null,
+      "name": "Bound quotes must match the current packet hash",
+      "rid": "S-a3ab4c9d",
+      "spec_hash": "sha256:bfcb3269342e40e0fae297e1dd649d11",
+      "status": "pending",
+      "tags": [
+        "@rid:S-a3ab4c9d",
+        "@epic:conformance"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-a3fc34f2": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:5ab137256437ca7e9473f063784f53e1"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 24,
+      "mutants_killed": null,
+      "name": "Round-trip zip preserves packet id and hash",
+      "rid": "S-a3fc34f2",
+      "spec_hash": "sha256:5ab137256437ca7e9473f063784f53e1",
+      "status": "pending",
+      "tags": [
+        "@rid:S-a3fc34f2",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-a493899f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "award",
+      "failure": null,
+      "feature": "Award a bound quote and make the packet executable",
+      "feature_file": "award.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:af57d02797cdccc55a5b8bf2e17ad977"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 67,
+      "mutants_killed": null,
+      "name": "Seller role does not show Award buttons",
+      "rid": "S-a493899f",
+      "spec_hash": "sha256:af57d02797cdccc55a5b8bf2e17ad977",
+      "status": "pending",
+      "tags": [
+        "@rid:S-a493899f",
+        "@epic:award"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-a9928cd6": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "desk",
+      "failure": null,
+      "feature": "Desk packet list",
+      "feature_file": "desk.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:204b5cfd8d660416c8ce7f44e7b98969"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 29,
+      "mutants_killed": null,
+      "name": "Empty filter shows a recovery hint",
+      "rid": "S-a9928cd6",
+      "spec_hash": "sha256:204b5cfd8d660416c8ce7f44e7b98969",
+      "status": "pending",
+      "tags": [
+        "@rid:S-a9928cd6",
+        "@epic:desk"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-addded0e": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "compose",
+      "failure": null,
+      "feature": "Compose a new L0 packet",
+      "feature_file": "compose.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:cacfa435c3fa647c8674643084b2e842"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 54,
+      "mutants_killed": null,
+      "name": "Cannot seal a Draft packet",
+      "rid": "S-addded0e",
+      "spec_hash": "sha256:cacfa435c3fa647c8674643084b2e842",
+      "status": "pending",
+      "tags": [
+        "@rid:S-addded0e",
+        "@epic:compose"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-b04f169e": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "award",
+      "failure": null,
+      "feature": "Award a bound quote and make the packet executable",
+      "feature_file": "award.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:b6552a4e47909dad856ccc117be6bd06"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 52,
+      "mutants_killed": null,
+      "name": "Cannot award an expired quote",
+      "rid": "S-b04f169e",
+      "spec_hash": "sha256:b6552a4e47909dad856ccc117be6bd06",
+      "status": "pending",
+      "tags": [
+        "@rid:S-b04f169e",
+        "@epic:award"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-b1b7c6e3": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "hash",
+      "failure": null,
+      "feature": "Content-addressed packet hash",
+      "feature_file": "hash.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:58642a037ab64f0129b235dab09a3a8c"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 48,
+      "mutants_killed": null,
+      "name": "Adding quotes does not change packet_hash",
+      "rid": "S-b1b7c6e3",
+      "spec_hash": "sha256:58642a037ab64f0129b235dab09a3a8c",
+      "status": "pending",
+      "tags": [
+        "@rid:S-b1b7c6e3",
+        "@epic:hash"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-b3a29bb1": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:ec7723d05cfe1625e303f38ed6cd6082"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 6,
+      "mutants_killed": null,
+      "name": "Packet requires rivlet-packet/0.0.1 spec and id shape",
+      "rid": "S-b3a29bb1",
+      "spec_hash": "sha256:ec7723d05cfe1625e303f38ed6cd6082",
+      "status": "pending",
+      "tags": [
+        "@rid:S-b3a29bb1",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-b6290ddd": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "desk",
+      "failure": null,
+      "feature": "Desk packet list",
+      "feature_file": "desk.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:4ed89e0005ef3dd0ab5bdcc4005919bf"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 35,
+      "mutants_killed": null,
+      "name": "Packet card links to the packet page",
+      "rid": "S-b6290ddd",
+      "spec_hash": "sha256:4ed89e0005ef3dd0ab5bdcc4005919bf",
+      "status": "pending",
+      "tags": [
+        "@rid:S-b6290ddd",
+        "@epic:desk"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-b6d7545e": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "itar",
+      "failure": null,
+      "feature": "ITAR self-declaration guards",
+      "feature_file": "itar.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:d739673dbbb6eea48bfa364c0fe29402"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 26,
+      "mutants_killed": null,
+      "name": "Cannot award an ITAR packet to a non-ITAR seller quote",
+      "rid": "S-b6d7545e",
+      "spec_hash": "sha256:d739673dbbb6eea48bfa364c0fe29402",
+      "status": "pending",
+      "tags": [
+        "@rid:S-b6d7545e",
+        "@epic:itar"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-c1c6d06f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:4e4acd78c4d9e23dc44b6c46f4a5755c"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 75,
+      "mutants_killed": null,
+      "name": "Import will not overwrite a locked L2 packet",
+      "rid": "S-c1c6d06f",
+      "spec_hash": "sha256:4e4acd78c4d9e23dc44b6c46f4a5755c",
+      "status": "pending",
+      "tags": [
+        "@rid:S-c1c6d06f",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-c24600bb": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "role",
+      "failure": null,
+      "feature": "Buyer and seller role switch",
+      "feature_file": "role.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:3a67d96606f18827322ae9c8eaadacf5"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 7,
+      "mutants_killed": null,
+      "name": "Default role is buyer",
+      "rid": "S-c24600bb",
+      "spec_hash": "sha256:3a67d96606f18827322ae9c8eaadacf5",
+      "status": "pending",
+      "tags": [
+        "@rid:S-c24600bb",
+        "@epic:role"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-c7c5b590": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "award",
+      "failure": null,
+      "feature": "Award a bound quote and make the packet executable",
+      "feature_file": "award.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:7823254c2fd59606447a02e839bdba96"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 60,
+      "mutants_killed": null,
+      "name": "Cannot award a quote with no unit price at target qty",
+      "rid": "S-c7c5b590",
+      "spec_hash": "sha256:7823254c2fd59606447a02e839bdba96",
+      "status": "pending",
+      "tags": [
+        "@rid:S-c7c5b590",
+        "@epic:award"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-ca67769a": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "docs",
+      "failure": null,
+      "feature": "Spec documentation page",
+      "feature_file": "spec-page.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:9274ce92397ce50fbe05d2d5a6ffe6f0"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 24,
+      "mutants_killed": null,
+      "name": "Security section links to Trust",
+      "rid": "S-ca67769a",
+      "spec_hash": "sha256:9274ce92397ce50fbe05d2d5a6ffe6f0",
+      "status": "pending",
+      "tags": [
+        "@rid:S-ca67769a",
+        "@epic:docs"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-ca8a13fd": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "lifecycle",
+      "failure": null,
+      "feature": "Amend revision and lock executable packets",
+      "feature_file": "amend-lock.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:56eacee37f90791f16cba99ec6a42cb0"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 18,
+      "mutants_killed": null,
+      "name": "Stale quote cannot be awarded after amend",
+      "rid": "S-ca8a13fd",
+      "spec_hash": "sha256:56eacee37f90791f16cba99ec6a42cb0",
+      "status": "pending",
+      "tags": [
+        "@rid:S-ca8a13fd",
+        "@epic:lifecycle"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-cd4463f3": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:328844e1f5dd1edbd086be4c58ab49b1"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 30,
+      "mutants_killed": null,
+      "name": "Quote rejects non-finite unit price",
+      "rid": "S-cd4463f3",
+      "spec_hash": "sha256:328844e1f5dd1edbd086be4c58ab49b1",
+      "status": "pending",
+      "tags": [
+        "@rid:S-cd4463f3",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-d0d7ab2e": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "packet",
+      "failure": null,
+      "feature": "View a packet on the desk",
+      "feature_file": "packet-view.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:db168e84872cca24b812d516e4f8c761"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 35,
+      "mutants_killed": null,
+      "name": "L2 enclosure shows executable ship-to and ops",
+      "rid": "S-d0d7ab2e",
+      "spec_hash": "sha256:db168e84872cca24b812d516e4f8c761",
+      "status": "pending",
+      "tags": [
+        "@rid:S-d0d7ab2e",
+        "@epic:packet"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-d1b8a147": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "conformance",
+      "failure": null,
+      "feature": "Packet conformance levels",
+      "feature_file": "conformance.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:832d2b42812a48f98044635201375c5a"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 24,
+      "mutants_killed": null,
+      "name": "Quoteable L0 has material and qty but no bound quote",
+      "rid": "S-d1b8a147",
+      "spec_hash": "sha256:832d2b42812a48f98044635201375c5a",
+      "status": "pending",
+      "tags": [
+        "@rid:S-d1b8a147",
+        "@epic:conformance"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-d3e99edd": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "desk",
+      "failure": null,
+      "feature": "Desk packet list",
+      "feature_file": "desk.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:43532cdaa0f0691ca77fdaf47ae10915"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 42,
+      "mutants_killed": null,
+      "name": "Reset seed replaces every packet and keeps audit",
+      "rid": "S-d3e99edd",
+      "spec_hash": "sha256:43532cdaa0f0691ca77fdaf47ae10915",
+      "status": "pending",
+      "tags": [
+        "@rid:S-d3e99edd",
+        "@epic:desk"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-d639a435": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "trust",
+      "failure": null,
+      "feature": "Trust page and local audit log",
+      "feature_file": "trust-audit.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:0bca0b9280ec4e4aad810efb11881155"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 36,
+      "mutants_killed": null,
+      "name": "Audit retains at most 100 events",
+      "rid": "S-d639a435",
+      "spec_hash": "sha256:0bca0b9280ec4e4aad810efb11881155",
+      "status": "pending",
+      "tags": [
+        "@rid:S-d639a435",
+        "@epic:trust"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-d9f02391": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:349e3a9975578121643462e472632d29"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 23,
+      "mutants_killed": null,
+      "name": "Quote rejects non-uppercase currency",
+      "rid": "S-d9f02391",
+      "spec_hash": "sha256:349e3a9975578121643462e472632d29",
+      "status": "pending",
+      "tags": [
+        "@rid:S-d9f02391",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-e321229f": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "packet",
+      "failure": null,
+      "feature": "View a packet on the desk",
+      "feature_file": "packet-view.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:16620cad5d81a9df5006a2d969575280"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 9,
+      "mutants_killed": null,
+      "name": "Missing packet id shows a not-on-desk message",
+      "rid": "S-e321229f",
+      "spec_hash": "sha256:16620cad5d81a9df5006a2d969575280",
+      "status": "pending",
+      "tags": [
+        "@rid:S-e321229f",
+        "@epic:packet"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-e970044a": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "itar",
+      "failure": null,
+      "feature": "ITAR self-declaration guards",
+      "feature_file": "itar.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:1a30766057bb4c2d7550897c4b4a9c0e"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 48,
+      "mutants_killed": null,
+      "name": "Export of an ITAR packet asks before download",
+      "rid": "S-e970044a",
+      "spec_hash": "sha256:1a30766057bb4c2d7550897c4b4a9c0e",
+      "status": "pending",
+      "tags": [
+        "@rid:S-e970044a",
+        "@epic:itar"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-ec689298": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "conformance",
+      "failure": null,
+      "feature": "Packet conformance levels",
+      "feature_file": "conformance.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:8d3fd02dace0e36fa5596170dd258dcb"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 32,
+      "mutants_killed": null,
+      "name": "Awardable L1 has at least one hash-bound quote",
+      "rid": "S-ec689298",
+      "spec_hash": "sha256:8d3fd02dace0e36fa5596170dd258dcb",
+      "status": "pending",
+      "tags": [
+        "@rid:S-ec689298",
+        "@epic:conformance"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-eccb855a": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "hash",
+      "failure": null,
+      "feature": "Content-addressed packet hash",
+      "feature_file": "hash.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:520a06f2af8990304169fb8e032fcff1"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 35,
+      "mutants_killed": null,
+      "name": "Extra keys on the in-memory packet do not enter the hash",
+      "rid": "S-eccb855a",
+      "spec_hash": "sha256:520a06f2af8990304169fb8e032fcff1",
+      "status": "pending",
+      "tags": [
+        "@rid:S-eccb855a",
+        "@epic:hash"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-ed931467": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "quote",
+      "failure": null,
+      "feature": "Bind a structured quote to a packet hash",
+      "feature_file": "quote.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:e76551403267c50c2ab387a80b32b774"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 12,
+      "mutants_killed": null,
+      "name": "Seller opens quote dialog on an L0 packet",
+      "rid": "S-ed931467",
+      "spec_hash": "sha256:e76551403267c50c2ab387a80b32b774",
+      "status": "pending",
+      "tags": [
+        "@rid:S-ed931467",
+        "@epic:quote"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-ef846a17": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "conformance",
+      "failure": null,
+      "feature": "Packet conformance levels",
+      "feature_file": "conformance.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:cb37922ca36fdcbe8d7a5f41ffd48d11"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 8,
+      "mutants_killed": null,
+      "name": "Missing quoteable field keeps the packet at Draft",
+      "rid": "S-ef846a17",
+      "spec_hash": "sha256:cb37922ca36fdcbe8d7a5f41ffd48d11",
+      "status": "pending",
+      "tags": [
+        "@rid:S-ef846a17",
+        "@epic:conformance"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-f2b00280": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "trust",
+      "failure": null,
+      "feature": "Trust page and local audit log",
+      "feature_file": "trust-audit.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:b563cc8bfb77c26d28a50d7e0d0e0dfd"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 29,
+      "mutants_killed": null,
+      "name": "Export audit downloads JSON",
+      "rid": "S-f2b00280",
+      "spec_hash": "sha256:b563cc8bfb77c26d28a50d7e0d0e0dfd",
+      "status": "pending",
+      "tags": [
+        "@rid:S-f2b00280",
+        "@epic:trust"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-f6d69aaa": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "archive",
+      "failure": null,
+      "feature": "Import and export Rivlet packet archives",
+      "feature_file": "import-export.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:6978b7c454251a31bedc9dbabb8671e6"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 51,
+      "mutants_killed": null,
+      "name": "Zip with unexpected member is rejected",
+      "rid": "S-f6d69aaa",
+      "spec_hash": "sha256:6978b7c454251a31bedc9dbabb8671e6",
+      "status": "pending",
+      "tags": [
+        "@rid:S-f6d69aaa",
+        "@epic:archive"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-f6d7fcdc": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "compose",
+      "failure": null,
+      "feature": "Compose a new L0 packet",
+      "feature_file": "compose.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:9f51ce8c88b60410a41f5b156672b29a"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 63,
+      "mutants_killed": null,
+      "name": "ITAR self-declaration shows a non-compliance notice",
+      "rid": "S-f6d7fcdc",
+      "spec_hash": "sha256:9f51ce8c88b60410a41f5b156672b29a",
+      "status": "pending",
+      "tags": [
+        "@rid:S-f6d7fcdc",
+        "@epic:compose"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-f75277fd": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "role",
+      "failure": null,
+      "feature": "Buyer and seller role switch",
+      "feature_file": "role.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:30e4ceea072a6f83b77d4ad6e02b584f"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 20,
+      "mutants_killed": null,
+      "name": "Seller can change the quoting shop",
+      "rid": "S-f75277fd",
+      "spec_hash": "sha256:30e4ceea072a6f83b77d4ad6e02b584f",
+      "status": "pending",
+      "tags": [
+        "@rid:S-f75277fd",
+        "@epic:role"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-fb69dc1d": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "compose",
+      "failure": null,
+      "feature": "Compose a new L0 packet",
+      "feature_file": "compose.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:12788d6b1eeaa7759be28969a848d0fb"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 32,
+      "mutants_killed": null,
+      "name": "Seal creates an L0 packet and navigates to it",
+      "rid": "S-fb69dc1d",
+      "spec_hash": "sha256:12788d6b1eeaa7759be28969a848d0fb",
+      "status": "pending",
+      "tags": [
+        "@rid:S-fb69dc1d",
+        "@epic:compose"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-fc1aafa4": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "itar",
+      "failure": null,
+      "feature": "ITAR self-declaration guards",
+      "feature_file": "itar.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:d04371af579f942b3c293a994a4bcf07"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 32,
+      "mutants_killed": null,
+      "name": "Import of an ITAR packet asks for confirmation",
+      "rid": "S-fc1aafa4",
+      "spec_hash": "sha256:d04371af579f942b3c293a994a4bcf07",
+      "status": "pending",
+      "tags": [
+        "@rid:S-fc1aafa4",
+        "@epic:itar"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-fc3729f4": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "schema",
+      "failure": null,
+      "feature": "Packet and quote schema validation",
+      "feature_file": "schema.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:9882dd5fab2d07fc4258c0351339acab"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 44,
+      "mutants_killed": null,
+      "name": "Packet JSON larger than 512 KiB is refused",
+      "rid": "S-fc3729f4",
+      "spec_hash": "sha256:9882dd5fab2d07fc4258c0351339acab",
+      "status": "pending",
+      "tags": [
+        "@rid:S-fc3729f4",
+        "@epic:schema"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-fc5bad61": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "hash",
+      "failure": null,
+      "feature": "Content-addressed packet hash",
+      "feature_file": "hash.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:89aaaade51d9775d2e97fdcab2bb6403"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 26,
+      "mutants_killed": null,
+      "name": "Canonical JSON sorts keys and uses JS number encoding",
+      "rid": "S-fc5bad61",
+      "spec_hash": "sha256:89aaaade51d9775d2e97fdcab2bb6403",
+      "status": "pending",
+      "tags": [
+        "@rid:S-fc5bad61",
+        "@epic:hash"
+      ],
+      "verified_spec_hash": ""
+    },
+    "S-ffb48ccf": {
+      "actor": "",
+      "benefit": "",
+      "blind_spots": null,
+      "capability": "",
+      "epic": "award",
+      "failure": null,
+      "feature": "Award a bound quote and make the packet executable",
+      "feature_file": "award.feature",
+      "history": [
+        {
+          "at": "2026-09-16T04:18:31Z",
+          "event": "added",
+          "spec_hash": "sha256:6502c533c3433516aba3b5e233dcd73a"
+        }
+      ],
+      "last_green_at": null,
+      "last_run_at": null,
+      "line": 10,
+      "mutants_killed": null,
+      "name": "Buyer awards a live quote with ship-to and ops",
+      "rid": "S-ffb48ccf",
+      "spec_hash": "sha256:6502c533c3433516aba3b5e233dcd73a",
+      "status": "pending",
+      "tags": [
+        "@rid:S-ffb48ccf",
+        "@epic:award"
+      ],
+      "verified_spec_hash": ""
+    }
+  },
+  "schema": "shalt.ledger/1",
+  "spec_lock": {
+    "approved_at": "2026-09-16T04:35:14Z",
+    "approved_by": "play",
+    "scenario_count": 88,
+    "scenario_hashes": {
+      "S-00b5968f": "sha256:f557343456ca7c32154d77afe1715f43",
+      "S-079c0655": "sha256:64338ba5e9d53cfcdf11113c99e7bebb",
+      "S-0b3a81e6": "sha256:ffa7b15449b69ac22ce4960387145a8b",
+      "S-10a2b061": "sha256:8414aac0fd08dfc966653bc726c0e66c",
+      "S-1944528f": "sha256:30718b49cf7e0ce6fde7725f7bdf7e16",
+      "S-21f49a9e": "sha256:d7ea7fed1159a25084e890a9fcfeb950",
+      "S-25ff4dda": "sha256:2bde976fc0253d7d88825c1570018c43",
+      "S-27956542": "sha256:9f6d45b58f7ff4ff1b48f9eb5471e0f9",
+      "S-2b55a99f": "sha256:2947ea5da4cf582ee05e60f7918b2670",
+      "S-2b9028c4": "sha256:8f21d8fbccf52fe421ae121918ac7a67",
+      "S-2c7a2f1e": "sha256:9bcb24784629758623417825d5fcc4c0",
+      "S-2f13412c": "sha256:637ccbd332c26000a6969965ba795e7f",
+      "S-31b13e28": "sha256:63b6a55e40615b387e2069c5e9c4b5a4",
+      "S-34356641": "sha256:a5601b971f633b1e1cdbfbe701a3b91b",
+      "S-34a0777b": "sha256:6fcdc328bed4b343a6713a6664b2fc1c",
+      "S-39a5c4ae": "sha256:72dfe4c1d40225373527a13f01260fec",
+      "S-3c28a4e7": "sha256:0f647366098dd359e2fabe0e8582ce9a",
+      "S-3d08634f": "sha256:ea3667da5474e5e1388a2a2b4c46e48c",
+      "S-3d848957": "sha256:7a843bfc2e2fb326051854eb8d6f716e",
+      "S-4006e8e8": "sha256:5e23dd85cb6bb39f5052ebcbd668027d",
+      "S-426f614a": "sha256:2c2ba2ba3c00a89343c6eeb27a132252",
+      "S-485d185d": "sha256:fdd9e2a9338737ef2be5a30a3e5a34d4",
+      "S-56ed3456": "sha256:bc492db2eef341bbba4fe040ca56cf1a",
+      "S-58ea8df3": "sha256:d058c7d292dc0e1cc13ddde71c66c0b1",
+      "S-592f14fc": "sha256:1740e88c0b79037282686fbf0ed44687",
+      "S-5a455334": "sha256:a33f1d60e13a470f281092d3df17a761",
+      "S-5b35da2f": "sha256:9bb81ed3a48ab3964d54dbf917d4d1a0",
+      "S-5f007835": "sha256:f0ec899e724c756fcab1ea7710c60490",
+      "S-6428f647": "sha256:0620d2bb5beb67f19ffead70b55f084f",
+      "S-661e8d23": "sha256:fa9e4cbea8d73f5dbbe5044132b9c34a",
+      "S-70d49ee2": "sha256:ebefc1b5dc0d348371841113fccdd3a4",
+      "S-72c55cae": "sha256:7d1dd10d62da7db4495e6a6cd8fd80e3",
+      "S-75b0c3d7": "sha256:caa4e1bfdfd0ed447e00deb541d07fc5",
+      "S-796ddcb3": "sha256:011fa9edcdaf1f5b1297a7aa433b23b2",
+      "S-7a1d7a4a": "sha256:768bd003ec14f89f7ba2186c53c2ff2c",
+      "S-7cd6dc95": "sha256:cfa0179b9900a5dc5ce45065d680587d",
+      "S-7eefbd72": "sha256:67e2f41a037da2e49b4045ef207a7fe1",
+      "S-81f75882": "sha256:e00527f76f6969d20db5578ac424c07f",
+      "S-8567ecbe": "sha256:fc89c458a32bf5c78accf2000507279e",
+      "S-873fb7a6": "sha256:b95c75baa22f6b34691c5e3d9326e57e",
+      "S-89278d6f": "sha256:4801687016dd7c37136333157ae94640",
+      "S-892f8a4f": "sha256:248ea1294d472fc0f2532446bc30e588",
+      "S-89a6df2d": "sha256:0b5c88d4d0dd37b34b94e63a32cfc043",
+      "S-8b2475af": "sha256:5887c1cfefba4a89bba986b8655b1a4b",
+      "S-8c76ba69": "sha256:4e1f86d504749abe6ff8c49c7dd8e3b0",
+      "S-8cf485e5": "sha256:2329b55e3a138c30a3c721caab9b4ef4",
+      "S-8fc9037d": "sha256:a333c6129a047aab92cb9f4a25365bea",
+      "S-93b9ae51": "sha256:e1d93bc708b4c2a4f8e808ab8bd75582",
+      "S-947d4869": "sha256:a1440e04048036b2052e083902a78114",
+      "S-9b54f554": "sha256:e15f436dcf169e343b126cfc7f21260c",
+      "S-9b6c36d9": "sha256:8d0adeec01b4e252e323d967ac1f1fbd",
+      "S-9e04747d": "sha256:3a77b363cd1142e0d902b6b369021b17",
+      "S-a3ab4c9d": "sha256:bfcb3269342e40e0fae297e1dd649d11",
+      "S-a3fc34f2": "sha256:5ab137256437ca7e9473f063784f53e1",
+      "S-a493899f": "sha256:af57d02797cdccc55a5b8bf2e17ad977",
+      "S-a9928cd6": "sha256:204b5cfd8d660416c8ce7f44e7b98969",
+      "S-addded0e": "sha256:cacfa435c3fa647c8674643084b2e842",
+      "S-b04f169e": "sha256:b6552a4e47909dad856ccc117be6bd06",
+      "S-b1b7c6e3": "sha256:58642a037ab64f0129b235dab09a3a8c",
+      "S-b3a29bb1": "sha256:ec7723d05cfe1625e303f38ed6cd6082",
+      "S-b6290ddd": "sha256:4ed89e0005ef3dd0ab5bdcc4005919bf",
+      "S-b6d7545e": "sha256:d739673dbbb6eea48bfa364c0fe29402",
+      "S-c1c6d06f": "sha256:4e4acd78c4d9e23dc44b6c46f4a5755c",
+      "S-c24600bb": "sha256:3a67d96606f18827322ae9c8eaadacf5",
+      "S-c7c5b590": "sha256:7823254c2fd59606447a02e839bdba96",
+      "S-ca67769a": "sha256:9274ce92397ce50fbe05d2d5a6ffe6f0",
+      "S-ca8a13fd": "sha256:56eacee37f90791f16cba99ec6a42cb0",
+      "S-cd4463f3": "sha256:328844e1f5dd1edbd086be4c58ab49b1",
+      "S-d0d7ab2e": "sha256:db168e84872cca24b812d516e4f8c761",
+      "S-d1b8a147": "sha256:832d2b42812a48f98044635201375c5a",
+      "S-d3e99edd": "sha256:43532cdaa0f0691ca77fdaf47ae10915",
+      "S-d639a435": "sha256:0bca0b9280ec4e4aad810efb11881155",
+      "S-d9f02391": "sha256:349e3a9975578121643462e472632d29",
+      "S-e321229f": "sha256:16620cad5d81a9df5006a2d969575280",
+      "S-e970044a": "sha256:1a30766057bb4c2d7550897c4b4a9c0e",
+      "S-ec689298": "sha256:8d3fd02dace0e36fa5596170dd258dcb",
+      "S-eccb855a": "sha256:520a06f2af8990304169fb8e032fcff1",
+      "S-ed931467": "sha256:e76551403267c50c2ab387a80b32b774",
+      "S-ef846a17": "sha256:cb37922ca36fdcbe8d7a5f41ffd48d11",
+      "S-f2b00280": "sha256:b563cc8bfb77c26d28a50d7e0d0e0dfd",
+      "S-f6d69aaa": "sha256:6978b7c454251a31bedc9dbabb8671e6",
+      "S-f6d7fcdc": "sha256:9f51ce8c88b60410a41f5b156672b29a",
+      "S-f75277fd": "sha256:30e4ceea072a6f83b77d4ad6e02b584f",
+      "S-fb69dc1d": "sha256:12788d6b1eeaa7759be28969a848d0fb",
+      "S-fc1aafa4": "sha256:d04371af579f942b3c293a994a4bcf07",
+      "S-fc3729f4": "sha256:9882dd5fab2d07fc4258c0351339acab",
+      "S-fc5bad61": "sha256:89aaaade51d9775d2e97fdcab2bb6403",
+      "S-ffb48ccf": "sha256:6502c533c3433516aba3b5e233dcd73a"
+    }
+  },
+  "summary": {
+    "completion_pct": 0.0,
+    "green": 0,
+    "orphan": 0,
+    "pending": 88,
+    "red": 0,
+    "stale": 0,
+    "total": 88
+  }
+}

@@ -9,3 +9,6 @@ crates/rivlet-packet/target/
 .DS_Store
 .env
 .env.*
+
+# shalt
+.shalt/cucumber.json

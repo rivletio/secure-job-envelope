@@ -1,0 +1,15 @@
+flowchart LR
+  plan["Plan"] --> spec["Gherkin"]
+  spec --> lang["Language"]
+  lang --> tests["Tests"]
+  tests --> survey["Run all tests"]
+  survey -->|"spec wrong"| spec
+  survey -->|"unbound"| tests
+  survey --> build["Build tickets"]
+  build -->|"ticket green"| build
+  build -->|"spec wrong"| spec
+  build --> idle["Idle"]
+  style spec fill:#3d4f7c,stroke:#2a3757,color:#ffffff
+  style survey fill:#a9761b,stroke:#7d570f,color:#ffffff
+  style build fill:#1f7a4c,stroke:#155a38,color:#ffffff
+  style idle fill:#2a2d33,stroke:#1a1f26,color:#ffffff
