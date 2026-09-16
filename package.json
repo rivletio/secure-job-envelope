@@ -13,9 +13,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts mcp/mcp.test.ts",
+    "mcp": "node --experimental-strip-types mcp/server.ts",
+    "demo": "node --experimental-strip-types mcp/demo.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-separator": "^1.1.8",
