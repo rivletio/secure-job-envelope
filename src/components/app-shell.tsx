@@ -2,15 +2,15 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { RivletMark } from "@/components/mark";
 import { Button } from "@/components/ui/button";
-import { SHOPS } from "@/lib/packet/network";
-import { usePacketStore, type Role } from "@/lib/packet/store";
+import { SHOPS } from "@/lib/traveler/network";
+import { useTravelerStore, type Role } from "@/lib/traveler/store";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const role = usePacketStore((s) => s.role);
-  const setRole = usePacketStore((s) => s.setRole);
-  const sellerOrgId = usePacketStore((s) => s.sellerOrgId);
-  const setSellerOrgId = usePacketStore((s) => s.setSellerOrgId);
+  const role = useTravelerStore((s) => s.role);
+  const setRole = useTravelerStore((s) => s.setRole);
+  const sellerOrgId = useTravelerStore((s) => s.sellerOrgId);
+  const setSellerOrgId = useTravelerStore((s) => s.setSellerOrgId);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   return (
@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 rivlet<span className="text-accent">.io</span>
               </span>
               <span className="block font-mono text-xs tracking-widest text-faint uppercase">
-                Packet 0.0.1
+                Traveler 0.0.1
               </span>
             </span>
           </Link>
@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               Desk
             </NavLink>
             <NavLink to="/new" active={path === "/new"}>
-              New packet
+              New traveler
             </NavLink>
             <NavLink to="/spec" active={path === "/spec"}>
               Spec

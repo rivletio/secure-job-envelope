@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { usePacketStore, type AuditEvent } from "@/lib/packet/store";
+import { useTravelerStore, type AuditEvent } from "@/lib/traveler/store";
 
 export const Route = createFileRoute("/trust")({ component: TrustPage });
 
 function TrustPage() {
-  const audit = usePacketStore((s) => s.audit);
+  const audit = useTravelerStore((s) => s.audit);
   const reversed = [...audit].reverse();
 
   function exportAudit() {
@@ -14,7 +14,7 @@ function TrustPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "rivlet-packet-audit.json";
+    a.download = "opentraveler-audit.json";
     a.rel = "noopener";
     a.click();
     URL.revokeObjectURL(url);
@@ -28,7 +28,7 @@ function TrustPage() {
         <em className="font-normal text-accent italic">This desk is not that system.</em>
       </h1>
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-soft">
-        Rivlet Packet is a content-addressed job object. Identity, signatures, CUI handling, and
+        OpenTraveler is a content-addressed job object. Identity, signatures, CUI handling, and
         a production control environment are out of band in 0.0.1. SOC 2 Type II is an org’s
         attestation over <em>their</em> system — it does not transfer to a protocol, a hash, or
         this browser desk.
@@ -37,17 +37,17 @@ function TrustPage() {
       <section className="on-paper traveler-shadow mt-8 rounded-sm p-5">
         <h2 className="text-lg font-medium">What this desk is</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted-foreground">
-          <li>A local, single-browser workbench. Packets live in this origin’s storage.</li>
+          <li>A local, single-browser workbench. Travelers live in this origin’s storage.</li>
           <li>
             Buyer / Seller is a <strong className="text-foreground">view</strong>, not login, not
             tenancy, not least-privilege.
           </li>
           <li>
-            <code className="font-mono text-foreground">packet_hash</code> is SHA-384 of a closed
+            <code className="font-mono text-foreground">traveler_hash</code> is SHA-384 of a closed
             quoteable body. It is integrity, not a signature and not non-repudiation.
           </li>
           <li>
-            Import of <code className="font-mono text-foreground">.rivpkt.zip</code> requires
+            Import of <code className="font-mono text-foreground">.traveler.zip</code> requires
             META.json, allowlisted members, CRC32, size caps, and a matching hash.
           </li>
           <li>
@@ -86,8 +86,8 @@ function TrustPage() {
               />
               <Row
                 tsc="CC8 Change"
-                here="Hash-bound quotes. Amend bumps revision and stale-marks quotes. L2 packets lock."
-                owed="Change tickets, signed packets, dual control on award."
+                here="Hash-bound quotes. Amend bumps revision and stale-marks quotes. L2 travelers lock."
+                owed="Change tickets, signed travelers, dual control on award."
               />
               <Row
                 tsc="A1 Availability"
@@ -96,12 +96,12 @@ function TrustPage() {
               />
               <Row
                 tsc="C1 Confidentiality"
-                here="TLS in transit if the host serves HTTPS. Packet JSON is readable."
+                here="TLS in transit if the host serves HTTPS. Traveler JSON is readable."
                 owed="Classification, encryption, NDAs, vendor review."
               />
               <Row
                 tsc="P1 Privacy"
-                here="Ship-to is stored with the packet when awarded. Audit log omits addresses."
+                here="Ship-to is stored with the traveler when awarded. Audit log omits addresses."
                 owed="Minimization, retention, DSAR, subprocessors."
               />
             </tbody>
@@ -113,7 +113,7 @@ function TrustPage() {
         <h2 className="text-lg font-medium text-paper">Export control</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Do not put USML / EAR technical data on a public or shared browser desk. localStorage is
-          not a CUI system (DFARS 252.204-7012 / NIST 800-171). This demo is for the packet
+          not a CUI system (DFARS 252.204-7012 / NIST 800-171). This demo is for the traveler
           envelope, not for controlled drawings.
         </p>
       </section>
@@ -157,7 +157,7 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
       <span className="font-mono text-xs text-faint">{ev.at.replace(".000Z", "Z")}</span>
       <span className="font-mono text-xs font-medium uppercase">{ev.act}</span>
       <span className="font-mono text-xs text-muted-foreground">
-        {ev.packet_id ?? "—"}
+        {ev.traveler_id ?? "—"}
         {ev.hash ? ` · ${ev.hash.slice(0, 14)}…` : ""}
       </span>
     </li>

@@ -1,22 +1,22 @@
-# Rivlet Packet — spec 0.0.1
+# OpenTraveler — spec 0.0.1
 
-Implementable draft. Media type `application/vnd.rivlet.packet+json`.
-Archive name `{packet_id}.rivpkt.zip`. License Apache-2.0.
+Implementable draft. Media type `application/vnd.opentraveler+json`.
+Archive name `{traveler_id}.traveler.zip`. License Apache-2.0.
 
-A packet is the job object — one part family between a buyer and sellers —
-not a shop OS and not a marketplace. Quotes bind to `packet_hash_quoted`,
+A traveler is the job object — one part family between a buyer and sellers —
+not a shop OS and not a marketplace. Quotes bind to `traveler_hash_quoted`,
 a SHA-384 of the canonical **quoteable body**.
 
 ## Identifiers
 
 ```
-packet_id / quote_id : ^[a-z]{3}_[a-z0-9]{6,24}$     (e.g. pkt_8kq2mfn3, qot_x91k2p)
+traveler_id / quote_id : ^[a-z]{3}_[a-z0-9]{6,24}$     (e.g. tvl_8kq2mfn3, qot_x91k2p)
 hash                 : ^sha384:[0-9a-f]{96}$
 currency             : ^[A-Z]{3}$    country: ^[A-Z]{2}$
 created_at           : ISO-8601 UTC with trailing Z
 ```
 
-Size caps: packet JSON ≤ 512 KiB; archive ≤ 2 MiB; strings ≤ 2000 chars;
+Size caps: traveler JSON ≤ 512 KiB; archive ≤ 2 MiB; strings ≤ 2000 chars;
 names ≤ 128 chars.
 
 ## The quoteable body (closed field set)
@@ -25,14 +25,14 @@ The hash covers **exactly** these fields — extra keys on in-memory objects
 never enter the hash:
 
 ```
-spec, packet_id, revision, created_at, buyer, part,
+spec, traveler_id, revision, created_at, buyer, part,
 need_by, incoterms, itar
 ```
 
 `buyer` (Org) and `part` are themselves closed: absent optionals are
 dropped, empty strings and empty arrays are dropped, `need_by`/`incoterms`
 are `null` when absent, `itar` defaults to `false`. Quotes, award, ops, and
-ship_to sit **outside** the hash so a packet can climb L0→L2 without
+ship_to sit **outside** the hash so a traveler can climb L0→L2 without
 invalidating quotes. Amending the quoteable body bumps `revision` and
 stale-marks every existing quote.
 
@@ -81,7 +81,7 @@ under quantum collision search; SHA-384 keeps ≥128-bit collision and
 hash string. Chosen pre-release so no deployed hashes ever migrate.
 
 Both reference implementations must reproduce the golden vector
-(`crates/rivlet-packet/tests/golden.json`) exactly.
+(`crates/opentraveler/tests/golden.json`) exactly.
 
 ## Conformance ladder
 
@@ -90,42 +90,42 @@ Both reference implementations must reproduce the golden vector
 | D | Draft | Missing something L0 needs |
 | L0 | Quoteable | A seller can price without guessing material or qty |
 | L1 | Awardable | ≥ 1 structured quote bound to the current buyer revision |
-| L2 | Executable | Awarded, ops listed, ship-to present; packet locks |
+| L2 | Executable | Awarded, ops listed, ship-to present; traveler locks |
 | L3 | As-built | **Reserved.** `as_built` may be null in 0.0.1 |
 
 ## Quotes
 
 ```
-required: quote_id, seller, packet_hash_quoted, created_at,
+required: quote_id, seller, traveler_hash_quoted, created_at,
           valid_until, lead_time_days, pricing
 pricing.required: currency, lines[]
 lines[]: { qty >= 1, unit >= 0 finite }
 ```
 
-A quote is **bound** when `packet_hash_quoted` equals the current packet
+A quote is **bound** when `traveler_hash_quoted` equals the current traveler
 hash. Guards a conforming desk enforces at bind/award time: quote expiry
 (`valid_until`), one quote per seller per revision, a priced line at the
 target quantity, and ITAR consistency (a seller with `itar !== true` cannot
-quote an `itar: true` packet — a consistency check, not compliance).
+quote an `itar: true` traveler — a consistency check, not compliance).
 
-## Archive (`{packet_id}.rivpkt.zip`)
+## Archive (`{traveler_id}.traveler.zip`)
 
 Allowlisted members only (max 3):
 
 ```
-packet.json        the packet document (required, root only)
-META.json          { spec, packet_hash, packet_json_sha384 } (recommended)
+traveler.json        the traveler document (required, root only)
+META.json          { spec, traveler_hash, traveler_json_sha384 } (recommended)
 NOTES.txt          free text (optional)
 ```
 
 Import rules: refuse paths containing `/` or `\` or `..`; cap compressed
 and uncompressed sizes; verify CRC32; when META.json is present, verify
-both digests against the received `packet.json`; re-canonicalize and check
-`packet_hash` yourself — treat the archive as the document.
+both digests against the received `traveler.json`; re-canonicalize and check
+`traveler_hash` yourself — treat the archive as the document.
 
 ## Export control & commercial reality
 
-- `itar: true` is a self-declaration that the packet contains
+- `itar: true` is a self-declaration that the traveler contains
   ITAR-controlled technical data. It is not DDTC registration, a TCP, or an
   EAR ECCN. Shop `certs[]` is for ISO/AS/AWS; the ITAR bit lives on
   `org.itar`.
@@ -139,10 +139,10 @@ both digests against the received `packet.json`; re-canonicalize and check
   domestic shops usually mean UCC F.O.B. origin/destination. The field is a
   string in 0.0.1.
 - Money is IEEE-754 double under the fixed-notation rule above. Prefer
-  integer minor units in a later spec if packets become the commercial
+  integer minor units in a later spec if travelers become the commercial
   record.
 
 ## JSON Schemas
 
-`public/schemas/packet-0.0.1.json` and `public/schemas/quote-0.0.1.json`
-(JSON Schema 2020-12, `$id` under `https://packet.rivlet.io/schemas/`).
+`public/schemas/traveler-0.0.1.json` and `public/schemas/quote-0.0.1.json`
+(JSON Schema 2020-12, `$id` under `https://opentraveler.org/schemas/`).

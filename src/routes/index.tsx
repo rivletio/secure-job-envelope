@@ -3,12 +3,12 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { PacketCard } from "@/components/packet-card";
+import { TravelerCard } from "@/components/traveler-card";
 import { Button } from "@/components/ui/button";
-import { levelOf } from "@/lib/packet/conformance";
-import { itarExportWarning } from "@/lib/packet/guards";
-import { usePacketStore } from "@/lib/packet/store";
-import { importPacketFile } from "@/lib/packet/zip";
+import { levelOf } from "@/lib/traveler/conformance";
+import { itarExportWarning } from "@/lib/traveler/guards";
+import { useTravelerStore } from "@/lib/traveler/store";
+import { importTravelerFile } from "@/lib/traveler/zip";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({ component: Desk });
@@ -16,26 +16,26 @@ export const Route = createFileRoute("/")({ component: Desk });
 type Filter = "all" | "L0" | "L1" | "L2";
 
 function Desk() {
-  const packets = usePacketStore((s) => s.packets);
-  const role = usePacketStore((s) => s.role);
-  const importOne = usePacketStore((s) => s.importOne);
-  const resetDesk = usePacketStore((s) => s.resetDesk);
+  const travelers = useTravelerStore((s) => s.travelers);
+  const role = useTravelerStore((s) => s.role);
+  const importOne = useTravelerStore((s) => s.importOne);
+  const resetDesk = useTravelerStore((s) => s.resetDesk);
   const [filter, setFilter] = useState<Filter>("all");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
 
   const counts = useMemo(() => {
-    const c = { all: packets.length, L0: 0, L1: 0, L2: 0 };
-    for (const p of packets) {
+    const c = { all: travelers.length, L0: 0, L1: 0, L2: 0 };
+    for (const p of travelers) {
       const code = levelOf(p).code;
       if (code === "L0" || code === "D") c.L0 += 1;
       else if (code === "L1") c.L1 += 1;
       else c.L2 += 1;
     }
     return c;
-  }, [packets]);
+  }, [travelers]);
 
-  const shown = packets.filter((p) => {
+  const shown = travelers.filter((p) => {
     if (filter === "all") return true;
     const code = levelOf(p).code;
     if (filter === "L0") return code === "L0" || code === "D";
@@ -45,27 +45,27 @@ function Desk() {
 
   async function ingest(file: File) {
     try {
-      const packet = await importPacketFile(file);
-      const warn = itarExportWarning(packet);
+      const traveler = await importTravelerFile(file);
+      const warn = itarExportWarning(traveler);
       if (warn) {
         setPendingFile(file);
         return;
       }
-      importOne(packet);
-      toast.success(`Opened ${packet.packet_id}`);
+      importOne(traveler);
+      toast.success(`Opened ${traveler.traveler_id}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not open packet");
+      toast.error(err instanceof Error ? err.message : "Could not open traveler");
     }
   }
 
   async function ingestItar() {
     if (!pendingFile) return;
     try {
-      const packet = await importPacketFile(pendingFile);
-      importOne(packet);
-      toast.success(`Opened ${packet.packet_id}`);
+      const traveler = await importTravelerFile(pendingFile);
+      importOne(traveler);
+      toast.success(`Opened ${traveler.traveler_id}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not open packet");
+      toast.error(err instanceof Error ? err.message : "Could not open traveler");
     } finally {
       setPendingFile(null);
     }
@@ -80,14 +80,14 @@ function Desk() {
             The job object. <em className="font-normal text-accent italic">Between two shops.</em>
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-soft md:text-base">
-            A Rivlet Packet is a content-addressed envelope for one part family.
+            A OpenTraveler is a content-addressed envelope for one part family.
             Quote it without guessing material or qty. Award a structured quote.
             Run it when ops and ship-to are on the traveler.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {role === "buyer" ? (
               <Button asChild>
-                <Link to="/new">New packet</Link>
+                <Link to="/new">New traveler</Link>
               </Button>
             ) : (
               <Button variant="outline" asChild>
@@ -100,7 +100,7 @@ function Desk() {
               onClick={() => {
                 const input = document.createElement("input");
                 input.type = "file";
-                input.accept = ".json,.zip,.rivpkt.zip,application/json,application/zip";
+                input.accept = ".json,.zip,.traveler.zip,application/json,application/zip";
                 input.addEventListener("change", () => {
                   const f = input.files?.[0];
                   if (f) void ingest(f);
@@ -108,7 +108,7 @@ function Desk() {
                 input.click();
               }}
             >
-              Open .rivpkt
+              Open .traveler
             </Button>
           </div>
         </div>
@@ -144,12 +144,12 @@ function Desk() {
 
       {shown.length === 0 ? (
         <p className="on-paper rounded-sm border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          No packets at this level. Compose one, or reset the seed desk.
+          No travelers at this level. Compose one, or reset the seed desk.
         </p>
       ) : (
         <div className="grid gap-3">
           {shown.map((p) => (
-            <PacketCard key={p.packet_id} packet={p} />
+            <TravelerCard key={p.traveler_id} traveler={p} />
           ))}
         </div>
       )}
@@ -160,7 +160,7 @@ function Desk() {
           if (!v) setPendingFile(null);
         }}
         title="ITAR self-declaration"
-        body="This packet is self-declared ITAR. The desk does not implement export-control, deemed-export screening, or a Technology Control Plan. Do not transfer it to foreign persons. Import onto this local desk anyway?"
+        body="This traveler is self-declared ITAR. The desk does not implement export-control, deemed-export screening, or a Technology Control Plan. Do not transfer it to foreign persons. Import onto this local desk anyway?"
         confirmLabel="Import anyway"
         destructive
         onConfirm={() => void ingestItar()}
@@ -169,7 +169,7 @@ function Desk() {
         open={resetOpen}
         onOpenChange={setResetOpen}
         title="Reset the seed desk?"
-        body="This replaces every packet on this origin with the demo seed. Local audit is kept. It cannot be undone."
+        body="This replaces every traveler on this origin with the demo seed. Local audit is kept. It cannot be undone."
         confirmLabel="Reset"
         destructive
         onConfirm={resetDesk}

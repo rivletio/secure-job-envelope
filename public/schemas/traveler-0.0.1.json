@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opentraveler.org/schemas/traveler-0.0.1.json",
+  "title": "OpenTraveler v0.0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec", "traveler_id", "revision", "created_at", "buyer", "part"],
+  "properties": {
+    "spec": { "const": "opentraveler/0.0.1" },
+    "traveler_id": {
+      "type": "string",
+      "pattern": "^[a-z]{3}_[a-z0-9]{6,24}$"
+    },
+    "revision": { "type": "integer", "minimum": 1 },
+    "created_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$"
+    },
+    "buyer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "org_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "region": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "contact": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "certs": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "maxLength": 64 }
+        },
+        "itar": { "type": "boolean" }
+      }
+    },
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "part_number", "material", "qty"],
+      "properties": {
+        "family": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "part_number": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "drawing_rev": { "type": "string", "maxLength": 32 },
+        "material": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["spec"],
+          "properties": {
+            "spec": { "type": "string", "minLength": 1 },
+            "form": { "type": "string" },
+            "thickness_mm": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "qty": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target"],
+          "properties": {
+            "target": { "type": "integer", "minimum": 1 },
+            "breaks": {
+              "type": "array",
+              "maxItems": 16,
+              "items": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "processes": { "type": "array", "maxItems": 32, "items": { "type": "string" } },
+        "finish": { "type": "string", "maxLength": 2000 },
+        "tolerances": { "type": "string", "maxLength": 2000 },
+        "notes": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "need_by": { "type": ["string", "null"] },
+    "incoterms": { "type": ["string", "null"], "maxLength": 64 },
+    "itar": {
+      "type": "boolean",
+      "description": "Self-declaration of ITAR-controlled technical data. Not access control, not DDTC registration."
+    },
+    "ship_to": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["name", "line1", "city", "region", "postal", "country"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "line1": { "type": "string", "minLength": 1 },
+        "line2": { "type": "string" },
+        "city": { "type": "string", "minLength": 1 },
+        "region": { "type": "string", "minLength": 1 },
+        "postal": { "type": "string", "minLength": 1, "maxLength": 16 },
+        "country": { "type": "string", "pattern": "^[A-Z]{2}$" }
+      }
+    },
+    "ops": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["seq", "code"],
+        "properties": {
+          "seq": { "type": "integer", "minimum": 1 },
+          "code": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "quotes": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "quote-0.0.1.json" }
+    },
+    "award": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["quote_id", "awarded_at", "qty"],
+      "properties": {
+        "quote_id": { "type": "string", "pattern": "^[a-z]{3}_[a-z0-9]{6,24}$" },
+        "awarded_at": { "type": "string" },
+        "qty": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "as_built": { "type": ["object", "null"] }
+  }
+}

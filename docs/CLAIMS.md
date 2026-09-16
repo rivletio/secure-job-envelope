@@ -14,30 +14,30 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 
 | # | Claim (where written) | Proof | Status |
 |---|---|---|---|
-| C1 | Both implementations produce byte-identical canonical JSON and identical SHA-384 hashes for the same body (README, SPEC) | Shared vectors `conformance/canonical.json` run by `src/lib/packet/vectors.test.ts` (TS) **and** `crates/rivlet-packet/tests/vectors.rs` (Rust); golden vector `crates/rivlet-packet/tests/golden.json` asserted in `packet.test.ts` and `lib.rs::golden_hash_matches_ts` | ✅ |
-| C2 | The hash covers a closed field set; extra keys never enter it (SPEC, SECURITY) | `packet.test.ts` closed-field-set case; `lib.rs::contact_is_in_the_hash` (field present vs absent changes hash; unknown keys do not) | ✅ |
-| C3 | Numbers outside the canonical range (non-finite, >2^53−1, non-integer <1e-5, exponential rendering) are refused, not hashed (SPEC §Canonical JSON) | `conformance/canonical.json` invalid vectors, both runners; `packet.test.ts` fixed-notation parity case; `lib.rs::canonical_refuses_exponential_notation` | ✅ |
+| C1 | Both implementations produce byte-identical canonical JSON and identical SHA-384 hashes for the same body (README, SPEC) | Shared vectors `conformance/canonical.json` run by `src/lib/traveler/vectors.test.ts` (TS) **and** `crates/opentraveler/tests/vectors.rs` (Rust); golden vector `crates/opentraveler/tests/golden.json` asserted in `traveler.test.ts` and `lib.rs::golden_hash_matches_ts` | ✅ |
+| C2 | The hash covers a closed field set; extra keys never enter it (SPEC, SECURITY) | `traveler.test.ts` closed-field-set case; `lib.rs::contact_is_in_the_hash` (field present vs absent changes hash; unknown keys do not) | ✅ |
+| C3 | Numbers outside the canonical range (non-finite, >2^53−1, non-integer <1e-5, exponential rendering) are refused, not hashed (SPEC §Canonical JSON) | `conformance/canonical.json` invalid vectors, both runners; `traveler.test.ts` fixed-notation parity case; `lib.rs::canonical_refuses_exponential_notation` | ✅ |
 | C4 | Integer-valued floats, `-0`, and unicode strings canonicalize identically across languages (SPEC) | `canonical.json` vectors `integer`, `negative-zero`, `unicode-raw-utf8`; `lib.rs::integer_valued_float_matches_json_stringify` | ✅ |
-| C5 | Integers above 2^53−1 are refused by both sides | Language-local tests both sides (`packet.test.ts`, `lib.rs`) — **not** in the shared wire vectors, because JavaScript's `JSON.parse` cannot even represent such a vector faithfully (which is the point of the rule) | ✅ |
-| C6 | Packet hash and conformance level agree across implementations for real packets (README) | `conformance/packets/{l0,l1,l2}*.json` + `expected.json`, asserted by both runners | ✅ |
-| C7 | Wrong spec string, malformed packet_id, and ITAR seller mismatch are refused at parse by both sides (SPEC) | `conformance/packets/reject/*`, both runners | ✅ |
+| C5 | Integers above 2^53−1 are refused by both sides | Language-local tests both sides (`traveler.test.ts`, `lib.rs`) — **not** in the shared wire vectors, because JavaScript's `JSON.parse` cannot even represent such a vector faithfully (which is the point of the rule) | ✅ |
+| C6 | Traveler hash and conformance level agree across implementations for real travelers (README) | `conformance/travelers/{l0,l1,l2}*.json` + `expected.json`, asserted by both runners | ✅ |
+| C7 | Wrong spec string, malformed traveler_id, and ITAR seller mismatch are refused at parse by both sides (SPEC) | `conformance/travelers/reject/*`, both runners | ✅ |
 | C8 | Object keys serialize in lexicographic order even when integer-like — JS numeric key enumeration must not leak into canonical bytes (SPEC §Canonical JSON) | Vector `key-order-digits`, both runners. *This vector caught a real bug in the TS reference serializer on its first run — the register exists precisely for this.* | ✅ |
 
 ## Quote binding & lifecycle
 
 | # | Claim | Proof | Status |
 |---|---|---|---|
-| L1 | A quote binds only to the exact revision it priced; amending stale-marks every quote (SPEC, SECURITY) | `store.test.ts` "amend bumps revision and stale-marks"; `packet.test.ts` binding cases; L1→L0 drop asserted | ✅ |
-| L2 | Awarded (L2) packets lock: further amendment is refused (SPEC, TRUST CC8) | `store.test.ts` "locks the packet at L2" | ✅ |
-| L3 | A stale quote cannot be awarded; expiry and priced-line-at-target are enforced at award (SPEC) | `store.test.ts` stale-award refusal; `packet.test.ts` expiry + price-line guards | ✅ |
-| L4 | An ITAR packet cannot take a quote from a seller without `itar: true` (SPEC §Export control) | `packet.test.ts` ITAR guard; `lib.rs::itar_packet_rejects_non_itar_seller`; reject vector `itar-mismatch.json` both sides | ✅ |
+| L1 | A quote binds only to the exact revision it priced; amending stale-marks every quote (SPEC, SECURITY) | `store.test.ts` "amend bumps revision and stale-marks"; `traveler.test.ts` binding cases; L1→L0 drop asserted | ✅ |
+| L2 | Awarded (L2) travelers lock: further amendment is refused (SPEC, TRUST CC8) | `store.test.ts` "locks the traveler at L2" | ✅ |
+| L3 | A stale quote cannot be awarded; expiry and priced-line-at-target are enforced at award (SPEC) | `store.test.ts` stale-award refusal; `traveler.test.ts` expiry + price-line guards | ✅ |
+| L4 | An ITAR traveler cannot take a quote from a seller without `itar: true` (SPEC §Export control) | `traveler.test.ts` ITAR guard; `lib.rs::itar_traveler_rejects_non_itar_seller`; reject vector `itar-mismatch.json` both sides | ✅ |
 | L5 | Every compose/quote/amend/award/import/export is appended to the audit log with a timestamp (TRUST CC7) | `store.test.ts` "audits every state change in order" | ✅ |
 
 ## Archive handling
 
 | # | Claim | Proof | Status |
 |---|---|---|---|
-| A1 | Zip import refuses path traversal, non-allowlisted members, oversized entries, CRC mismatches, and META digest mismatches (SPEC §Archive, SECURITY) | `packet.test.ts` zip round-trip + path-trick + META-mismatch negative cases | ✅ |
+| A1 | Zip import refuses path traversal, non-allowlisted members, oversized entries, CRC mismatches, and META digest mismatches (SPEC §Archive, SECURITY) | `traveler.test.ts` zip round-trip + path-trick + META-mismatch negative cases | ✅ |
 
 ## Honest gaps and drafts
 
@@ -52,7 +52,7 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 ## Running the proofs
 
 ```bash
-npm test                                # TS: vectors + packet suite + store state machine
-cd crates/rivlet-packet && cargo test   # Rust: unit + golden + the same shared vectors
+npm test                                # TS: vectors + traveler suite + store state machine
+cd crates/opentraveler && cargo test   # Rust: unit + golden + the same shared vectors
 node --experimental-strip-types conformance/generate.ts   # regenerate vectors (TS is generator, Rust is independent verifier)
 ```

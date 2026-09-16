@@ -1,7 +1,7 @@
 @epic:compose
-Feature: Compose a new L0 packet
-  A buyer seals a quoteable packet when material and qty are known.
-  Draft packets missing required fields stay at level D and cannot be sealed.
+Feature: Compose a new L0 traveler
+  A buyer seals a quoteable traveler when material and qty are known.
+  Draft travelers missing required fields stay at level D and cannot be sealed.
 
   @rid:S-8c76ba69
   Scenario: Live draft is L0 when material and qty are filled
@@ -29,7 +29,7 @@ Feature: Compose a new L0 packet
     And the aside shows missing "part.material.spec"
 
   @rid:S-fb69dc1d
-  Scenario: Seal creates an L0 packet and navigates to it
+  Scenario: Seal creates an L0 traveler and navigates to it
     Given the role is "buyer"
     When the buyer opens "/new"
     And the buyer sets buyer name to "Northline Equipment"
@@ -44,19 +44,19 @@ Feature: Compose a new L0 packet
     And the buyer sets target qty to "50"
     And the buyer sets breaks to "10, 50, 200"
     And the buyer selects process "cnc_mill"
-    And the buyer submits "Seal L0 packet"
-    Then a new packet is stored at level "L0"
-    And the packet id matches "^pkt_[a-z0-9]{6,24}$"
-    And the route is "/p/" followed by that packet id
-    And the local audit contains a "compose" event for that packet
+    And the buyer submits "Seal L0 traveler"
+    Then a new traveler is stored at level "L0"
+    And the traveler id matches "^tvl_[a-z0-9]{6,24}$"
+    And the route is "/p/" followed by that traveler id
+    And the local audit contains a "compose" event for that traveler
 
   @rid:S-addded0e
-  Scenario: Cannot seal a Draft packet
+  Scenario: Cannot seal a Draft traveler
     Given the role is "buyer"
     When the buyer opens "/new"
     And the buyer clears the material spec
-    And the buyer submits "Seal L0 packet"
-    Then no packet is stored
+    And the buyer submits "Seal L0 traveler"
+    Then no traveler is stored
     And an error toast lists the missing fields
 
   @rid:S-f6d7fcdc

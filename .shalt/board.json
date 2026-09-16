@@ -3,7 +3,7 @@
   "goals": [
     {
       "id": "g-envelope",
-      "title": "Shops exchange a hash-bound job packet without a shared database",
+      "title": "Shops exchange a hash-bound job traveler without a shared database",
       "project_ids": []
     },
     {
@@ -30,12 +30,12 @@
     },
     {
       "id": "m-desk",
-      "title": "Desk product — list, packet view, shell, roles, spec, trust audit",
+      "title": "Desk product — list, traveler view, shell, roles, spec, trust audit",
       "target": null
     },
     {
       "id": "m-envelope",
-      "title": "0.1 encrypted envelope (.rivpkt.enc)",
+      "title": "0.1 encrypted envelope (.traveler.enc)",
       "target": null
     }
   ],
@@ -1077,7 +1077,7 @@
       "model": ""
     },
     {
-      "name": "packet",
+      "name": "traveler",
       "token_estimate": 0,
       "backend": "",
       "model": ""

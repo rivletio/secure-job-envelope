@@ -19,17 +19,17 @@ Feature: Trust page and local audit log
 
   @rid:S-00b5968f
   Scenario: Audit lists newest first after desk activity
-    Given the buyer composed packet "pkt_aud01"
-    And a seller bound a quote on "pkt_aud01"
+    Given the buyer composed traveler "tvl_aud01"
+    And a seller bound a quote on "tvl_aud01"
     When the user opens "/trust"
-    Then the audit list shows act "quote" above act "compose" for "pkt_aud01"
+    Then the audit list shows act "quote" above act "compose" for "tvl_aud01"
     And each row has an ISO timestamp
 
   @rid:S-f2b00280
   Scenario: Export audit downloads JSON
     Given the local audit has at least one event
     When the user clicks "Export log" on "/trust"
-    Then a file "rivlet-packet-audit.json" is downloaded
+    Then a file "opentraveler-audit.json" is downloaded
     And the file is a JSON array of audit events
 
   @rid:S-d639a435

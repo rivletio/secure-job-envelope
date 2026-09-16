@@ -10,39 +10,39 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cannotAward, isQuoteExpired } from "@/lib/packet/guards";
-import { money, pricedLine } from "@/lib/packet/format";
-import { isoNow } from "@/lib/packet/ids";
-import { opsFromProcesses } from "@/lib/packet/network";
-import { usePacketStore } from "@/lib/packet/store";
-import type { Packet, Quote } from "@/lib/packet/types";
+import { cannotAward, isQuoteExpired } from "@/lib/traveler/guards";
+import { money, pricedLine } from "@/lib/traveler/format";
+import { isoNow } from "@/lib/traveler/ids";
+import { opsFromProcesses } from "@/lib/traveler/network";
+import { useTravelerStore } from "@/lib/traveler/store";
+import type { Traveler, Quote } from "@/lib/traveler/types";
 
 export function AwardDialog({
-  packet,
+  traveler,
   quote,
   open,
   onOpenChange,
 }: {
-  packet: Packet;
+  traveler: Traveler;
   quote: Quote | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const award = usePacketStore((s) => s.award);
-  const [name, setName] = useState(packet.ship_to?.name ?? packet.buyer.name);
-  const [line1, setLine1] = useState(packet.ship_to?.line1 ?? "");
-  const [city, setCity] = useState(packet.ship_to?.city ?? packet.buyer.city ?? "");
-  const [region, setRegion] = useState(packet.ship_to?.region ?? packet.buyer.region ?? "");
-  const [postal, setPostal] = useState(packet.ship_to?.postal ?? "");
+  const award = useTravelerStore((s) => s.award);
+  const [name, setName] = useState(traveler.ship_to?.name ?? traveler.buyer.name);
+  const [line1, setLine1] = useState(traveler.ship_to?.line1 ?? "");
+  const [city, setCity] = useState(traveler.ship_to?.city ?? traveler.buyer.city ?? "");
+  const [region, setRegion] = useState(traveler.ship_to?.region ?? traveler.buyer.region ?? "");
+  const [postal, setPostal] = useState(traveler.ship_to?.postal ?? "");
   const [opsText, setOpsText] = useState(() =>
-    (packet.ops?.length ? packet.ops : opsFromProcesses(packet.part.processes))
+    (traveler.ops?.length ? traveler.ops : opsFromProcesses(traveler.part.processes))
       .map((o) => o.code)
       .join(", "),
   );
 
   function submit() {
     if (!quote) return;
-    const blocked = cannotAward(packet, quote);
+    const blocked = cannotAward(traveler, quote);
     if (blocked) {
       toast.error(blocked);
       return;
@@ -62,8 +62,8 @@ export function AwardDialog({
     }
     try {
       award(
-        packet.packet_id,
-        { quote_id: quote.quote_id, awarded_at: isoNow(), qty: packet.part.qty.target },
+        traveler.traveler_id,
+        { quote_id: quote.quote_id, awarded_at: isoNow(), qty: traveler.part.qty.target },
         {
           name: name.trim(),
           line1: line1.trim(),
@@ -74,14 +74,14 @@ export function AwardDialog({
         },
         ops,
       );
-      toast.success("Packet is L2 executable.");
+      toast.success("Traveler is L2 executable.");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not award");
     }
   }
 
-  const targetLine = quote ? pricedLine(quote.pricing.lines, packet.part.qty.target) : undefined;
+  const targetLine = quote ? pricedLine(quote.pricing.lines, traveler.part.qty.target) : undefined;
   const expired = quote ? isQuoteExpired(quote) : false;
 
   return (
@@ -105,10 +105,10 @@ export function AwardDialog({
         )}
         {expired && (
           <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-            This quote is past valid_until. Amend the packet or request a new quote.
+            This quote is past valid_until. Amend the traveler or request a new quote.
           </p>
         )}
-        {packet.itar && (
+        {traveler.itar && (
           <p className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-foreground">
             ITAR-declared. Awarding here does not license export or deemed export of technical data.
           </p>

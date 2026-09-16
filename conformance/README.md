@@ -1,7 +1,7 @@
 # Conformance vectors
 
 Language-agnostic test vectors that define what a conforming
-`rivlet-packet/0.0.1` implementation must do. The TypeScript and Rust
+`opentraveler/0.0.1` implementation must do. The TypeScript and Rust
 reference implementations both run these exact files in CI; a third
 implementation proves itself the same way.
 
@@ -9,11 +9,11 @@ implementation proves itself the same way.
 |---|---|
 | `canonical.json` → `valid[]` | For each `value`, produce exactly `canonical` (bytes) and `sha384` |
 | `canonical.json` → `invalid[]` | Refuse to canonicalize `value` (do not hash, do not substitute) |
-| `packets/*.json` + `packets/expected.json` | Parse each packet; produce exactly `packet_hash` and `level` |
-| `packets/reject/*.json` | Refuse the document at parse time |
+| `travelers/*.json` + `travelers/expected.json` | Parse each traveler; produce exactly `traveler_hash` and `level` |
+| `travelers/reject/*.json` | Refuse the document at parse time |
 
-Runners: `src/lib/packet/vectors.test.ts` (TypeScript),
-`crates/rivlet-packet/tests/vectors.rs` (Rust).
+Runners: `src/lib/traveler/vectors.test.ts` (TypeScript),
+`crates/opentraveler/tests/vectors.rs` (Rust).
 
 `generate.ts` regenerates the expected values **from the TypeScript
 implementation**; the Rust side never generates, only verifies — so

@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { LevelInfo } from "@/lib/packet/conformance";
+import type { LevelInfo } from "@/lib/traveler/conformance";
 import { cn } from "@/lib/utils";
 
 export function LevelBadge({

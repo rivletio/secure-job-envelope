@@ -1,7 +1,7 @@
 # Encrypted envelope — draft for 0.1
 
 **Status: DRAFT — design document, not yet implemented or normative.**
-File extension `.rivpkt.enc`. Goal: a packet exchanged between two shops is
+File extension `.traveler.enc`. Goal: a traveler exchanged between two shops is
 confidential against an adversary who records everything today and owns a
 cryptographically relevant quantum computer later.
 
@@ -19,9 +19,9 @@ carries two kinds of secrets:
    families, at what cadence. In aggregate this is a map of the industrial
    base. The envelope alone cannot hide traffic flows from the transport,
    but it must not *add* metadata: no org names, no part numbers, no
-   packet ids in the clear.
+   traveler ids in the clear.
 
-Design consequence of the second point: Rivlet Packet remains a **file
+Design consequence of the second point: OpenTraveler remains a **file
 format, not a platform** — there is deliberately no central broker that
 sees plaintext or the full exchange graph. Anyone who builds a relay or
 directory on top of this spec should treat that property as normative.
@@ -45,12 +45,12 @@ if defined, the derived key MUST bind both shared secrets.
 
 ## Envelope shape
 
-A `.rivpkt.enc` is a JSON document (same ethos as the packet — inspectable
+A `.traveler.enc` is a JSON document (same ethos as the traveler — inspectable
 structure, opaque payload):
 
 ```jsonc
 {
-  "spec": "rivlet-packet-envelope/0.1",
+  "spec": "opentraveler-envelope/0.1",
   "enc_alg": "ML-KEM-768+HKDF-SHA-384+AES-256-GCM",
   "recipients": [
     {
@@ -70,7 +70,7 @@ structure, opaque payload):
 }
 ```
 
-- **Payload** is the complete `.rivpkt.zip` bytes (so the existing archive
+- **Payload** is the complete `.traveler.zip` bytes (so the existing archive
   rules — allowlist, size caps, META digests — apply unchanged after
   decryption).
 - **Multi-recipient:** one random 256-bit CEK encrypts the payload once; a
@@ -84,9 +84,9 @@ structure, opaque payload):
   entries bind `{spec, enc_alg, kid}` the same way.
 - **Metadata minimization:** recipients are identified only by `kid` — a
   truncated hash of their public key, meaningless without the key
-  directory the parties already share. Envelope carries **no** packet_id,
+  directory the parties already share. Envelope carries **no** traveler_id,
   org names, or part information in the clear. Filename SHOULD be random,
-  not `{packet_id}.rivpkt.enc`.
+  not `{traveler_id}.traveler.enc`.
 
 ## Keys
 
@@ -117,7 +117,7 @@ structure, opaque payload):
 - Traffic-flow confidentiality from the transport itself (email headers,
   IP metadata). Use channels appropriate to the sensitivity.
 - Deniability or anonymity between counterparties.
-- Compliance magic: encrypting a packet does not make a browser desk a
+- Compliance magic: encrypting a traveler does not make a browser desk a
   CUI system. DFARS/NIST 800-171 obligations live in the parties' control
   environments (see `TRUST.md`).
 

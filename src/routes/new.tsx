@@ -8,22 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { levelOf } from "@/lib/packet/conformance";
-import { packetHash } from "@/lib/packet/hash";
-import { isoNow, newPacketId } from "@/lib/packet/ids";
-import { usePacketStore } from "@/lib/packet/store";
+import { levelOf } from "@/lib/traveler/conformance";
+import { travelerHash } from "@/lib/traveler/hash";
+import { isoNow, newTravelerId } from "@/lib/traveler/ids";
+import { useTravelerStore } from "@/lib/traveler/store";
 import {
   MATERIAL_PRESETS,
-  PACKET_SPEC,
+  TRAVELER_SPEC,
   PROCESS_OPTIONS,
-  type Packet,
-} from "@/lib/packet/types";
+  type Traveler,
+} from "@/lib/traveler/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/new")({ component: Compose });
 
 function Compose() {
-  const upsert = usePacketStore((s) => s.upsert);
+  const upsert = useTravelerStore((s) => s.upsert);
   const navigate = useNavigate();
   const [buyer, setBuyer] = useState("Northline Equipment");
   const [city, setCity] = useState("Milwaukee");
@@ -44,7 +44,7 @@ function Compose() {
   const [notes, setNotes] = useState("");
   const [processes, setProcesses] = useState<string[]>(["cnc_mill"]);
 
-  const draft: Packet = useMemo(() => {
+  const draft: Traveler = useMemo(() => {
     const target = Math.max(1, Number(qty) || 1);
     const br = breaks
       .split(",")
@@ -52,8 +52,8 @@ function Compose() {
       .filter((n) => Number.isInteger(n) && n >= 1);
     const th = Number(thickness);
     return {
-      spec: PACKET_SPEC,
-      packet_id: "pkt_draftlive",
+      spec: TRAVELER_SPEC,
+      traveler_id: "tvl_draftlive",
       revision: 1,
       created_at: "2026-09-14T00:00:00.000Z",
       buyer: { name: buyer, city, region },
@@ -99,7 +99,7 @@ function Compose() {
   ]);
 
   const info = levelOf(draft);
-  const hash = packetHash(draft);
+  const hash = travelerHash(draft);
 
   function toggleProcess(code: string) {
     setProcesses((p) => (p.includes(code) ? p.filter((x) => x !== code) : [...p, code]));
@@ -111,9 +111,9 @@ function Compose() {
       toast.error(`Not quoteable yet: ${info.missing.join(", ")}`);
       return;
     }
-    const packet: Packet = {
+    const traveler: Traveler = {
       ...draft,
-      packet_id: newPacketId(),
+      traveler_id: newTravelerId(),
       created_at: isoNow(),
       buyer: {
         name: buyer.trim(),
@@ -123,11 +123,11 @@ function Compose() {
       quotes: [],
     };
     try {
-      upsert(packet);
-      toast.success(`${packet.packet_id} is L0 quoteable`);
-      void navigate({ to: "/p/$packetId", params: { packetId: packet.packet_id } });
+      upsert(traveler);
+      toast.success(`${traveler.traveler_id} is L0 quoteable`);
+      void navigate({ to: "/t/$travelerId", params: { travelerId: traveler.traveler_id } });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not seal packet");
+      toast.error(err instanceof Error ? err.message : "Could not seal traveler");
     }
   }
 
@@ -135,7 +135,7 @@ function Compose() {
     <AppShell>
       <div className="mb-6">
         <p className="mono-label">Compose</p>
-        <h1 className="mt-2 text-3xl tracking-tight text-paper">New packet</h1>
+        <h1 className="mt-2 text-3xl tracking-tight text-paper">New traveler</h1>
         <p className="mt-2 max-w-2xl text-sm text-soft">
           Fill material and qty and it is L0 — a shop can price without guessing. The hash
           on the right is the revision sellers will bind to.
@@ -224,7 +224,7 @@ function Compose() {
             {itar && (
               <p className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs leading-relaxed text-foreground">
                 Checking this does not implement ITAR, EAR, or deemed-export controls. This desk
-                stores packets in this browser, hashes the quoteable body, and refuses quotes from
+                stores travelers in this browser, hashes the quoteable body, and refuses quotes from
                 shops that are not marked ITAR. It is not a DDTC-authorized distribution system.
                 Do not put actual controlled drawings on a public desk.
               </p>
@@ -235,7 +235,7 @@ function Compose() {
             </div>
           </fieldset>
           <Button type="submit" className="h-12">
-            Seal L0 packet
+            Seal L0 traveler
           </Button>
         </div>
         <aside className="on-paper traveler-shadow h-fit rounded-sm p-4 lg:sticky lg:top-28">

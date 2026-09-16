@@ -1,20 +1,20 @@
-# Rivlet Packet
+# OpenTraveler
 
 **A content-addressed job envelope for parts manufacturing.**
-`application/vnd.rivlet.packet+json` · spec `rivlet-packet/0.0.1` · Apache-2.0
+`application/vnd.opentraveler+json` · spec `opentraveler/0.0.1` · Apache-2.0
 
-A **packet** is the job object — one part family moving between a buyer and a
+A **traveler** is the job object — one part family moving between a buyer and a
 seller: part, material, quantity (with price breaks), need-by, ship-to, the
 quotes it attracted, and the award. It is **not** a shop OS and **not** a
 marketplace. Coordination happens through the *file*: shops exchange
-`{packet_id}.rivpkt.zip` archives over whatever channel they already use, and
+`{traveler_id}.traveler.zip` archives over whatever channel they already use, and
 every implementation that follows this spec computes the same
 `sha384:…` hash for the same quoteable body — so a quote can bind to
 *exactly* the revision it priced.
 
 ```
-Buyer composes packet  ──►  L0 Quoteable   (can price without guessing)
-Sellers attach quotes  ──►  L1 Awardable   (quotes bound to packet_hash)
+Buyer composes traveler  ──►  L0 Quoteable   (can price without guessing)
+Sellers attach quotes  ──►  L1 Awardable   (quotes bound to traveler_hash)
 Buyer awards + ops     ──►  L2 Executable  (locked; traveler + ship-to)
                             L3 As-built    (reserved in 0.0.1)
 ```
@@ -26,14 +26,14 @@ This repo contains:
 | `docs/PLAN.md` | Project plan: goals, milestones, current state (shalt manages the live copy in `.shalt/plan.md`) |
 | `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |
 | `docs/SPEC.md` | The 0.0.1 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
-| `public/schemas/` | JSON Schema 2020-12 for packet and quote |
-| `src/lib/packet/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |
-| `crates/rivlet-packet/` | Independent **Rust** implementation + CLI (`rivlet-packet hash|level`) |
+| `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
+| `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |
+| `crates/opentraveler/` | Independent **Rust** implementation + CLI (`opentraveler hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
-| `examples/` | A worked example packet and how to verify it with both implementations |
+| `examples/` | A worked example traveler and how to verify it with both implementations |
 | `conformance/` | Language-agnostic conformance vectors — both implementations run the same files in CI |
 | `docs/CLAIMS.md` | The claims register: every written security claim mapped to the test that proves it |
-| `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.rivpkt.enc`) |
+| `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.traveler.enc`) |
 | `TRUST.md` | Honest SOC 2 TSC mapping: what this gives you, what it does not |
 | `SECURITY.md` | Threat model and how to report issues |
 
@@ -43,7 +43,7 @@ has to migrate.
 
 The TypeScript and Rust implementations are deliberately independent — no
 shared code, no wasm bridge — and are held together by a **golden test
-vector** (`crates/rivlet-packet/tests/golden.json`): both must produce the
+vector** (`crates/opentraveler/tests/golden.json`): both must produce the
 same hash for the same body, byte for byte. Numbers that would render
 differently across languages (exponential notation) are **refused by both
 sides** rather than hashed ambiguously; see the canonicalization rules in
@@ -59,21 +59,21 @@ register with a passing test, treat it as unverified.
 ```bash
 npm install
 npm run dev        # browser workbench
-npm test           # packet test suite (golden hash, guards, zip round-trip)
+npm test           # traveler test suite (golden hash, guards, zip round-trip)
 npm run typecheck
 ```
 
-The desk stores packets in your browser's localStorage — it is a
+The desk stores travelers in your browser's localStorage — it is a
 demonstration surface for the format, not a hosted service. The Buyer/Seller
 toggle is a *view*, not authentication (see `TRUST.md`).
 
 ## Quickstart — the Rust verifier
 
 ```bash
-cd crates/rivlet-packet
+cd crates/opentraveler
 cargo test         # includes the shared golden vector
-cargo run -- hash  ../../examples/bracket.packet.json
-cargo run -- level ../../examples/bracket.packet.json
+cargo run -- hash  ../../examples/bracket.traveler.json
+cargo run -- level ../../examples/bracket.traveler.json
 ```
 
 ## What 0.0.1 deliberately does not do
@@ -88,7 +88,7 @@ Stated here so nobody discovers it the hard way:
   check — not DDTC registration, not a Technology Control Plan. Do not put
   actual USML/EAR technical data in a browser demo (see `TRUST.md`).
 - **Money is IEEE-754** with fixed-notation canonical bounds; a later spec
-  should prefer integer minor units if packets become the commercial record.
+  should prefer integer minor units if travelers become the commercial record.
 - An award is a structured decision, **not a purchase order** — 0.0.1 has no
   governing law, warranty, or payment terms.
 

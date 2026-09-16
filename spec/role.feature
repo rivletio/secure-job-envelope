@@ -25,5 +25,5 @@ Feature: Buyer and seller role switch
   @rid:S-10a2b061
   Scenario: Primary nav is always available
     When the user opens any page
-    Then the primary nav includes "Desk", "New packet", "Spec", and "Trust"
+    Then the primary nav includes "Desk", "New traveler", "Spec", and "Trust"
     And the footer states role is a view, not authentication

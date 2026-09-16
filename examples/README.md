@@ -1,16 +1,16 @@
 # Worked example
 
-[`bracket.packet.json`](bracket.packet.json) is a complete L0 (Quoteable)
-packet: a CNC bracket, 6061-T6 plate, 250 target with price breaks, need-by
+[`bracket.traveler.json`](bracket.traveler.json) is a complete L0 (Quoteable)
+traveler: a CNC bracket, 6061-T6 plate, 250 target with price breaks, need-by
 and Incoterms set, ITAR false.
 
 ## Verify it with the Rust CLI
 
 ```bash
-cd crates/rivlet-packet
-cargo run -- hash  ../../examples/bracket.packet.json
-# sha384:358d7ec8f817372c857602be6c8d08641874f425f7280bb443fe5edce8bfa2cc04cee92b5ade35b4cf06f8ee33f1694b
-cargo run -- level ../../examples/bracket.packet.json
+cd crates/opentraveler
+cargo run -- hash  ../../examples/bracket.traveler.json
+# sha384:4aebba3774006f54904e68999d28c9c109c34fd4b266ee1da0f10a91c912d0a3fc27fa7108dadccb4d27a73046c117e2
+cargo run -- level ../../examples/bracket.traveler.json
 # L0 Quoteable
 ```
 
@@ -20,29 +20,29 @@ whole point.
 ## Verify it in TypeScript
 
 ```ts
-import { packetHash } from "../src/lib/packet/hash.ts";
-import { levelOf, parsePacket } from "../src/lib/packet/conformance.ts";
+import { travelerHash } from "../src/lib/traveler/hash.ts";
+import { levelOf, parseTraveler } from "../src/lib/traveler/conformance.ts";
 import { readFileSync } from "node:fs";
 
-const packet = parsePacket(JSON.parse(readFileSync("examples/bracket.packet.json", "utf8")));
-console.log(packetHash(packet)); // sha384:358d7ec8…f1694b — same as the CLI
-console.log(levelOf(packet).code); // L0
+const traveler = parseTraveler(JSON.parse(readFileSync("examples/bracket.traveler.json", "utf8")));
+console.log(travelerHash(traveler)); // sha384:4aebba37…c117e2 — same as the CLI
+console.log(levelOf(traveler).code); // L0
 ```
 
 Both implementations are independent; agreement on this hash (and on the
-golden vector in `crates/rivlet-packet/tests/golden.json`) is what makes a
-quote's `packet_hash_quoted` mean the same thing to both parties.
+golden vector in `crates/opentraveler/tests/golden.json`) is what makes a
+quote's `traveler_hash_quoted` mean the same thing to both parties.
 
 ## The flow from here
 
 1. **Quote (seller):** open the desk (`npm run dev`), import or compose the
-   packet, switch the role toggle to Seller, and attach a quote — it binds
-   to the hash above. The packet is now **L1 Awardable**.
+   traveler, switch the role toggle to Seller, and attach a quote — it binds
+   to the hash above. The traveler is now **L1 Awardable**.
 2. **Amend (buyer):** change qty or material — revision bumps to 2, the
    hash changes, and the quote is stale-marked. Sellers re-quote against
    the new hash.
 3. **Award (buyer):** award a bound, unexpired quote, list the ops
-   traveler, confirm ship-to — **L2 Executable**, and the packet locks.
-4. **Exchange:** export `{packet_id}.rivpkt.zip` and send it over whatever
+   traveler, confirm ship-to — **L2 Executable**, and the traveler locks.
+4. **Exchange:** export `{traveler_id}.traveler.zip` and send it over whatever
    channel you already use. The recipient's import verifies structure,
    size caps, and META.json digests, then re-checks the hash locally.

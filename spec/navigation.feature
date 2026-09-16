@@ -16,11 +16,11 @@ Feature: App shell navigation
   @rid:S-56ed3456
   Scenario: Active nav reflects the current path
     When the user opens "/new"
-    Then nav item "New packet" is current
+    Then nav item "New traveler" is current
     And nav item "Desk" is not current
 
   @rid:S-9e04747d
-  Scenario: Unknown packet still renders the shell
-    When the user opens "/p/pkt_missing0"
+  Scenario: Unknown traveler still renders the shell
+    When the user opens "/p/tvl_missing0"
     Then the primary nav is visible
     And the role switch is visible

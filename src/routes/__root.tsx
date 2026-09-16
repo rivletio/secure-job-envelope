@@ -1,10 +1,10 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
-import { PacketProvider } from "@/components/packet-provider";
+import { TravelerProvider } from "@/components/traveler-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "Rivlet Packet";
+const APP_NAME = "OpenTraveler";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -16,7 +16,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "A Rivlet Packet is a content-addressed job envelope for one part family moving between two US manufacturers.",
+          "A OpenTraveler is a content-addressed job envelope for one part family moving between two US manufacturers.",
       },
     ],
     links: [
@@ -37,9 +37,9 @@ export const Route = createRootRoute({
       </head>
       <body>
         <TooltipProvider delayDuration={200}>
-          <PacketProvider>
+          <TravelerProvider>
             <Outlet />
-          </PacketProvider>
+          </TravelerProvider>
         </TooltipProvider>
         <Toaster position="bottom-center" richColors={false} />
         <Scripts />

@@ -1,9 +1,9 @@
 {
-  "name": "rivlet-packet",
+  "name": "opentraveler",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Rivlet Packet — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/rivlet-packet.",
+  "description": "OpenTraveler — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/opentraveler.",
   "type": "module",
   "sideEffects": false,
   "scripts": {
@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --test src/lib/packet/packet.test.ts src/lib/packet/vectors.test.ts src/lib/packet/store.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

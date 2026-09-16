@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-16T15:36:20Z",
+  "generated_at": "2026-09-16T15:46:34Z",
   "mutation": null,
   "regressions": [],
   "scenarios": {
@@ -17,6 +17,12 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:f557343456ca7c32154d77afe1715f43"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:e758ca1cd4aa278213fee503b5848a35",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -25,7 +31,7 @@
       "mutants_killed": null,
       "name": "Audit lists newest first after desk activity",
       "rid": "S-00b5968f",
-      "spec_hash": "sha256:f557343456ca7c32154d77afe1715f43",
+      "spec_hash": "sha256:e758ca1cd4aa278213fee503b5848a35",
       "status": "pending",
       "tags": [
         "@rid:S-00b5968f",
@@ -68,15 +74,21 @@
       "benefit": "",
       "blind_spots": null,
       "capability": "",
-      "epic": "packet",
+      "epic": "traveler",
       "failure": null,
-      "feature": "View a packet on the desk",
-      "feature_file": "packet-view.feature",
+      "feature": "View a traveler on the desk",
+      "feature_file": "traveler-view.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:ffa7b15449b69ac22ce4960387145a8b"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:6f5b49ae142dd9a49089e5c0810d065b",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -85,11 +97,11 @@
       "mutants_killed": null,
       "name": "L0 weldment shows quoteable body and no bound quotes",
       "rid": "S-0b3a81e6",
-      "spec_hash": "sha256:ffa7b15449b69ac22ce4960387145a8b",
+      "spec_hash": "sha256:6f5b49ae142dd9a49089e5c0810d065b",
       "status": "pending",
       "tags": [
         "@rid:S-0b3a81e6",
-        "@epic:packet"
+        "@epic:traveler"
       ],
       "verified_spec_hash": ""
     },
@@ -107,6 +119,12 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:8414aac0fd08dfc966653bc726c0e66c"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:6764a79ab329d198eb4c04eb9b07f437",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -115,7 +133,7 @@
       "mutants_killed": null,
       "name": "Primary nav is always available",
       "rid": "S-10a2b061",
-      "spec_hash": "sha256:8414aac0fd08dfc966653bc726c0e66c",
+      "spec_hash": "sha256:6764a79ab329d198eb4c04eb9b07f437",
       "status": "pending",
       "tags": [
         "@rid:S-10a2b061",
@@ -130,13 +148,19 @@
       "capability": "",
       "epic": "lifecycle",
       "failure": null,
-      "feature": "Amend revision and lock executable packets",
+      "feature": "Amend revision and lock executable travelers",
       "feature_file": "amend-lock.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:30718b49cf7e0ce6fde7725f7bdf7e16"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:147a9c486bc1a32ea41962298c10714b",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -145,7 +169,7 @@
       "mutants_killed": null,
       "name": "Amend bumps revision and drops bound quotes to stale",
       "rid": "S-1944528f",
-      "spec_hash": "sha256:30718b49cf7e0ce6fde7725f7bdf7e16",
+      "spec_hash": "sha256:147a9c486bc1a32ea41962298c10714b",
       "status": "pending",
       "tags": [
         "@rid:S-1944528f",
@@ -160,13 +184,19 @@
       "capability": "",
       "epic": "quote",
       "failure": null,
-      "feature": "Bind a structured quote to a packet hash",
+      "feature": "Bind a structured quote to a traveler hash",
       "feature_file": "quote.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:d7ea7fed1159a25084e890a9fcfeb950"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:341aae1257f7ecd76b3b9cecc2373ef6",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -175,7 +205,7 @@
       "mutants_killed": null,
       "name": "Same seller cannot place a second quote on the same revision",
       "rid": "S-21f49a9e",
-      "spec_hash": "sha256:d7ea7fed1159a25084e890a9fcfeb950",
+      "spec_hash": "sha256:341aae1257f7ecd76b3b9cecc2373ef6",
       "status": "pending",
       "tags": [
         "@rid:S-21f49a9e",
@@ -190,22 +220,28 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:2bde976fc0253d7d88825c1570018c43"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:7beff3a3bcbb8524b450291204b0ff2c",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 11,
       "mutants_killed": null,
-      "name": "Packet id must match pkt_ style token",
+      "name": "Traveler id must match tvl_ style token",
       "rid": "S-25ff4dda",
-      "spec_hash": "sha256:2bde976fc0253d7d88825c1570018c43",
+      "spec_hash": "sha256:7beff3a3bcbb8524b450291204b0ff2c",
       "status": "pending",
       "tags": [
         "@rid:S-25ff4dda",
@@ -220,22 +256,28 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:9f6d45b58f7ff4ff1b48f9eb5471e0f9"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:b8f2e9e2acf9ec6930349094152fc43c",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 57,
       "mutants_killed": null,
-      "name": "META packet_hash mismatch is rejected",
+      "name": "META traveler_hash mismatch is rejected",
       "rid": "S-27956542",
-      "spec_hash": "sha256:9f6d45b58f7ff4ff1b48f9eb5471e0f9",
+      "spec_hash": "sha256:b8f2e9e2acf9ec6930349094152fc43c",
       "status": "pending",
       "tags": [
         "@rid:S-27956542",
@@ -257,6 +299,12 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:2947ea5da4cf582ee05e60f7918b2670"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:3bde6494ed9572e69a5ba2257a8777ed",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -265,7 +313,7 @@
       "mutants_killed": null,
       "name": "Cancel ITAR import leaves the desk unchanged",
       "rid": "S-2b55a99f",
-      "spec_hash": "sha256:2947ea5da4cf582ee05e60f7918b2670",
+      "spec_hash": "sha256:3bde6494ed9572e69a5ba2257a8777ed",
       "status": "pending",
       "tags": [
         "@rid:S-2b55a99f",
@@ -280,13 +328,19 @@
       "capability": "",
       "epic": "hash",
       "failure": null,
-      "feature": "Content-addressed packet hash",
+      "feature": "Content-addressed traveler hash",
       "feature_file": "hash.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:8f21d8fbccf52fe421ae121918ac7a67"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:9ccd82db32fdbeaaeb7b2ae89b39568d",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -295,7 +349,7 @@
       "mutants_killed": null,
       "name": "Non-finite and out-of-range numbers are refused by canonicalization",
       "rid": "S-2b9028c4",
-      "spec_hash": "sha256:8f21d8fbccf52fe421ae121918ac7a67",
+      "spec_hash": "sha256:9ccd82db32fdbeaaeb7b2ae89b39568d",
       "status": "pending",
       "tags": [
         "@rid:S-2b9028c4",
@@ -308,15 +362,21 @@
       "benefit": "",
       "blind_spots": null,
       "capability": "",
-      "epic": "packet",
+      "epic": "traveler",
       "failure": null,
-      "feature": "View a packet on the desk",
-      "feature_file": "packet-view.feature",
+      "feature": "View a traveler on the desk",
+      "feature_file": "traveler-view.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:9bcb24784629758623417825d5fcc4c0"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:c414364282ce357e3b77a3324aaca60c",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -325,11 +385,11 @@
       "mutants_killed": null,
       "name": "L1 bracket lists two quotes bound to the current hash",
       "rid": "S-2c7a2f1e",
-      "spec_hash": "sha256:9bcb24784629758623417825d5fcc4c0",
+      "spec_hash": "sha256:c414364282ce357e3b77a3324aaca60c",
       "status": "pending",
       "tags": [
         "@rid:S-2c7a2f1e",
-        "@epic:packet"
+        "@epic:traveler"
       ],
       "verified_spec_hash": ""
     },
@@ -340,22 +400,28 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:637ccbd332c26000a6969965ba795e7f"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:3dbacecef498a900c87c5f28f6fe550d",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 10,
       "mutants_killed": null,
-      "name": "Export rivpkt zip downloads the archive and audits",
+      "name": "Export traveler zip downloads the archive and audits",
       "rid": "S-2f13412c",
-      "spec_hash": "sha256:637ccbd332c26000a6969965ba795e7f",
+      "spec_hash": "sha256:3dbacecef498a900c87c5f28f6fe550d",
       "status": "pending",
       "tags": [
         "@rid:S-2f13412c",
@@ -370,13 +436,19 @@
       "capability": "",
       "epic": "compose",
       "failure": null,
-      "feature": "Compose a new L0 packet",
+      "feature": "Compose a new L0 traveler",
       "feature_file": "compose.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:63b6a55e40615b387e2069c5e9c4b5a4"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:87e3c85eafce658855192992e33cb1f7",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -385,7 +457,7 @@
       "mutants_killed": null,
       "name": "Draft missing material stays Draft",
       "rid": "S-31b13e28",
-      "spec_hash": "sha256:63b6a55e40615b387e2069c5e9c4b5a4",
+      "spec_hash": "sha256:87e3c85eafce658855192992e33cb1f7",
       "status": "pending",
       "tags": [
         "@rid:S-31b13e28",
@@ -400,22 +472,28 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:a5601b971f633b1e1cdbfbe701a3b91b"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:b5f39fde158d3de55576d4ecb0bc8627",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 50,
       "mutants_killed": null,
-      "name": "Seed packets all parse and bind",
+      "name": "Seed travelers all parse and bind",
       "rid": "S-34356641",
-      "spec_hash": "sha256:a5601b971f633b1e1cdbfbe701a3b91b",
+      "spec_hash": "sha256:b5f39fde158d3de55576d4ecb0bc8627",
       "status": "pending",
       "tags": [
         "@rid:S-34356641",
@@ -430,13 +508,19 @@
       "capability": "",
       "epic": "hash",
       "failure": null,
-      "feature": "Content-addressed packet hash",
+      "feature": "Content-addressed traveler hash",
       "feature_file": "hash.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:6fcdc328bed4b343a6713a6664b2fc1c"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:e6cd07a5c14c0f16afb493b0ae8465c7",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -445,7 +529,7 @@
       "mutants_killed": null,
       "name": "Golden quoteable body matches the published vector",
       "rid": "S-34a0777b",
-      "spec_hash": "sha256:6fcdc328bed4b343a6713a6664b2fc1c",
+      "spec_hash": "sha256:e6cd07a5c14c0f16afb493b0ae8465c7",
       "status": "pending",
       "tags": [
         "@rid:S-34a0777b",
@@ -460,22 +544,28 @@
       "capability": "",
       "epic": "quote",
       "failure": null,
-      "feature": "Bind a structured quote to a packet hash",
+      "feature": "Bind a structured quote to a traveler hash",
       "feature_file": "quote.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:72dfe4c1d40225373527a13f01260fec"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:2ad99300178102cd7dd403203a7fe330",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 50,
       "mutants_killed": null,
-      "name": "Quote on a Draft packet is not offered",
+      "name": "Quote on a Draft traveler is not offered",
       "rid": "S-39a5c4ae",
-      "spec_hash": "sha256:72dfe4c1d40225373527a13f01260fec",
+      "spec_hash": "sha256:2ad99300178102cd7dd403203a7fe330",
       "status": "pending",
       "tags": [
         "@rid:S-39a5c4ae",
@@ -490,13 +580,19 @@
       "capability": "",
       "epic": "award",
       "failure": null,
-      "feature": "Award a bound quote and make the packet executable",
+      "feature": "Award a bound quote and make the traveler executable",
       "feature_file": "award.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:0f647366098dd359e2fabe0e8582ce9a"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:13a5308f504ffdb85bd030b7807cdb36",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -505,7 +601,7 @@
       "mutants_killed": null,
       "name": "Award requires a complete ship-to",
       "rid": "S-3c28a4e7",
-      "spec_hash": "sha256:0f647366098dd359e2fabe0e8582ce9a",
+      "spec_hash": "sha256:13a5308f504ffdb85bd030b7807cdb36",
       "status": "pending",
       "tags": [
         "@rid:S-3c28a4e7",
@@ -520,22 +616,28 @@
       "capability": "",
       "epic": "lifecycle",
       "failure": null,
-      "feature": "Amend revision and lock executable packets",
+      "feature": "Amend revision and lock executable travelers",
       "feature_file": "amend-lock.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:ea3667da5474e5e1388a2a2b4c46e48c"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:6b94a61dfe3672c9450e675f35b9887e",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 33,
       "mutants_killed": null,
-      "name": "Executable packet refuses new quotes",
+      "name": "Executable traveler refuses new quotes",
       "rid": "S-3d08634f",
-      "spec_hash": "sha256:ea3667da5474e5e1388a2a2b4c46e48c",
+      "spec_hash": "sha256:6b94a61dfe3672c9450e675f35b9887e",
       "status": "pending",
       "tags": [
         "@rid:S-3d08634f",
@@ -550,22 +652,28 @@
       "capability": "",
       "epic": "quote",
       "failure": null,
-      "feature": "Bind a structured quote to a packet hash",
+      "feature": "Bind a structured quote to a traveler hash",
       "feature_file": "quote.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:7a843bfc2e2fb326051854eb8d6f716e"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:8f2d54ef193ae220c44cb8286b610402",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 20,
       "mutants_killed": null,
-      "name": "Bind quote promotes packet from L0 to L1",
+      "name": "Bind quote promotes traveler from L0 to L1",
       "rid": "S-3d848957",
-      "spec_hash": "sha256:7a843bfc2e2fb326051854eb8d6f716e",
+      "spec_hash": "sha256:8f2d54ef193ae220c44cb8286b610402",
       "status": "pending",
       "tags": [
         "@rid:S-3d848957",
@@ -580,22 +688,28 @@
       "capability": "",
       "epic": "desk",
       "failure": null,
-      "feature": "Desk packet list",
+      "feature": "Desk traveler list",
       "feature_file": "desk.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:5e23dd85cb6bb39f5052ebcbd668027d"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:df44a45e00f1e25d6a14e6da8812d8c1",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 10,
       "mutants_killed": null,
-      "name": "Seed desk shows four packets across conformance levels",
+      "name": "Seed desk shows four travelers across conformance levels",
       "rid": "S-4006e8e8",
-      "spec_hash": "sha256:5e23dd85cb6bb39f5052ebcbd668027d",
+      "spec_hash": "sha256:df44a45e00f1e25d6a14e6da8812d8c1",
       "status": "pending",
       "tags": [
         "@rid:S-4006e8e8",
@@ -610,13 +724,19 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:2c2ba2ba3c00a89343c6eeb27a132252"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:d0418776a62842e64519abfc75933795",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -625,7 +745,7 @@
       "mutants_killed": null,
       "name": "Zip with path traversal is rejected",
       "rid": "S-426f614a",
-      "spec_hash": "sha256:2c2ba2ba3c00a89343c6eeb27a132252",
+      "spec_hash": "sha256:d0418776a62842e64519abfc75933795",
       "status": "pending",
       "tags": [
         "@rid:S-426f614a",
@@ -677,6 +797,12 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:bc492db2eef341bbba4fe040ca56cf1a"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:f39dcfbfe5ad5aa3086e694eae5c6983",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -685,7 +811,7 @@
       "mutants_killed": null,
       "name": "Active nav reflects the current path",
       "rid": "S-56ed3456",
-      "spec_hash": "sha256:bc492db2eef341bbba4fe040ca56cf1a",
+      "spec_hash": "sha256:f39dcfbfe5ad5aa3086e694eae5c6983",
       "status": "pending",
       "tags": [
         "@rid:S-56ed3456",
@@ -707,15 +833,21 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:d058c7d292dc0e1cc13ddde71c66c0b1"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:e9f562cd3eb9b05d71ecb16c21d430ff",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 56,
       "mutants_killed": null,
-      "name": "Packet schema rejects ITAR packet carrying a non-ITAR seller quote",
+      "name": "Traveler schema rejects ITAR traveler carrying a non-ITAR seller quote",
       "rid": "S-58ea8df3",
-      "spec_hash": "sha256:d058c7d292dc0e1cc13ddde71c66c0b1",
+      "spec_hash": "sha256:e9f562cd3eb9b05d71ecb16c21d430ff",
       "status": "pending",
       "tags": [
         "@rid:S-58ea8df3",
@@ -737,15 +869,21 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:1740e88c0b79037282686fbf0ed44687"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:5329af7e6c21b144f765be13177763e5",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 7,
       "mutants_killed": null,
-      "name": "Non-ITAR seller cannot quote an ITAR packet",
+      "name": "Non-ITAR seller cannot quote an ITAR traveler",
       "rid": "S-592f14fc",
-      "spec_hash": "sha256:1740e88c0b79037282686fbf0ed44687",
+      "spec_hash": "sha256:5329af7e6c21b144f765be13177763e5",
       "status": "pending",
       "tags": [
         "@rid:S-592f14fc",
@@ -790,13 +928,19 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:9bb81ed3a48ab3964d54dbf917d4d1a0"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:bde930e436863efa816e198d805dea37",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -805,7 +949,7 @@
       "mutants_killed": null,
       "name": "File larger than 2 MB is rejected",
       "rid": "S-5b35da2f",
-      "spec_hash": "sha256:9bb81ed3a48ab3964d54dbf917d4d1a0",
+      "spec_hash": "sha256:bde930e436863efa816e198d805dea37",
       "status": "pending",
       "tags": [
         "@rid:S-5b35da2f",
@@ -820,22 +964,28 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:f0ec899e724c756fcab1ea7710c60490"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:8ab9409940998600578670047f74ad6d",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 32,
       "mutants_killed": null,
-      "name": "Open plain packet JSON from the desk",
+      "name": "Open plain traveler JSON from the desk",
       "rid": "S-5f007835",
-      "spec_hash": "sha256:f0ec899e724c756fcab1ea7710c60490",
+      "spec_hash": "sha256:8ab9409940998600578670047f74ad6d",
       "status": "pending",
       "tags": [
         "@rid:S-5f007835",
@@ -850,22 +1000,28 @@
       "capability": "",
       "epic": "lifecycle",
       "failure": null,
-      "feature": "Amend revision and lock executable packets",
+      "feature": "Amend revision and lock executable travelers",
       "feature_file": "amend-lock.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:0620d2bb5beb67f19ffead70b55f084f"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:9bef6b0679c1c033b213ce545598c743",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 25,
       "mutants_killed": null,
-      "name": "Executable packet ignores amend",
+      "name": "Executable traveler ignores amend",
       "rid": "S-6428f647",
-      "spec_hash": "sha256:0620d2bb5beb67f19ffead70b55f084f",
+      "spec_hash": "sha256:9bef6b0679c1c033b213ce545598c743",
       "status": "pending",
       "tags": [
         "@rid:S-6428f647",
@@ -880,22 +1036,28 @@
       "capability": "",
       "epic": "desk",
       "failure": null,
-      "feature": "Desk packet list",
+      "feature": "Desk traveler list",
       "feature_file": "desk.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:fa9e4cbea8d73f5dbbe5044132b9c34a"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:e23fc51a59133739ec9b116f0d89ae26",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 23,
       "mutants_killed": null,
-      "name": "Filter desk to L2 executable packets",
+      "name": "Filter desk to L2 executable travelers",
       "rid": "S-661e8d23",
-      "spec_hash": "sha256:fa9e4cbea8d73f5dbbe5044132b9c34a",
+      "spec_hash": "sha256:e23fc51a59133739ec9b116f0d89ae26",
       "status": "pending",
       "tags": [
         "@rid:S-661e8d23",
@@ -940,13 +1102,19 @@
       "capability": "",
       "epic": "quote",
       "failure": null,
-      "feature": "Bind a structured quote to a packet hash",
+      "feature": "Bind a structured quote to a traveler hash",
       "feature_file": "quote.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:7d1dd10d62da7db4495e6a6cd8fd80e3"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:a8c28617528d6fcd6faf21ae3e663ea4",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -955,7 +1123,7 @@
       "mutants_killed": null,
       "name": "Cannot bind a quote with no priced lines",
       "rid": "S-72c55cae",
-      "spec_hash": "sha256:7d1dd10d62da7db4495e6a6cd8fd80e3",
+      "spec_hash": "sha256:a8c28617528d6fcd6faf21ae3e663ea4",
       "status": "pending",
       "tags": [
         "@rid:S-72c55cae",
@@ -977,6 +1145,12 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:caa4e1bfdfd0ed447e00deb541d07fc5"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:016cb704bc544fdf828427caca2b20cd",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -985,7 +1159,7 @@
       "mutants_killed": null,
       "name": "Spec page states media type and hash rule",
       "rid": "S-75b0c3d7",
-      "spec_hash": "sha256:caa4e1bfdfd0ed447e00deb541d07fc5",
+      "spec_hash": "sha256:016cb704bc544fdf828427caca2b20cd",
       "status": "pending",
       "tags": [
         "@rid:S-75b0c3d7",
@@ -1000,13 +1174,19 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:011fa9edcdaf1f5b1297a7aa433b23b2"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:a548d92b285c1b7f6498e546b2e08df3",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1015,7 +1195,7 @@
       "mutants_killed": null,
       "name": "Quote valid_until must be after created_at",
       "rid": "S-796ddcb3",
-      "spec_hash": "sha256:011fa9edcdaf1f5b1297a7aa433b23b2",
+      "spec_hash": "sha256:a548d92b285c1b7f6498e546b2e08df3",
       "status": "pending",
       "tags": [
         "@rid:S-796ddcb3",
@@ -1030,22 +1210,28 @@
       "capability": "",
       "epic": "desk",
       "failure": null,
-      "feature": "Desk packet list",
+      "feature": "Desk traveler list",
       "feature_file": "desk.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:768bd003ec14f89f7ba2186c53c2ff2c"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:f6345235c2738720ab97e564b47f1bb9",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 49,
       "mutants_killed": null,
-      "name": "Buyer sees New packet; seller sees Spec instead",
+      "name": "Buyer sees New traveler; seller sees Spec instead",
       "rid": "S-7a1d7a4a",
-      "spec_hash": "sha256:768bd003ec14f89f7ba2186c53c2ff2c",
+      "spec_hash": "sha256:f6345235c2738720ab97e564b47f1bb9",
       "status": "pending",
       "tags": [
         "@rid:S-7a1d7a4a",
@@ -1060,22 +1246,28 @@
       "capability": "",
       "epic": "award",
       "failure": null,
-      "feature": "Award a bound quote and make the packet executable",
+      "feature": "Award a bound quote and make the traveler executable",
       "feature_file": "award.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:cfa0179b9900a5dc5ce45065d680587d"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:270dc0d1bb835cf5e4ee18d16a872923",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 74,
       "mutants_killed": null,
-      "name": "Award is refused when the packet is already executable",
+      "name": "Award is refused when the traveler is already executable",
       "rid": "S-7cd6dc95",
-      "spec_hash": "sha256:cfa0179b9900a5dc5ce45065d680587d",
+      "spec_hash": "sha256:270dc0d1bb835cf5e4ee18d16a872923",
       "status": "pending",
       "tags": [
         "@rid:S-7cd6dc95",
@@ -1120,22 +1312,28 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:e00527f76f6969d20db5578ac424c07f"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:53048455ca855e0be0e45d0aba1887e9",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 18,
       "mutants_killed": null,
-      "name": "Export JSON downloads packet json",
+      "name": "Export JSON downloads traveler json",
       "rid": "S-81f75882",
-      "spec_hash": "sha256:e00527f76f6969d20db5578ac424c07f",
+      "spec_hash": "sha256:53048455ca855e0be0e45d0aba1887e9",
       "status": "pending",
       "tags": [
         "@rid:S-81f75882",
@@ -1150,13 +1348,19 @@
       "capability": "",
       "epic": "award",
       "failure": null,
-      "feature": "Award a bound quote and make the packet executable",
+      "feature": "Award a bound quote and make the traveler executable",
       "feature_file": "award.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:fc89c458a32bf5c78accf2000507279e"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:38805d0b6c69bfdeaf6773233c6eeabe",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1165,7 +1369,7 @@
       "mutants_killed": null,
       "name": "Award requires at least one op",
       "rid": "S-8567ecbe",
-      "spec_hash": "sha256:fc89c458a32bf5c78accf2000507279e",
+      "spec_hash": "sha256:38805d0b6c69bfdeaf6773233c6eeabe",
       "status": "pending",
       "tags": [
         "@rid:S-8567ecbe",
@@ -1210,22 +1414,28 @@
       "capability": "",
       "epic": "desk",
       "failure": null,
-      "feature": "Desk packet list",
+      "feature": "Desk traveler list",
       "feature_file": "desk.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:4801687016dd7c37136333157ae94640"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:ff36ffb92fea3f0a0b78d6776b5bf659",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 16,
       "mutants_killed": null,
-      "name": "Filter desk to L0 quoteable packets",
+      "name": "Filter desk to L0 quoteable travelers",
       "rid": "S-89278d6f",
-      "spec_hash": "sha256:4801687016dd7c37136333157ae94640",
+      "spec_hash": "sha256:ff36ffb92fea3f0a0b78d6776b5bf659",
       "status": "pending",
       "tags": [
         "@rid:S-89278d6f",
@@ -1240,13 +1450,19 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:248ea1294d472fc0f2532446bc30e588"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:30485ff9fc3972ca4afef70a3124c3f6",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1255,7 +1471,7 @@
       "mutants_killed": null,
       "name": "Quote rejects negative unit price",
       "rid": "S-892f8a4f",
-      "spec_hash": "sha256:248ea1294d472fc0f2532446bc30e588",
+      "spec_hash": "sha256:30485ff9fc3972ca4afef70a3124c3f6",
       "status": "pending",
       "tags": [
         "@rid:S-892f8a4f",
@@ -1270,13 +1486,19 @@
       "capability": "",
       "epic": "conformance",
       "failure": null,
-      "feature": "Packet conformance levels",
+      "feature": "Traveler conformance levels",
       "feature_file": "conformance.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:0b5c88d4d0dd37b34b94e63a32cfc043"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:bab26df0a7c040a8d1d897d1cff18b30",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1285,7 +1507,7 @@
       "mutants_killed": null,
       "name": "Executable L2 has award, ops, and ship-to",
       "rid": "S-89a6df2d",
-      "spec_hash": "sha256:0b5c88d4d0dd37b34b94e63a32cfc043",
+      "spec_hash": "sha256:bab26df0a7c040a8d1d897d1cff18b30",
       "status": "pending",
       "tags": [
         "@rid:S-89a6df2d",
@@ -1298,15 +1520,21 @@
       "benefit": "",
       "blind_spots": null,
       "capability": "",
-      "epic": "packet",
+      "epic": "traveler",
       "failure": null,
-      "feature": "View a packet on the desk",
-      "feature_file": "packet-view.feature",
+      "feature": "View a traveler on the desk",
+      "feature_file": "traveler-view.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:5887c1cfefba4a89bba986b8655b1a4b"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:cdb4290a67b72846a78d2d45244a4aaa",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1315,11 +1543,11 @@
       "mutants_killed": null,
       "name": "Sidebar checklist advances with level",
       "rid": "S-8b2475af",
-      "spec_hash": "sha256:5887c1cfefba4a89bba986b8655b1a4b",
+      "spec_hash": "sha256:cdb4290a67b72846a78d2d45244a4aaa",
       "status": "pending",
       "tags": [
         "@rid:S-8b2475af",
-        "@epic:packet"
+        "@epic:traveler"
       ],
       "verified_spec_hash": ""
     },
@@ -1330,13 +1558,19 @@
       "capability": "",
       "epic": "compose",
       "failure": null,
-      "feature": "Compose a new L0 packet",
+      "feature": "Compose a new L0 traveler",
       "feature_file": "compose.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:4e1f86d504749abe6ff8c49c7dd8e3b0"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:8f317c213ea4f085046c5b3abb870ea3",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1345,7 +1579,7 @@
       "mutants_killed": null,
       "name": "Live draft is L0 when material and qty are filled",
       "rid": "S-8c76ba69",
-      "spec_hash": "sha256:4e1f86d504749abe6ff8c49c7dd8e3b0",
+      "spec_hash": "sha256:8f317c213ea4f085046c5b3abb870ea3",
       "status": "pending",
       "tags": [
         "@rid:S-8c76ba69",
@@ -1360,22 +1594,28 @@
       "capability": "",
       "epic": "lifecycle",
       "failure": null,
-      "feature": "Amend revision and lock executable packets",
+      "feature": "Amend revision and lock executable travelers",
       "feature_file": "amend-lock.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:2329b55e3a138c30a3c721caab9b4ef4"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:bed31200e4d006542c30c38c1febae78",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 40,
       "mutants_killed": null,
-      "name": "Upserting over an executable packet is refused",
+      "name": "Upserting over an executable traveler is refused",
       "rid": "S-8cf485e5",
-      "spec_hash": "sha256:2329b55e3a138c30a3c721caab9b4ef4",
+      "spec_hash": "sha256:bed31200e4d006542c30c38c1febae78",
       "status": "pending",
       "tags": [
         "@rid:S-8cf485e5",
@@ -1390,22 +1630,28 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:a333c6129a047aab92cb9f4a25365bea"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:6520eb9c7b6bb4c9f4498b5bdec7e1fb",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 63,
       "mutants_killed": null,
-      "name": "META packet_id mismatch is rejected",
+      "name": "META traveler_id mismatch is rejected",
       "rid": "S-8fc9037d",
-      "spec_hash": "sha256:a333c6129a047aab92cb9f4a25365bea",
+      "spec_hash": "sha256:6520eb9c7b6bb4c9f4498b5bdec7e1fb",
       "status": "pending",
       "tags": [
         "@rid:S-8fc9037d",
@@ -1427,15 +1673,21 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:e1d93bc708b4c2a4f8e808ab8bd75582"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:ca5edca19d1bd3328fe20f761f4ff989",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 17,
       "mutants_killed": null,
-      "name": "ITAR-registered seller can quote an ITAR packet",
+      "name": "ITAR-registered seller can quote an ITAR traveler",
       "rid": "S-93b9ae51",
-      "spec_hash": "sha256:e1d93bc708b4c2a4f8e808ab8bd75582",
+      "spec_hash": "sha256:ca5edca19d1bd3328fe20f761f4ff989",
       "status": "pending",
       "tags": [
         "@rid:S-93b9ae51",
@@ -1450,13 +1702,19 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:a1440e04048036b2052e083902a78114"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:30c6a872c1da38d41db0b0d680586ed8",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1465,7 +1723,7 @@
       "mutants_killed": null,
       "name": "Zip without META.json is rejected",
       "rid": "S-947d4869",
-      "spec_hash": "sha256:a1440e04048036b2052e083902a78114",
+      "spec_hash": "sha256:30c6a872c1da38d41db0b0d680586ed8",
       "status": "pending",
       "tags": [
         "@rid:S-947d4869",
@@ -1480,13 +1738,19 @@
       "capability": "",
       "epic": "hash",
       "failure": null,
-      "feature": "Content-addressed packet hash",
+      "feature": "Content-addressed traveler hash",
       "feature_file": "hash.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:e15f436dcf169e343b126cfc7f21260c"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:b01194270c92fb7d6b9deca105e9fb68",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1495,7 +1759,7 @@
       "mutants_killed": null,
       "name": "Buyer contact is hashed when present",
       "rid": "S-9b54f554",
-      "spec_hash": "sha256:e15f436dcf169e343b126cfc7f21260c",
+      "spec_hash": "sha256:b01194270c92fb7d6b9deca105e9fb68",
       "status": "pending",
       "tags": [
         "@rid:S-9b54f554",
@@ -1510,22 +1774,28 @@
       "capability": "",
       "epic": "conformance",
       "failure": null,
-      "feature": "Packet conformance levels",
+      "feature": "Traveler conformance levels",
       "feature_file": "conformance.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:8d0adeec01b4e252e323d967ac1f1fbd"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:fbc0f7a4dc77813f2982bbd0f3c8f393",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 56,
       "mutants_killed": null,
-      "name": "Non-ITAR seller quote is excluded from bound set on an ITAR packet",
+      "name": "Non-ITAR seller quote is excluded from bound set on an ITAR traveler",
       "rid": "S-9b6c36d9",
-      "spec_hash": "sha256:8d0adeec01b4e252e323d967ac1f1fbd",
+      "spec_hash": "sha256:fbc0f7a4dc77813f2982bbd0f3c8f393",
       "status": "pending",
       "tags": [
         "@rid:S-9b6c36d9",
@@ -1547,15 +1817,21 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:3a77b363cd1142e0d902b6b369021b17"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:a3638e29efdcc27fc393ffc4ca26ed12",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 23,
       "mutants_killed": null,
-      "name": "Unknown packet still renders the shell",
+      "name": "Unknown traveler still renders the shell",
       "rid": "S-9e04747d",
-      "spec_hash": "sha256:3a77b363cd1142e0d902b6b369021b17",
+      "spec_hash": "sha256:a3638e29efdcc27fc393ffc4ca26ed12",
       "status": "pending",
       "tags": [
         "@rid:S-9e04747d",
@@ -1570,22 +1846,28 @@
       "capability": "",
       "epic": "conformance",
       "failure": null,
-      "feature": "Packet conformance levels",
+      "feature": "Traveler conformance levels",
       "feature_file": "conformance.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:bfcb3269342e40e0fae297e1dd649d11"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:f0ad300fc6e7281aed44e4b00fe1e9d0",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 48,
       "mutants_killed": null,
-      "name": "Bound quotes must match the current packet hash",
+      "name": "Bound quotes must match the current traveler hash",
       "rid": "S-a3ab4c9d",
-      "spec_hash": "sha256:bfcb3269342e40e0fae297e1dd649d11",
+      "spec_hash": "sha256:f0ad300fc6e7281aed44e4b00fe1e9d0",
       "status": "pending",
       "tags": [
         "@rid:S-a3ab4c9d",
@@ -1600,22 +1882,28 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:5ab137256437ca7e9473f063784f53e1"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:d6cd6c3c5d29b6da034796a9e36ced58",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 24,
       "mutants_killed": null,
-      "name": "Round-trip zip preserves packet id and hash",
+      "name": "Round-trip zip preserves traveler id and hash",
       "rid": "S-a3fc34f2",
-      "spec_hash": "sha256:5ab137256437ca7e9473f063784f53e1",
+      "spec_hash": "sha256:d6cd6c3c5d29b6da034796a9e36ced58",
       "status": "pending",
       "tags": [
         "@rid:S-a3fc34f2",
@@ -1630,13 +1918,19 @@
       "capability": "",
       "epic": "award",
       "failure": null,
-      "feature": "Award a bound quote and make the packet executable",
+      "feature": "Award a bound quote and make the traveler executable",
       "feature_file": "award.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:af57d02797cdccc55a5b8bf2e17ad977"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:e6897f6ff4af66c31ce3cc3d0704f845",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1645,7 +1939,7 @@
       "mutants_killed": null,
       "name": "Seller role does not show Award buttons",
       "rid": "S-a493899f",
-      "spec_hash": "sha256:af57d02797cdccc55a5b8bf2e17ad977",
+      "spec_hash": "sha256:e6897f6ff4af66c31ce3cc3d0704f845",
       "status": "pending",
       "tags": [
         "@rid:S-a493899f",
@@ -1660,13 +1954,19 @@
       "capability": "",
       "epic": "desk",
       "failure": null,
-      "feature": "Desk packet list",
+      "feature": "Desk traveler list",
       "feature_file": "desk.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:204b5cfd8d660416c8ce7f44e7b98969"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:ed926419f76cf69d3ae2544e5d7a4d20",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1675,7 +1975,7 @@
       "mutants_killed": null,
       "name": "Empty filter shows a recovery hint",
       "rid": "S-a9928cd6",
-      "spec_hash": "sha256:204b5cfd8d660416c8ce7f44e7b98969",
+      "spec_hash": "sha256:ed926419f76cf69d3ae2544e5d7a4d20",
       "status": "pending",
       "tags": [
         "@rid:S-a9928cd6",
@@ -1690,22 +1990,28 @@
       "capability": "",
       "epic": "compose",
       "failure": null,
-      "feature": "Compose a new L0 packet",
+      "feature": "Compose a new L0 traveler",
       "feature_file": "compose.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:cacfa435c3fa647c8674643084b2e842"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:ce17ce80504219e3b3cc630986cde230",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 54,
       "mutants_killed": null,
-      "name": "Cannot seal a Draft packet",
+      "name": "Cannot seal a Draft traveler",
       "rid": "S-addded0e",
-      "spec_hash": "sha256:cacfa435c3fa647c8674643084b2e842",
+      "spec_hash": "sha256:ce17ce80504219e3b3cc630986cde230",
       "status": "pending",
       "tags": [
         "@rid:S-addded0e",
@@ -1720,13 +2026,19 @@
       "capability": "",
       "epic": "award",
       "failure": null,
-      "feature": "Award a bound quote and make the packet executable",
+      "feature": "Award a bound quote and make the traveler executable",
       "feature_file": "award.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:b6552a4e47909dad856ccc117be6bd06"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:6a5a2f1057dae265408451ea54e9b5da",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1735,7 +2047,7 @@
       "mutants_killed": null,
       "name": "Cannot award an expired quote",
       "rid": "S-b04f169e",
-      "spec_hash": "sha256:b6552a4e47909dad856ccc117be6bd06",
+      "spec_hash": "sha256:6a5a2f1057dae265408451ea54e9b5da",
       "status": "pending",
       "tags": [
         "@rid:S-b04f169e",
@@ -1750,22 +2062,28 @@
       "capability": "",
       "epic": "hash",
       "failure": null,
-      "feature": "Content-addressed packet hash",
+      "feature": "Content-addressed traveler hash",
       "feature_file": "hash.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:58642a037ab64f0129b235dab09a3a8c"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:d0b9ec1b3079bb23ccc20ef979e03ace",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 48,
       "mutants_killed": null,
-      "name": "Adding quotes does not change packet_hash",
+      "name": "Adding quotes does not change traveler_hash",
       "rid": "S-b1b7c6e3",
-      "spec_hash": "sha256:58642a037ab64f0129b235dab09a3a8c",
+      "spec_hash": "sha256:d0b9ec1b3079bb23ccc20ef979e03ace",
       "status": "pending",
       "tags": [
         "@rid:S-b1b7c6e3",
@@ -1780,22 +2098,28 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:ec7723d05cfe1625e303f38ed6cd6082"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:77745da479c43ffd7086417815bc3185",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 6,
       "mutants_killed": null,
-      "name": "Packet requires rivlet-packet/0.0.1 spec and id shape",
+      "name": "Traveler requires opentraveler/0.0.1 spec and id shape",
       "rid": "S-b3a29bb1",
-      "spec_hash": "sha256:ec7723d05cfe1625e303f38ed6cd6082",
+      "spec_hash": "sha256:77745da479c43ffd7086417815bc3185",
       "status": "pending",
       "tags": [
         "@rid:S-b3a29bb1",
@@ -1810,22 +2134,28 @@
       "capability": "",
       "epic": "desk",
       "failure": null,
-      "feature": "Desk packet list",
+      "feature": "Desk traveler list",
       "feature_file": "desk.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:4ed89e0005ef3dd0ab5bdcc4005919bf"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:7349509e7d6477d4c30633fd61daa71c",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 35,
       "mutants_killed": null,
-      "name": "Packet card links to the packet page",
+      "name": "Traveler card links to the traveler page",
       "rid": "S-b6290ddd",
-      "spec_hash": "sha256:4ed89e0005ef3dd0ab5bdcc4005919bf",
+      "spec_hash": "sha256:7349509e7d6477d4c30633fd61daa71c",
       "status": "pending",
       "tags": [
         "@rid:S-b6290ddd",
@@ -1847,15 +2177,21 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:d739673dbbb6eea48bfa364c0fe29402"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:2a64c28a89ff15795654d360baa2a891",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 26,
       "mutants_killed": null,
-      "name": "Cannot award an ITAR packet to a non-ITAR seller quote",
+      "name": "Cannot award an ITAR traveler to a non-ITAR seller quote",
       "rid": "S-b6d7545e",
-      "spec_hash": "sha256:d739673dbbb6eea48bfa364c0fe29402",
+      "spec_hash": "sha256:2a64c28a89ff15795654d360baa2a891",
       "status": "pending",
       "tags": [
         "@rid:S-b6d7545e",
@@ -1870,22 +2206,28 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:4e4acd78c4d9e23dc44b6c46f4a5755c"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:59744ec89dc193accadeb6f734a37bec",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 75,
       "mutants_killed": null,
-      "name": "Import will not overwrite a locked L2 packet",
+      "name": "Import will not overwrite a locked L2 traveler",
       "rid": "S-c1c6d06f",
-      "spec_hash": "sha256:4e4acd78c4d9e23dc44b6c46f4a5755c",
+      "spec_hash": "sha256:59744ec89dc193accadeb6f734a37bec",
       "status": "pending",
       "tags": [
         "@rid:S-c1c6d06f",
@@ -1930,13 +2272,19 @@
       "capability": "",
       "epic": "award",
       "failure": null,
-      "feature": "Award a bound quote and make the packet executable",
+      "feature": "Award a bound quote and make the traveler executable",
       "feature_file": "award.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:7823254c2fd59606447a02e839bdba96"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:d7f16a18035b3f3a76e6c955c6caebee",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -1945,7 +2293,7 @@
       "mutants_killed": null,
       "name": "Cannot award a quote with no unit price at target qty",
       "rid": "S-c7c5b590",
-      "spec_hash": "sha256:7823254c2fd59606447a02e839bdba96",
+      "spec_hash": "sha256:d7f16a18035b3f3a76e6c955c6caebee",
       "status": "pending",
       "tags": [
         "@rid:S-c7c5b590",
@@ -1990,13 +2338,19 @@
       "capability": "",
       "epic": "lifecycle",
       "failure": null,
-      "feature": "Amend revision and lock executable packets",
+      "feature": "Amend revision and lock executable travelers",
       "feature_file": "amend-lock.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:56eacee37f90791f16cba99ec6a42cb0"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:8397b825311253da02189129303050c6",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2005,7 +2359,7 @@
       "mutants_killed": null,
       "name": "Stale quote cannot be awarded after amend",
       "rid": "S-ca8a13fd",
-      "spec_hash": "sha256:56eacee37f90791f16cba99ec6a42cb0",
+      "spec_hash": "sha256:8397b825311253da02189129303050c6",
       "status": "pending",
       "tags": [
         "@rid:S-ca8a13fd",
@@ -2020,13 +2374,19 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:328844e1f5dd1edbd086be4c58ab49b1"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:85919879a44c48e4d42f8f98f62e6437",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2035,7 +2395,7 @@
       "mutants_killed": null,
       "name": "Quote rejects non-finite unit price",
       "rid": "S-cd4463f3",
-      "spec_hash": "sha256:328844e1f5dd1edbd086be4c58ab49b1",
+      "spec_hash": "sha256:85919879a44c48e4d42f8f98f62e6437",
       "status": "pending",
       "tags": [
         "@rid:S-cd4463f3",
@@ -2048,15 +2408,21 @@
       "benefit": "",
       "blind_spots": null,
       "capability": "",
-      "epic": "packet",
+      "epic": "traveler",
       "failure": null,
-      "feature": "View a packet on the desk",
-      "feature_file": "packet-view.feature",
+      "feature": "View a traveler on the desk",
+      "feature_file": "traveler-view.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:db168e84872cca24b812d516e4f8c761"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:9cede2d09212ffeaac9c21830a2f88a9",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2065,11 +2431,11 @@
       "mutants_killed": null,
       "name": "L2 enclosure shows executable ship-to and ops",
       "rid": "S-d0d7ab2e",
-      "spec_hash": "sha256:db168e84872cca24b812d516e4f8c761",
+      "spec_hash": "sha256:9cede2d09212ffeaac9c21830a2f88a9",
       "status": "pending",
       "tags": [
         "@rid:S-d0d7ab2e",
-        "@epic:packet"
+        "@epic:traveler"
       ],
       "verified_spec_hash": ""
     },
@@ -2080,13 +2446,19 @@
       "capability": "",
       "epic": "conformance",
       "failure": null,
-      "feature": "Packet conformance levels",
+      "feature": "Traveler conformance levels",
       "feature_file": "conformance.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:832d2b42812a48f98044635201375c5a"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:4ce642e4c1cfbe585d2f77983cfd5e86",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2095,7 +2467,7 @@
       "mutants_killed": null,
       "name": "Quoteable L0 has material and qty but no bound quote",
       "rid": "S-d1b8a147",
-      "spec_hash": "sha256:832d2b42812a48f98044635201375c5a",
+      "spec_hash": "sha256:4ce642e4c1cfbe585d2f77983cfd5e86",
       "status": "pending",
       "tags": [
         "@rid:S-d1b8a147",
@@ -2110,22 +2482,28 @@
       "capability": "",
       "epic": "desk",
       "failure": null,
-      "feature": "Desk packet list",
+      "feature": "Desk traveler list",
       "feature_file": "desk.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:43532cdaa0f0691ca77fdaf47ae10915"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:cbd1f5163033a5fb170064280d36e1af",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 42,
       "mutants_killed": null,
-      "name": "Reset seed replaces every packet and keeps audit",
+      "name": "Reset seed replaces every traveler and keeps audit",
       "rid": "S-d3e99edd",
-      "spec_hash": "sha256:43532cdaa0f0691ca77fdaf47ae10915",
+      "spec_hash": "sha256:cbd1f5163033a5fb170064280d36e1af",
       "status": "pending",
       "tags": [
         "@rid:S-d3e99edd",
@@ -2170,13 +2548,19 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:349e3a9975578121643462e472632d29"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:e6d58182279833a9d14a3c8362df7769",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2185,7 +2569,7 @@
       "mutants_killed": null,
       "name": "Quote rejects non-uppercase currency",
       "rid": "S-d9f02391",
-      "spec_hash": "sha256:349e3a9975578121643462e472632d29",
+      "spec_hash": "sha256:e6d58182279833a9d14a3c8362df7769",
       "status": "pending",
       "tags": [
         "@rid:S-d9f02391",
@@ -2198,28 +2582,34 @@
       "benefit": "",
       "blind_spots": null,
       "capability": "",
-      "epic": "packet",
+      "epic": "traveler",
       "failure": null,
-      "feature": "View a packet on the desk",
-      "feature_file": "packet-view.feature",
+      "feature": "View a traveler on the desk",
+      "feature_file": "traveler-view.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:16620cad5d81a9df5006a2d969575280"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:7d19292763af9dd9feee435778347323",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 9,
       "mutants_killed": null,
-      "name": "Missing packet id shows a not-on-desk message",
+      "name": "Missing traveler id shows a not-on-desk message",
       "rid": "S-e321229f",
-      "spec_hash": "sha256:16620cad5d81a9df5006a2d969575280",
+      "spec_hash": "sha256:7d19292763af9dd9feee435778347323",
       "status": "pending",
       "tags": [
         "@rid:S-e321229f",
-        "@epic:packet"
+        "@epic:traveler"
       ],
       "verified_spec_hash": ""
     },
@@ -2237,15 +2627,21 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:1a30766057bb4c2d7550897c4b4a9c0e"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:71a419d0941d289221ba87fbeffd597d",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 48,
       "mutants_killed": null,
-      "name": "Export of an ITAR packet asks before download",
+      "name": "Export of an ITAR traveler asks before download",
       "rid": "S-e970044a",
-      "spec_hash": "sha256:1a30766057bb4c2d7550897c4b4a9c0e",
+      "spec_hash": "sha256:71a419d0941d289221ba87fbeffd597d",
       "status": "pending",
       "tags": [
         "@rid:S-e970044a",
@@ -2260,13 +2656,19 @@
       "capability": "",
       "epic": "conformance",
       "failure": null,
-      "feature": "Packet conformance levels",
+      "feature": "Traveler conformance levels",
       "feature_file": "conformance.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:8d3fd02dace0e36fa5596170dd258dcb"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:ac049fcce8f67493a331c4bbc0c28dc1",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2275,7 +2677,7 @@
       "mutants_killed": null,
       "name": "Awardable L1 has at least one hash-bound quote",
       "rid": "S-ec689298",
-      "spec_hash": "sha256:8d3fd02dace0e36fa5596170dd258dcb",
+      "spec_hash": "sha256:ac049fcce8f67493a331c4bbc0c28dc1",
       "status": "pending",
       "tags": [
         "@rid:S-ec689298",
@@ -2290,22 +2692,28 @@
       "capability": "",
       "epic": "hash",
       "failure": null,
-      "feature": "Content-addressed packet hash",
+      "feature": "Content-addressed traveler hash",
       "feature_file": "hash.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:520a06f2af8990304169fb8e032fcff1"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:e80c4136eede89c5c5a4a93adb5c9203",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 35,
       "mutants_killed": null,
-      "name": "Extra keys on the in-memory packet do not enter the hash",
+      "name": "Extra keys on the in-memory traveler do not enter the hash",
       "rid": "S-eccb855a",
-      "spec_hash": "sha256:520a06f2af8990304169fb8e032fcff1",
+      "spec_hash": "sha256:e80c4136eede89c5c5a4a93adb5c9203",
       "status": "pending",
       "tags": [
         "@rid:S-eccb855a",
@@ -2320,22 +2728,28 @@
       "capability": "",
       "epic": "quote",
       "failure": null,
-      "feature": "Bind a structured quote to a packet hash",
+      "feature": "Bind a structured quote to a traveler hash",
       "feature_file": "quote.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:e76551403267c50c2ab387a80b32b774"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:97b96a6fd5b416e2ac67c43279a06802",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 12,
       "mutants_killed": null,
-      "name": "Seller opens quote dialog on an L0 packet",
+      "name": "Seller opens quote dialog on an L0 traveler",
       "rid": "S-ed931467",
-      "spec_hash": "sha256:e76551403267c50c2ab387a80b32b774",
+      "spec_hash": "sha256:97b96a6fd5b416e2ac67c43279a06802",
       "status": "pending",
       "tags": [
         "@rid:S-ed931467",
@@ -2350,22 +2764,28 @@
       "capability": "",
       "epic": "conformance",
       "failure": null,
-      "feature": "Packet conformance levels",
+      "feature": "Traveler conformance levels",
       "feature_file": "conformance.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:cb37922ca36fdcbe8d7a5f41ffd48d11"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:79b28aa0ac6507e8e39681e0d31853d4",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 8,
       "mutants_killed": null,
-      "name": "Missing quoteable field keeps the packet at Draft",
+      "name": "Missing quoteable field keeps the traveler at Draft",
       "rid": "S-ef846a17",
-      "spec_hash": "sha256:cb37922ca36fdcbe8d7a5f41ffd48d11",
+      "spec_hash": "sha256:79b28aa0ac6507e8e39681e0d31853d4",
       "status": "pending",
       "tags": [
         "@rid:S-ef846a17",
@@ -2387,6 +2807,12 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:b563cc8bfb77c26d28a50d7e0d0e0dfd"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:dd351de4beeeb5b5998e7cb14bc9fa0d",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2395,7 +2821,7 @@
       "mutants_killed": null,
       "name": "Export audit downloads JSON",
       "rid": "S-f2b00280",
-      "spec_hash": "sha256:b563cc8bfb77c26d28a50d7e0d0e0dfd",
+      "spec_hash": "sha256:dd351de4beeeb5b5998e7cb14bc9fa0d",
       "status": "pending",
       "tags": [
         "@rid:S-f2b00280",
@@ -2410,13 +2836,19 @@
       "capability": "",
       "epic": "archive",
       "failure": null,
-      "feature": "Import and export Rivlet packet archives",
+      "feature": "Import and export Rivlet traveler archives",
       "feature_file": "import-export.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:6978b7c454251a31bedc9dbabb8671e6"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:cf92959ec004f68ad081617fd739c9b4",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2425,7 +2857,7 @@
       "mutants_killed": null,
       "name": "Zip with unexpected member is rejected",
       "rid": "S-f6d69aaa",
-      "spec_hash": "sha256:6978b7c454251a31bedc9dbabb8671e6",
+      "spec_hash": "sha256:cf92959ec004f68ad081617fd739c9b4",
       "status": "pending",
       "tags": [
         "@rid:S-f6d69aaa",
@@ -2440,13 +2872,19 @@
       "capability": "",
       "epic": "compose",
       "failure": null,
-      "feature": "Compose a new L0 packet",
+      "feature": "Compose a new L0 traveler",
       "feature_file": "compose.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:9f51ce8c88b60410a41f5b156672b29a"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:a647caab8f98dccb210c6dfc3f40fda9",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2455,7 +2893,7 @@
       "mutants_killed": null,
       "name": "ITAR self-declaration shows a non-compliance notice",
       "rid": "S-f6d7fcdc",
-      "spec_hash": "sha256:9f51ce8c88b60410a41f5b156672b29a",
+      "spec_hash": "sha256:a647caab8f98dccb210c6dfc3f40fda9",
       "status": "pending",
       "tags": [
         "@rid:S-f6d7fcdc",
@@ -2500,22 +2938,28 @@
       "capability": "",
       "epic": "compose",
       "failure": null,
-      "feature": "Compose a new L0 packet",
+      "feature": "Compose a new L0 traveler",
       "feature_file": "compose.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:12788d6b1eeaa7759be28969a848d0fb"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:1011156fc59e182b855807cfcb5e7c09",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 32,
       "mutants_killed": null,
-      "name": "Seal creates an L0 packet and navigates to it",
+      "name": "Seal creates an L0 traveler and navigates to it",
       "rid": "S-fb69dc1d",
-      "spec_hash": "sha256:12788d6b1eeaa7759be28969a848d0fb",
+      "spec_hash": "sha256:1011156fc59e182b855807cfcb5e7c09",
       "status": "pending",
       "tags": [
         "@rid:S-fb69dc1d",
@@ -2537,15 +2981,21 @@
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:d04371af579f942b3c293a994a4bcf07"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:25f5d747c78236e50fe066252334d6e3",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 32,
       "mutants_killed": null,
-      "name": "Import of an ITAR packet asks for confirmation",
+      "name": "Import of an ITAR traveler asks for confirmation",
       "rid": "S-fc1aafa4",
-      "spec_hash": "sha256:d04371af579f942b3c293a994a4bcf07",
+      "spec_hash": "sha256:25f5d747c78236e50fe066252334d6e3",
       "status": "pending",
       "tags": [
         "@rid:S-fc1aafa4",
@@ -2560,22 +3010,28 @@
       "capability": "",
       "epic": "schema",
       "failure": null,
-      "feature": "Packet and quote schema validation",
+      "feature": "Traveler and quote schema validation",
       "feature_file": "schema.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:9882dd5fab2d07fc4258c0351339acab"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:b3d2bd49811dfa5c41b55b0b74e5132b",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
       "last_run_at": null,
       "line": 44,
       "mutants_killed": null,
-      "name": "Packet JSON larger than 512 KiB is refused",
+      "name": "Traveler JSON larger than 512 KiB is refused",
       "rid": "S-fc3729f4",
-      "spec_hash": "sha256:9882dd5fab2d07fc4258c0351339acab",
+      "spec_hash": "sha256:b3d2bd49811dfa5c41b55b0b74e5132b",
       "status": "pending",
       "tags": [
         "@rid:S-fc3729f4",
@@ -2590,13 +3046,19 @@
       "capability": "",
       "epic": "hash",
       "failure": null,
-      "feature": "Content-addressed packet hash",
+      "feature": "Content-addressed traveler hash",
       "feature_file": "hash.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:89aaaade51d9775d2e97fdcab2bb6403"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:8820040f08fdd8762955ae61dbfb71c9",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2605,7 +3067,7 @@
       "mutants_killed": null,
       "name": "Canonical JSON sorts keys and uses JS number encoding",
       "rid": "S-fc5bad61",
-      "spec_hash": "sha256:89aaaade51d9775d2e97fdcab2bb6403",
+      "spec_hash": "sha256:8820040f08fdd8762955ae61dbfb71c9",
       "status": "pending",
       "tags": [
         "@rid:S-fc5bad61",
@@ -2620,13 +3082,19 @@
       "capability": "",
       "epic": "award",
       "failure": null,
-      "feature": "Award a bound quote and make the packet executable",
+      "feature": "Award a bound quote and make the traveler executable",
       "feature_file": "award.feature",
       "history": [
         {
           "at": "2026-09-16T04:18:31Z",
           "event": "added",
           "spec_hash": "sha256:6502c533c3433516aba3b5e233dcd73a"
+        },
+        {
+          "at": "2026-09-16T15:45:31Z",
+          "event": "spec_changed",
+          "spec_hash": "sha256:d8f1437adb09a0884fb6571be4013263",
+          "was": "pending"
         }
       ],
       "last_green_at": null,
@@ -2635,7 +3103,7 @@
       "mutants_killed": null,
       "name": "Buyer awards a live quote with ship-to and ops",
       "rid": "S-ffb48ccf",
-      "spec_hash": "sha256:6502c533c3433516aba3b5e233dcd73a",
+      "spec_hash": "sha256:d8f1437adb09a0884fb6571be4013263",
       "status": "pending",
       "tags": [
         "@rid:S-ffb48ccf",

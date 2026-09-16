@@ -6,12 +6,12 @@ export const Route = createFileRoute("/spec")({ component: SpecPage });
 function SpecPage() {
   return (
     <AppShell>
-      <p className="mono-label">Apache-2.0 · application/vnd.rivlet.packet+json</p>
-      <h1 className="mt-3 text-4xl tracking-tight text-paper">Rivlet Packet 0.0.1</h1>
+      <p className="mono-label">Apache-2.0 · application/vnd.opentraveler+json</p>
+      <h1 className="mt-3 text-4xl tracking-tight text-paper">OpenTraveler 0.0.1</h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-soft">
-        Implementable draft. A packet is the job object — not the shop OS and not a
-        marketplace. Archive name is {"{packet_id}.rivpkt.zip"}. Quotes bind to{" "}
-        <code className="font-mono text-foreground">packet_hash_quoted</code>, a SHA-384
+        Implementable draft. A traveler is the job object — not the shop OS and not a
+        marketplace. Archive name is {"{traveler_id}.traveler.zip"}. Quotes bind to{" "}
+        <code className="font-mono text-foreground">traveler_hash_quoted</code>, a SHA-384
         of the canonical quoteable body.
       </p>
 
@@ -45,23 +45,23 @@ function SpecPage() {
           <h2 className="text-lg font-medium">Hash</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Canonical JSON (sorted keys, compact, JS number encoding) of a closed field set:
-            spec, packet_id, revision, created_at, buyer, part, need_by, incoterms, itar.
+            spec, traveler_id, revision, created_at, buyer, part, need_by, incoterms, itar.
             Extra keys do not enter the hash. Prefixed{" "}
             <code className="font-mono text-foreground">sha384:</code> plus 96 lowercase hex.
-            Quotes, award, ops, and ship-to are outside the hash so a packet can climb L0→L2
+            Quotes, award, ops, and ship-to are outside the hash so a traveler can climb L0→L2
             without invalidating quotes. The hash is not a signature.
           </p>
         </article>
         <article className="on-paper traveler-shadow rounded-sm p-5">
           <h2 className="text-lg font-medium">Rust core</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Protocol crate <code className="font-mono text-foreground">rivlet-packet</code>{" "}
+            Protocol crate <code className="font-mono text-foreground">opentraveler</code>{" "}
             hashes, validates quotes, and reports level. Same golden vector as this desk.
             Language-agnostic on the wire; Rust for the verifier.
           </p>
           <pre className="mt-3 overflow-x-auto rounded-md bg-wash p-3 font-mono text-xs text-foreground">
-            {`rivlet-packet hash packet.json
-rivlet-packet level packet.json`}
+            {`opentraveler hash traveler.json
+opentraveler level traveler.json`}
           </pre>
         </article>
       </section>
@@ -74,18 +74,18 @@ rivlet-packet level packet.json`}
             /schemas/quote-0.0.1.json
           </a>{" "}
           and{" "}
-          <a className="underline underline-offset-2" href="/schemas/packet-0.0.1.json">
-            /schemas/packet-0.0.1.json
+          <a className="underline underline-offset-2" href="/schemas/traveler-0.0.1.json">
+            /schemas/traveler-0.0.1.json
           </a>
           .
         </p>
         <pre className="on-paper traveler-shadow mt-3 overflow-x-auto rounded-sm p-4 font-mono text-xs leading-relaxed">
-          {`required: quote_id, seller, packet_hash_quoted, created_at,
+          {`required: quote_id, seller, traveler_hash_quoted, created_at,
           valid_until, lead_time_days, pricing
 pricing.required: currency, lines[]
 lines[]: { qty >= 1, unit >= 0 finite }
-packet_hash_quoted: ^sha384:[0-9a-f]{96}$
-packet_id / quote_id: ^[a-z]{3}_[a-z0-9]{6,24}$
+traveler_hash_quoted: ^sha384:[0-9a-f]{96}$
+traveler_id / quote_id: ^[a-z]{3}_[a-z0-9]{6,24}$
 currency: ^[A-Z]{3}$`}
         </pre>
       </section>
@@ -93,8 +93,8 @@ currency: ^[A-Z]{3}$`}
       <section className="mt-10">
         <h2 className="text-lg font-medium text-paper">Security</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          <code className="font-mono text-foreground">packet_hash</code> is SHA-384 of a closed
-          field set (spec, packet_id, revision, created_at, buyer, part, need_by, incoterms, itar).
+          <code className="font-mono text-foreground">traveler_hash</code> is SHA-384 of a closed
+          field set (spec, traveler_id, revision, created_at, buyer, part, need_by, incoterms, itar).
           Extra keys are ignored. Canonical JSON sorts keys and encodes numbers the way{" "}
           <code className="font-mono text-foreground">JSON.stringify</code> does, so the TypeScript
           desk and the Rust verifier agree — including integer-valued floats such as thickness 10.
@@ -105,16 +105,16 @@ currency: ^[A-Z]{3}$`}
             quote that claims to be a named shop. 0.0.1 does not authenticate parties.
           </li>
           <li>
-            Quotes are outside the hash so a packet can climb L0→L2 without invalidating prices.
+            Quotes are outside the hash so a traveler can climb L0→L2 without invalidating prices.
             That also means a quote’s unit prices are not covered by{" "}
-            <code className="font-mono text-foreground">packet_hash</code>. Treat the archive as
+            <code className="font-mono text-foreground">traveler_hash</code>. Treat the archive as
             the document; verify META.json digests on import.
           </li>
           <li>
-            Import accepts only root <code className="font-mono text-foreground">packet.json</code>,
+            Import accepts only root <code className="font-mono text-foreground">traveler.json</code>,
             caps size, refuses path traversal, and checks META.json{" "}
-            <code className="font-mono text-foreground">packet_hash</code> /{" "}
-            <code className="font-mono text-foreground">packet_json_sha384</code> when present.
+            <code className="font-mono text-foreground">traveler_hash</code> /{" "}
+            <code className="font-mono text-foreground">traveler_json_sha384</code> when present.
           </li>
           <li>
             Role on this desk is a local switch. It is not identity, tenancy, or access control.
@@ -131,7 +131,7 @@ currency: ^[A-Z]{3}$`}
         <h2 className="text-lg font-medium text-paper">Export control & records</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           <code className="font-mono text-foreground">itar: true</code> is a self-declaration that
-          the packet contains ITAR-controlled technical data. It is not DDTC registration, a
+          the traveler contains ITAR-controlled technical data. It is not DDTC registration, a
           Technology Control Plan, or an EAR ECCN. This desk will not bind a quote from a seller
           with <code className="font-mono text-foreground">itar !== true</code>, and it warns on
           import/export. That is a consistency check, not compliance.

@@ -10,14 +10,14 @@ public issue for an unpatched vulnerability.
 
 What the format defends, by design:
 
-- **Body integrity.** `packet_hash` is SHA-384 over a canonical rendering
+- **Body integrity.** `traveler_hash` is SHA-384 over a canonical rendering
   of a **closed** field set; extra keys never enter the hash, and both
   reference implementations must reproduce the shared golden vector byte
   for byte. Numbers outside the cross-language-safe range are refused, not
   hashed (see `docs/SPEC.md` § Canonical JSON).
 - **Quote binding.** A quote binds to the exact buyer revision it priced
-  via `packet_hash_quoted`; amending the body stale-marks every quote.
-- **Hostile archives.** `.rivpkt.zip` import allowlists members (max 3),
+  via `traveler_hash_quoted`; amending the body stale-marks every quote.
+- **Hostile archives.** `.traveler.zip` import allowlists members (max 3),
   refuses path traversal, caps compressed and uncompressed sizes, verifies
   CRC32, and cross-checks META.json digests.
 - **ID generation** uses `crypto.getRandomValues` with rejection sampling
@@ -28,13 +28,13 @@ future versions:
 
 - **No signatures.** The hash is integrity, not authentication. Any party
   can author a quote claiming any `seller.org_id`. Treat the transport
-  channel (email, portal) as the trust anchor until packets are signed.
+  channel (email, portal) as the trust anchor until travelers are signed.
 - **No identity or tenancy.** The desk's Buyer/Seller toggle is a view.
-- **No confidentiality.** Packet JSON is plaintext; encrypt in transit and
+- **No confidentiality.** Traveler JSON is plaintext; encrypt in transit and
   at rest with your own tooling.
-- **Quotes are outside the hash** (deliberately, so packets can climb
+- **Quotes are outside the hash** (deliberately, so travelers can climb
   levels without invalidating prices) — a quote's own content is covered
-  only by the archive's META.json digests, not by `packet_hash`.
+  only by the archive's META.json digests, not by `traveler_hash`.
 
 ## Proving these claims
 
@@ -56,7 +56,7 @@ in [docs/CLAIMS.md](docs/CLAIMS.md); the shared vector corpus lives in
   (FIPS 205)** — hash-based, the most conservative assumption set, matching
   a spec whose only trust primitive is a hash — as a supported alternative
   for parties that want it. A transitional hybrid (Ed25519 + ML-DSA) may be
-  offered for ecosystem compatibility; a packet's signature block will
+  offered for ecosystem compatibility; a traveler's signature block will
   carry the algorithm identifier so verifiers reject schemes they do not
   accept.
 - **Confidentiality: encrypted envelope drafted for 0.1.** 0.0.1 defines
@@ -67,5 +67,5 @@ in [docs/CLAIMS.md](docs/CLAIMS.md); the shared vector corpus lives in
 
 ## Handling of sensitive data
 
-Do not place ITAR/EAR-controlled technical data in packets handled by the
+Do not place ITAR/EAR-controlled technical data in travelers handled by the
 demo desk; see `TRUST.md`.

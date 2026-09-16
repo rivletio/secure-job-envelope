@@ -1,6 +1,6 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-import { shortHash } from "@/lib/packet/hash";
+import { shortHash } from "@/lib/traveler/hash";
 import { cn } from "@/lib/utils";
 
 export function HashChip({

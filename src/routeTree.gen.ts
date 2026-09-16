@@ -13,7 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as SpecRouteImport } from './routes/spec'
 import { Route as TrustRouteImport } from './routes/trust'
-import { Route as PPacketIdRouteImport } from './routes/p.$packetId'
+import { Route as TTravelerIdRouteImport } from './routes/t.$travelerId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -35,9 +35,9 @@ const TrustRoute = TrustRouteImport.update({
   path: '/trust',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PPacketIdRoute = PPacketIdRouteImport.update({
-  id: '/p/$packetId',
-  path: '/p/$packetId',
+const TTravelerIdRoute = TTravelerIdRouteImport.update({
+  id: '/t/$travelerId',
+  path: '/t/$travelerId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -46,14 +46,14 @@ export interface FileRoutesByFullPath {
   '/new': typeof NewRoute
   '/spec': typeof SpecRoute
   '/trust': typeof TrustRoute
-  '/p/$packetId': typeof PPacketIdRoute
+  '/t/$travelerId': typeof TTravelerIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/new': typeof NewRoute
   '/spec': typeof SpecRoute
   '/trust': typeof TrustRoute
-  '/p/$packetId': typeof PPacketIdRoute
+  '/t/$travelerId': typeof TTravelerIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,14 +61,14 @@ export interface FileRoutesById {
   '/new': typeof NewRoute
   '/spec': typeof SpecRoute
   '/trust': typeof TrustRoute
-  '/p/$packetId': typeof PPacketIdRoute
+  '/t/$travelerId': typeof TTravelerIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/new' | '/spec' | '/trust' | '/p/$packetId'
+  fullPaths: '/' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/new' | '/spec' | '/trust' | '/p/$packetId'
-  id: '__root__' | '/' | '/new' | '/spec' | '/trust' | '/p/$packetId'
+  to: '/' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
+  id: '__root__' | '/' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,7 +76,7 @@ export interface RootRouteChildren {
   NewRoute: typeof NewRoute
   SpecRoute: typeof SpecRoute
   TrustRoute: typeof TrustRoute
-  PPacketIdRoute: typeof PPacketIdRoute
+  TTravelerIdRoute: typeof TTravelerIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -109,11 +109,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrustRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/p/$packetId': {
-      id: '/p/$packetId'
-      path: '/p/$packetId'
-      fullPath: '/p/$packetId'
-      preLoaderRoute: typeof PPacketIdRouteImport
+    '/t/$travelerId': {
+      id: '/t/$travelerId'
+      path: '/t/$travelerId'
+      fullPath: '/t/$travelerId'
+      preLoaderRoute: typeof TTravelerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -124,7 +124,7 @@ const rootRouteChildren: RootRouteChildren = {
   NewRoute: NewRoute,
   SpecRoute: SpecRoute,
   TrustRoute: TrustRoute,
-  PPacketIdRoute: PPacketIdRoute,
+  TTravelerIdRoute: TTravelerIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,14 +1,14 @@
 @epic:hash
-Feature: Content-addressed packet hash
-  packet_hash is SHA-384 of the canonical quoteable body.
-  Quotes, award, ops, and ship-to sit outside the hash so a packet can climb L0→L2.
+Feature: Content-addressed traveler hash
+  traveler_hash is SHA-384 of the canonical quoteable body.
+  Quotes, award, ops, and ship-to sit outside the hash so a traveler can climb L0→L2.
 
   @rid:S-34a0777b
   Scenario: Golden quoteable body matches the published vector
     Given the golden quoteable body
       | field        | value                |
-      | spec         | rivlet-packet/0.0.1  |
-      | packet_id    | pkt_golden0001       |
+      | spec         | opentraveler/0.0.1  |
+      | traveler_id    | tvl_golden0001       |
       | revision     | 1                    |
       | created_at   | 2026-09-14T00:00:00.000Z |
       | buyer.name   | Northline Equipment  |
@@ -32,10 +32,10 @@ Feature: Content-addressed packet hash
     Then the bytes are '{"t":9.53}'
 
   @rid:S-eccb855a
-  Scenario: Extra keys on the in-memory packet do not enter the hash
-    Given seed packet "pkt_nlbrk4410"
+  Scenario: Extra keys on the in-memory traveler do not enter the hash
+    Given seed traveler "tvl_nlbrk4410"
     When the buyer object gains an extra property "extra" = "should-not-hash"
-    Then packet_hash is unchanged
+    Then traveler_hash is unchanged
     And the quoteable buyer does not contain "extra"
 
   @rid:S-9b54f554
@@ -45,10 +45,10 @@ Feature: Content-addressed packet hash
     Then the hash differs from the golden hash
 
   @rid:S-b1b7c6e3
-  Scenario: Adding quotes does not change packet_hash
-    Given seed packet "pkt_wldcart12" at L0
-    When a bound quote is added and the packet becomes L1
-    Then packet_hash is unchanged from the L0 value
+  Scenario: Adding quotes does not change traveler_hash
+    Given seed traveler "tvl_wldcart12" at L0
+    When a bound quote is added and the traveler becomes L1
+    Then traveler_hash is unchanged from the L0 value
 
   @rid:S-2b9028c4
   Scenario: Non-finite and out-of-range numbers are refused by canonicalization

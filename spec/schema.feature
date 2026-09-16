@@ -1,15 +1,15 @@
 @epic:schema
-Feature: Packet and quote schema validation
+Feature: Traveler and quote schema validation
   Strict Zod schemas gate what the desk will store or import.
 
   @rid:S-b3a29bb1
-  Scenario: Packet requires rivlet-packet/0.0.1 spec and id shape
-    When a document with spec "nope" is parsed as a packet
-    Then parse fails with a message starting "Invalid packet"
+  Scenario: Traveler requires opentraveler/0.0.1 spec and id shape
+    When a document with spec "nope" is parsed as a traveler
+    Then parse fails with a message starting "Invalid traveler"
 
   @rid:S-25ff4dda
-  Scenario: Packet id must match pkt_ style token
-    When a packet has packet_id "PACKET-1"
+  Scenario: Traveler id must match tvl_ style token
+    When a traveler has traveler_id "PACKET-1"
     Then parse fails
 
   @rid:S-892f8a4f
@@ -41,14 +41,14 @@ Feature: Packet and quote schema validation
     Then parse fails on valid_until
 
   @rid:S-fc3729f4
-  Scenario: Packet JSON larger than 512 KiB is refused
-    Given a packet whose JSON serialization exceeds 524288 bytes
-    When the packet is parsed
-    Then parse fails with "packet exceeds 512 KiB"
+  Scenario: Traveler JSON larger than 512 KiB is refused
+    Given a traveler whose JSON serialization exceeds 524288 bytes
+    When the traveler is parsed
+    Then parse fails with "traveler exceeds 512 KiB"
 
   @rid:S-34356641
-  Scenario: Seed packets all parse and bind
-    Given the four demo seed packets
+  Scenario: Seed travelers all parse and bind
+    Given the four demo seed travelers
     When each is parsed
-    Then every bound quote packet_hash_quoted equals packet_hash of its packet
+    Then every bound quote traveler_hash_quoted equals traveler_hash of its traveler
     And levels are L1, L2, L1, L0 in seed order

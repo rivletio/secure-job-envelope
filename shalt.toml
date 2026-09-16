@@ -1,6 +1,6 @@
 # shalt workspace configuration
 [project]
-name = "rivlet-packet"
+name = "opentraveler"
 stack = "rust"
 
 [zones]

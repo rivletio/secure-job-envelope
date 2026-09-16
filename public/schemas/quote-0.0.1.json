@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://packet.rivlet.io/schemas/quote-0.0.1.json",
-  "title": "Rivlet Packet Quote v0.0.1",
+  "$id": "https://opentraveler.org/schemas/quote-0.0.1.json",
+  "title": "OpenTraveler Quote v0.0.1",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "quote_id",
     "seller",
-    "packet_hash_quoted",
+    "traveler_hash_quoted",
     "created_at",
     "valid_until",
     "lead_time_days",
@@ -35,7 +35,7 @@
         }
       }
     },
-    "packet_hash_quoted": {
+    "traveler_hash_quoted": {
       "type": "string",
       "pattern": "^sha384:[0-9a-f]{96}$"
     },

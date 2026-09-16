@@ -1,14 +1,14 @@
 @epic:docs
 Feature: Spec documentation page
-  The in-app spec describes Rivlet Packet 0.0.1 for implementers.
+  The in-app spec describes OpenTraveler 0.0.1 for implementers.
 
   @rid:S-75b0c3d7
   Scenario: Spec page states media type and hash rule
     When the user opens "/spec"
-    Then the heading is "Rivlet Packet 0.0.1"
-    And the page cites media type "application/vnd.rivlet.packet+json"
-    And the page states quotes bind to packet_hash_quoted as SHA-384 of the canonical quoteable body
-    And the archive name pattern is "{packet_id}.rivpkt.zip"
+    Then the heading is "OpenTraveler 0.0.1"
+    And the page cites media type "application/vnd.opentraveler+json"
+    And the page states quotes bind to traveler_hash_quoted as SHA-384 of the canonical quoteable body
+    And the archive name pattern is "{traveler_id}.traveler.zip"
 
   @rid:S-079c0655
   Scenario: Conformance table lists L0 through L3

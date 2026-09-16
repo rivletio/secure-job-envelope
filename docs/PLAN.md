@@ -1,15 +1,15 @@
-# Rivlet Packet — project plan
+# OpenTraveler — project plan
 
 Working name. The live plan shalt manages is [`.shalt/plan.md`](../.shalt/plan.md). This page is the same plan in the docs tree, plus the diagrams shalt generates.
 
-Open the project in shalt (`shalt ui` → rivlet-packet → **Plan**) to see remaining work, update notes, seat tickets on goals/milestones, and Play.
+Open the project in shalt (`shalt ui` → opentraveler → **Plan**) to see remaining work, update notes, seat tickets on goals/milestones, and Play.
 
 ## Why this exists
 
-A **packet** is the job object — one part family moving between a buyer and a seller. It is not a shop OS and not a marketplace. Coordination happens through `{packet_id}.rivpkt.zip`. Every conforming implementation computes the same `sha384:…` for the same quoteable body, so a quote binds to *exactly* the revision it priced.
+A **traveler** is the job object — one part family moving between a buyer and a seller. It is not a shop OS and not a marketplace. Coordination happens through `{traveler_id}.traveler.zip`. Every conforming implementation computes the same `sha384:…` for the same quoteable body, so a quote binds to *exactly* the revision it priced.
 
 ```
-Buyer composes packet  ──►  L0 Quoteable
+Buyer composes traveler  ──►  L0 Quoteable
 Sellers attach quotes  ──►  L1 Awardable
 Buyer awards + ops     ──►  L2 Executable
                             L3 As-built (reserved)
@@ -19,7 +19,7 @@ Buyer awards + ops     ──►  L2 Executable
 
 | Id | Outcome |
 |---|---|
-| `g-envelope` | Shops exchange a hash-bound job packet without a shared database |
+| `g-envelope` | Shops exchange a hash-bound job traveler without a shared database |
 | `g-desk` | Buyer and seller compose, quote, and award from a local desk |
 | `g-trust` | Integrity and export-control claims are checkable, not marketing |
 
@@ -29,7 +29,7 @@ Buyer awards + ops     ──►  L2 Executable
 |---|---|---|
 | `m-format` | 0.0.1 format locked | hash, schema, conformance |
 | `m-flow` | Desk flow L0→L2 green | compose, quote, award, lifecycle, archive, ITAR |
-| `m-desk` | Desk product | desk list, packet view, shell, role, spec page, trust audit |
+| `m-desk` | Desk product | desk list, traveler view, shell, role, spec page, trust audit |
 | `m-envelope` | 0.1 encrypted envelope | draft only — [`ENVELOPE-DRAFT.md`](ENVELOPE-DRAFT.md) |
 
 ## Diagrams

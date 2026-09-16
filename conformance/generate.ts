@@ -6,11 +6,11 @@
  *  Run: node --experimental-strip-types conformance/generate.ts
  */
 import { writeFileSync, readFileSync } from "node:fs";
-import { canonicalJson } from "../src/lib/packet/canonical.ts";
-import { packetHash, hashQuoteable, quoteableBody } from "../src/lib/packet/hash.ts";
-import { parsePacket, levelOf } from "../src/lib/packet/conformance.ts";
+import { canonicalJson } from "../src/lib/traveler/canonical.ts";
+import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/hash.ts";
+import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { sha384 } from "js-sha512";
-import type { Packet, Quote } from "../src/lib/packet/types.ts";
+import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
 const here = new URL(".", import.meta.url).pathname;
 
@@ -40,7 +40,7 @@ const invalidValues: Array<{ name: string; value: unknown; reason: string }> = [
 ];
 
 const canonical = {
-  spec: "rivlet-packet/0.0.1",
+  spec: "opentraveler/0.0.1",
   note:
     "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. " +
     "Invalid: implementations MUST refuse to canonicalize `value`. " +
@@ -56,14 +56,14 @@ const canonical = {
 
 writeFileSync(`${here}/canonical.json`, JSON.stringify(canonical, null, 2) + "\n");
 
-/* ---------- packet vectors ---------- */
+/* ---------- traveler vectors ---------- */
 
-const l0: Packet = JSON.parse(
-  readFileSync(`${here}/../examples/bracket.packet.json`, "utf8"),
-) as Packet;
-l0.packet_id = "pkt_conform0l0";
+const l0: Traveler = JSON.parse(
+  readFileSync(`${here}/../examples/bracket.traveler.json`, "utf8"),
+) as Traveler;
+l0.traveler_id = "tvl_conform0l0";
 
-const l0Hash = packetHash(l0);
+const l0Hash = travelerHash(l0);
 
 const quote: Quote = {
   quote_id: "qot_conform01",
@@ -74,7 +74,7 @@ const quote: Quote = {
     region: "NV",
     certs: ["ISO 9001"],
   },
-  packet_hash_quoted: l0Hash,
+  traveler_hash_quoted: l0Hash,
   created_at: "2026-09-16T12:00:00.000Z",
   valid_until: "2039-01-01T00:00:00.000Z",
   lead_time_days: 21,
@@ -89,13 +89,13 @@ const quote: Quote = {
   },
 };
 
-const l1: Packet = { ...structuredClone(l0), packet_id: "pkt_conform0l1", quotes: [] };
-const l1Hash = packetHash(l1);
-l1.quotes = [{ ...structuredClone(quote), packet_hash_quoted: l1Hash }];
+const l1: Traveler = { ...structuredClone(l0), traveler_id: "tvl_conform0l1", quotes: [] };
+const l1Hash = travelerHash(l1);
+l1.quotes = [{ ...structuredClone(quote), traveler_hash_quoted: l1Hash }];
 
-const l2: Packet = { ...structuredClone(l1), packet_id: "pkt_conform0l2" };
-const l2Hash = packetHash(l2);
-l2.quotes = [{ ...structuredClone(quote), packet_hash_quoted: l2Hash }];
+const l2: Traveler = { ...structuredClone(l1), traveler_id: "tvl_conform0l2" };
+const l2Hash = travelerHash(l2);
+l2.quotes = [{ ...structuredClone(quote), traveler_hash_quoted: l2Hash }];
 l2.award = { quote_id: "qot_conform01", awarded_at: "2026-09-17T09:00:00.000Z", qty: 250 };
 l2.ops = [
   { seq: 1, code: "laser" },
@@ -111,21 +111,21 @@ l2.ship_to = {
   country: "US",
 };
 
-const expected: Record<string, { packet_hash: string; level: string }> = {};
+const expected: Record<string, { traveler_hash: string; level: string }> = {};
 for (const [file, p] of [
   ["l0-bracket.json", l0],
   ["l1-quoted.json", l1],
   ["l2-awarded.json", l2],
 ] as const) {
-  const parsed = parsePacket(JSON.parse(JSON.stringify(p)));
-  expected[file] = { packet_hash: packetHash(parsed), level: levelOf(parsed).code };
-  writeFileSync(`${here}/packets/${file}`, JSON.stringify(p, null, 2) + "\n");
+  const parsed = parseTraveler(JSON.parse(JSON.stringify(p)));
+  expected[file] = { traveler_hash: travelerHash(parsed), level: levelOf(parsed).code };
+  writeFileSync(`${here}/travelers/${file}`, JSON.stringify(p, null, 2) + "\n");
 }
-writeFileSync(`${here}/packets/expected.json`, JSON.stringify(expected, null, 2) + "\n");
+writeFileSync(`${here}/travelers/expected.json`, JSON.stringify(expected, null, 2) + "\n");
 
 // sanity: golden vector must still hold
 const golden = JSON.parse(
-  readFileSync(`${here}/../crates/rivlet-packet/tests/golden.json`, "utf8"),
+  readFileSync(`${here}/../crates/opentraveler/tests/golden.json`, "utf8"),
 );
 console.log("golden:", hashQuoteable(golden));
 console.log("levels:", Object.fromEntries(Object.entries(expected).map(([k, v]) => [k, v.level])));
