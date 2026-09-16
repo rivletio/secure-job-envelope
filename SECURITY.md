@@ -52,10 +52,11 @@ future versions:
   offered for ecosystem compatibility; a packet's signature block will
   carry the algorithm identifier so verifiers reject schemes they do not
   accept.
-- **No key exchange or encryption is defined by the format.** Transport
-  confidentiality is out of scope in 0.0.1; when an encrypted envelope is
-  specified, it will use a NIST PQC KEM (ML-KEM / FIPS 203) rather than
-  classical ECDH.
+- **Confidentiality: encrypted envelope drafted for 0.1.** 0.0.1 defines
+  no encryption; the 0.1 envelope draft ([docs/ENVELOPE-DRAFT.md](docs/ENVELOPE-DRAFT.md))
+  specifies ML-KEM-768 + HKDF-SHA-384 + AES-256-GCM, multi-recipient,
+  CNSA 2.0-aligned, with metadata minimization as a design requirement —
+  the threat model is harvest-now-decrypt-later at industrial-base scale.
 
 ## Handling of sensitive data
 

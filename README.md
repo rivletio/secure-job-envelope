@@ -29,6 +29,7 @@ This repo contains:
 | `crates/rivlet-packet/` | Independent **Rust** implementation + CLI (`rivlet-packet hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
 | `examples/` | A worked example packet and how to verify it with both implementations |
+| `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.rivpkt.enc`) |
 | `TRUST.md` | Honest SOC 2 TSC mapping: what this gives you, what it does not |
 | `SECURITY.md` | Threat model and how to report issues |
 
