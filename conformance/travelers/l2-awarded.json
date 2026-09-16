@@ -1,5 +1,5 @@
 {
-  "spec": "jobseal/0.0.1",
+  "spec": "sje/0.0.1",
   "traveler_id": "tvl_conform0l2",
   "revision": 1,
   "created_at": "2026-09-15T17:00:00.000Z",
@@ -52,7 +52,7 @@
           "ISO 9001"
         ]
       },
-      "traveler_hash_quoted": "sha384:fe9b89dee5a49901cbd92243bead683ced46bec8783dec428c457bfb755c425d418ad073cd72b5c2834492ee6127b4dc",
+      "traveler_hash_quoted": "sha384:8bb6b146f87fa38d52da5eea9746ebc4ea01b75159d3f621e020d95fb99ab0c6b1b5eaa9dde29fa8cf03feca9edf3a16",
       "created_at": "2026-09-16T12:00:00.000Z",
       "valid_until": "2039-01-01T00:00:00.000Z",
       "lead_time_days": 21,

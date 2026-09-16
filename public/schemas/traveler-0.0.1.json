@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://jobseal.org/schemas/traveler-0.0.1.json",
-  "title": "JobSeal v0.0.1",
+  "$id": "https://securejobenvelope.org/schemas/traveler-0.0.1.json",
+  "title": "SJE v0.0.1",
   "type": "object",
   "additionalProperties": false,
   "required": ["spec", "traveler_id", "revision", "created_at", "buyer", "part"],
   "properties": {
-    "spec": { "const": "jobseal/0.0.1" },
+    "spec": { "const": "sje/0.0.1" },
     "traveler_id": {
       "type": "string",
       "pattern": "^[a-z]{3}_[a-z0-9]{6,24}$"

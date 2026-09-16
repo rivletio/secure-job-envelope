@@ -1,8 +1,8 @@
-# JobSeal — project plan
+# SJE — project plan
 
 Working name. The live plan shalt manages is [`.shalt/plan.md`](../.shalt/plan.md). This page is the same plan in the docs tree, plus the diagrams shalt generates.
 
-Open the project in shalt (`shalt ui` → jobseal → **Plan**) to see remaining work, update notes, seat tickets on goals/milestones, and Play.
+Open the project in shalt (`shalt ui` → sje → **Plan**) to see remaining work, update notes, seat tickets on goals/milestones, and Play.
 
 ## Why this exists
 

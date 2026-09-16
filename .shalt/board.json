@@ -35,7 +35,7 @@
     },
     {
       "id": "m-envelope",
-      "title": "0.1 encrypted envelope (.jobseal)",
+      "title": "0.1 encrypted envelope (.sje)",
       "target": null
     }
   ],

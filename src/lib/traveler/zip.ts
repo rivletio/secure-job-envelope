@@ -125,7 +125,7 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
     throw new Error("META.json traveler_hash does not match quoteable body");
   }
   if (typeof rec.spec === "string" && rec.spec !== TRAVELER_SPEC) {
-    throw new Error("META.json spec does not match jobseal/0.0.1");
+    throw new Error("META.json spec does not match sje/0.0.1");
   }
   if (typeof rec.traveler_json_sha384 === "string" && rec.traveler_json_sha384 !== sha384Hex(text)) {
     throw new Error("traveler.json does not match archive digest");

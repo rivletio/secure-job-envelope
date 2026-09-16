@@ -1,9 +1,9 @@
 {
-  "name": "jobseal",
+  "name": "secure-job-envelope",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "JobSeal — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/jobseal.",
+  "description": "SJE — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/secure-job-envelope.",
   "type": "module",
   "sideEffects": false,
   "scripts": {

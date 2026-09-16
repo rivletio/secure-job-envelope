@@ -6,8 +6,8 @@ export const Route = createFileRoute("/spec")({ component: SpecPage });
 function SpecPage() {
   return (
     <AppShell>
-      <p className="mono-label">Apache-2.0 · application/vnd.jobseal+json</p>
-      <h1 className="mt-3 text-4xl tracking-tight text-paper">JobSeal 0.0.1</h1>
+      <p className="mono-label">Apache-2.0 · application/vnd.sje+json</p>
+      <h1 className="mt-3 text-4xl tracking-tight text-paper">SJE 0.0.1</h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-soft">
         Implementable draft. A traveler is the job object — not the shop OS and not a
         marketplace. Archive name is {"{traveler_id}.traveler.zip"}. Quotes bind to{" "}
@@ -55,13 +55,13 @@ function SpecPage() {
         <article className="on-paper traveler-shadow rounded-sm p-5">
           <h2 className="text-lg font-medium">Rust core</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Protocol crate <code className="font-mono text-foreground">jobseal</code>{" "}
+            Protocol crate <code className="font-mono text-foreground">sje</code>{" "}
             hashes, validates quotes, and reports level. Same golden vector as this desk.
             Language-agnostic on the wire; Rust for the verifier.
           </p>
           <pre className="mt-3 overflow-x-auto rounded-md bg-wash p-3 font-mono text-xs text-foreground">
-            {`jobseal hash traveler.json
-jobseal level traveler.json`}
+            {`sje hash traveler.json
+sje level traveler.json`}
           </pre>
         </article>
       </section>

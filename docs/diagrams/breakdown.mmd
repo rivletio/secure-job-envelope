@@ -1,29 +1,29 @@
 graph TD
   E_archive["ARCHIVE"]
   style E_archive fill:#3d4f7c,stroke:#2a3757,color:#ffffff
-  E_archive --> S_import-and-export-jobseal-archives["Import and export Rivlet traveler archives"]
-  style S_import-and-export-jobseal-archives fill:#eef1f7,stroke:#3d4f7c,color:#1a1f26
-  S_import-and-export-jobseal-archives --> S_426f614a("·  Zip with path traversal is rejected")
+  E_archive --> S_import-and-export-sje-archives["Import and export Rivlet traveler archives"]
+  style S_import-and-export-sje-archives fill:#eef1f7,stroke:#3d4f7c,color:#1a1f26
+  S_import-and-export-sje-archives --> S_426f614a("·  Zip with path traversal is rejected")
   style S_426f614a fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_f6d69aaa("·  Zip with unexpected member is rejected")
+  S_import-and-export-sje-archives --> S_f6d69aaa("·  Zip with unexpected member is rejected")
   style S_f6d69aaa fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_8fc9037d("·  META traveler_id mismatch is rejected")
+  S_import-and-export-sje-archives --> S_8fc9037d("·  META traveler_id mismatch is rejected")
   style S_8fc9037d fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_947d4869("·  Zip without META.json is rejected")
+  S_import-and-export-sje-archives --> S_947d4869("·  Zip without META.json is rejected")
   style S_947d4869 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_2f13412c("·  Export traveler zip downloads the archive and audits")
+  S_import-and-export-sje-archives --> S_2f13412c("·  Export traveler zip downloads the archive and audits")
   style S_2f13412c fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_81f75882("·  Export JSON downloads traveler json")
+  S_import-and-export-sje-archives --> S_81f75882("·  Export JSON downloads traveler json")
   style S_81f75882 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_5b35da2f("·  File larger than 2 MB is rejected")
+  S_import-and-export-sje-archives --> S_5b35da2f("·  File larger than 2 MB is rejected")
   style S_5b35da2f fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_5f007835("·  Open plain traveler JSON from the desk")
+  S_import-and-export-sje-archives --> S_5f007835("·  Open plain traveler JSON from the desk")
   style S_5f007835 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_c1c6d06f("·  Import will not overwrite a locked L2 traveler")
+  S_import-and-export-sje-archives --> S_c1c6d06f("·  Import will not overwrite a locked L2 traveler")
   style S_c1c6d06f fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_27956542("·  META traveler_hash mismatch is rejected")
+  S_import-and-export-sje-archives --> S_27956542("·  META traveler_hash mismatch is rejected")
   style S_27956542 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_import-and-export-jobseal-archives --> S_a3fc34f2("·  Round-trip zip preserves traveler id and hash")
+  S_import-and-export-sje-archives --> S_a3fc34f2("·  Round-trip zip preserves traveler id and hash")
   style S_a3fc34f2 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
   E_award["AWARD"]
   style E_award fill:#3d4f7c,stroke:#2a3757,color:#ffffff
@@ -193,7 +193,7 @@ graph TD
   style E_schema fill:#3d4f7c,stroke:#2a3757,color:#ffffff
   E_schema --> S_traveler-and-quote-schema-validation["Traveler and quote schema validation"]
   style S_traveler-and-quote-schema-validation fill:#eef1f7,stroke:#3d4f7c,color:#1a1f26
-  S_traveler-and-quote-schema-validation --> S_b3a29bb1("·  Traveler requires jobseal/0.0.1 spec and id shape")
+  S_traveler-and-quote-schema-validation --> S_b3a29bb1("·  Traveler requires sje/0.0.1 spec and id shape")
   style S_b3a29bb1 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
   S_traveler-and-quote-schema-validation --> S_cd4463f3("·  Quote rejects non-finite unit price")
   style S_cd4463f3 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff

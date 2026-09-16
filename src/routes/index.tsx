@@ -80,7 +80,7 @@ function Desk() {
             The job object. <em className="font-normal text-accent italic">Between two shops.</em>
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-soft md:text-base">
-            A JobSeal is a content-addressed envelope for one part family.
+            A SJE is a content-addressed envelope for one part family.
             Quote it without guessing material or qty. Award a structured quote.
             Run it when ops and ship-to are on the traveler.
           </p>

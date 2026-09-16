@@ -1,4 +1,4 @@
-# JobSeal — project plan
+# SJE — project plan
 
 Working name. The product is a **content-addressed job envelope for parts manufacturing**, not a shop OS and not a marketplace. Shops already have ERPs and spreadsheets; coordination happens through a file `{traveler_id}.traveler.zip` that any conforming tool can hash the same way.
 
@@ -26,11 +26,11 @@ Compose, quote, award, amend/lock, import/export archive, ITAR self-declaration 
 Home list, traveler view, shell navigation, buyer/seller role switch (a view, not auth), in-app spec, local trust/audit log.
 
 ### M-envelope — 0.1 encrypted envelope (draft)
-`.jobseal` for harvest-now-decrypt-later. Design lives in `docs/ENVELOPE-DRAFT.md`. No scenarios yet — do not pretend this is in 0.0.1.
+`.sje` for harvest-now-decrypt-later. Design lives in `docs/ENVELOPE-DRAFT.md`. No scenarios yet — do not pretend this is in 0.0.1.
 
 ## Current state
 
-- Spec `jobseal/0.0.1` is written (`docs/SPEC.md`, JSON Schema, 15 Gherkin features / 88 scenarios).
+- Spec `sje/0.0.1` is written (`docs/SPEC.md`, JSON Schema, 15 Gherkin features / 88 scenarios).
 - TypeScript desk and Rust crate already implement hash, guards, zip, golden vector.
 - Shalt ledger: **88 scenarios, all pending** (no cucumber-rs steps bound yet). The desk has its own `npm test` suite; shalt Play has not made those green.
 - `shalt.toml` stack is **rust** (`cargo test --test shalt`). The desk is TypeScript. Do not Play the whole repo as rust until the runner matches the thing under test — either a rust shalt harness for the crate, or a javascript stack for the desk.

@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "JobSeal";
+const APP_NAME = "SJE";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -16,7 +16,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "A JobSeal is a content-addressed job envelope for one part family moving between two US manufacturers.",
+          "A SJE is a content-addressed job envelope for one part family moving between two US manufacturers.",
       },
     ],
     links: [

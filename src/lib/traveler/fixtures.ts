@@ -284,7 +284,7 @@ export function seedTravelers(): Traveler[] {
   return [bracket, enclosure, shaft, weldment];
 }
 
-/** Golden quoteable body — must match crates/jobseal tests. */
+/** Golden quoteable body — must match crates/secure-job-envelope tests. */
 export const GOLDEN_QUOTEABLE: QuoteableBody = {
   spec: TRAVELER_SPEC,
   traveler_id: "tvl_golden0001",

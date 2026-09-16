@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://jobseal.org/schemas/quote-0.0.1.json",
-  "title": "JobSeal Quote v0.0.1",
+  "$id": "https://securejobenvelope.org/schemas/quote-0.0.1.json",
+  "title": "SJE Quote v0.0.1",
   "type": "object",
   "additionalProperties": false,
   "required": [

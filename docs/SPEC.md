@@ -1,6 +1,6 @@
-# JobSeal — spec 0.0.1
+# Secure Job Envelope (SJE) — spec 0.0.1
 
-Implementable draft. Media type `application/vnd.jobseal+json`.
+Implementable draft. Media type `application/vnd.sje+json`.
 Archive name `{traveler_id}.traveler.zip`. License Apache-2.0.
 
 A traveler is the job object — one part family between a buyer and sellers —
@@ -81,7 +81,7 @@ under quantum collision search; SHA-384 keeps ≥128-bit collision and
 hash string. Chosen pre-release so no deployed hashes ever migrate.
 
 Both reference implementations must reproduce the golden vector
-(`crates/jobseal/tests/golden.json`) exactly.
+(`crates/secure-job-envelope/tests/golden.json`) exactly.
 
 ## Conformance ladder
 
@@ -145,4 +145,4 @@ both digests against the received `traveler.json`; re-canonicalize and check
 ## JSON Schemas
 
 `public/schemas/traveler-0.0.1.json` and `public/schemas/quote-0.0.1.json`
-(JSON Schema 2020-12, `$id` under `https://jobseal.org/schemas/`).
+(JSON Schema 2020-12, `$id` under `https://securejobenvelope.org/schemas/`).

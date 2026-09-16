@@ -7,7 +7,7 @@ Feature: Content-addressed traveler hash
   Scenario: Golden quoteable body matches the published vector
     Given the golden quoteable body
       | field        | value                |
-      | spec         | jobseal/0.0.1  |
+      | spec         | sje/0.0.1  |
       | traveler_id    | tvl_golden0001       |
       | revision     | 1                    |
       | created_at   | 2026-09-14T00:00:00.000Z |

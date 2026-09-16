@@ -21,16 +21,16 @@ function canonicalNumber(value: number): string {
   }
   const abs = Math.abs(value);
   if (abs > 9007199254740991) {
-    throw new Error("number exceeds 2^53-1 and is not canonical in jobseal/0.0.1");
+    throw new Error("number exceeds 2^53-1 and is not canonical in sje/0.0.1");
   }
   if (!Number.isInteger(value) && abs < 1e-5) {
     throw new Error(
-      "non-integer number below 1e-5 is outside the canonical fixed-notation range of jobseal/0.0.1",
+      "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.0.1",
     );
   }
   const rendered = JSON.stringify(value);
   if (rendered.includes("e") || rendered.includes("E")) {
-    throw new Error("number outside the canonical fixed-notation range of jobseal/0.0.1");
+    throw new Error("number outside the canonical fixed-notation range of sje/0.0.1");
   }
   return rendered;
 }

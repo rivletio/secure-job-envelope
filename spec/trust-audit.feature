@@ -29,7 +29,7 @@ Feature: Trust page and local audit log
   Scenario: Export audit downloads JSON
     Given the local audit has at least one event
     When the user clicks "Export log" on "/trust"
-    Then a file "jobseal-audit.json" is downloaded
+    Then a file "sje-audit.json" is downloaded
     And the file is a JSON array of audit events
 
   @rid:S-d639a435

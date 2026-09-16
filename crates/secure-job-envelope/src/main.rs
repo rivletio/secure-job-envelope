@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::process;
 
-use jobseal::{level, traveler_hash, parse_traveler};
+use secure_job_envelope::{level, traveler_hash, parse_traveler};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -29,9 +29,9 @@ fn main() {
             }
         }
         _ => {
-            eprintln!("jobseal 0.0.1");
-            eprintln!("  jobseal hash [traveler.json]");
-            eprintln!("  jobseal level [traveler.json]");
+            eprintln!("envelope (SJE) 0.0.1");
+            eprintln!("  envelope hash [traveler.json]");
+            eprintln!("  envelope level [traveler.json]");
             eprintln!("stdin is used when no file is given.");
         }
     }

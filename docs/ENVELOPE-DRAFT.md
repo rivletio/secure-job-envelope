@@ -1,7 +1,7 @@
 # Encrypted envelope — draft for 0.1
 
 **Status: DRAFT — design document, not yet implemented or normative.**
-File extension `.jobseal`. Goal: a traveler exchanged between two shops is
+File extension `.sje`. Goal: a traveler exchanged between two shops is
 confidential against an adversary who records everything today and owns a
 cryptographically relevant quantum computer later.
 
@@ -21,7 +21,7 @@ carries two kinds of secrets:
    but it must not *add* metadata: no org names, no part numbers, no
    traveler ids in the clear.
 
-Design consequence of the second point: JobSeal remains a **file
+Design consequence of the second point: SJE remains a **file
 format, not a platform** — there is deliberately no central broker that
 sees plaintext or the full exchange graph. Anyone who builds a relay or
 directory on top of this spec should treat that property as normative.
@@ -45,12 +45,12 @@ if defined, the derived key MUST bind both shared secrets.
 
 ## Envelope shape
 
-A `.jobseal` is a JSON document (same ethos as the traveler — inspectable
+A `.sje` is a JSON document (same ethos as the traveler — inspectable
 structure, opaque payload):
 
 ```jsonc
 {
-  "spec": "jobseal-envelope/0.1",
+  "spec": "sje-envelope/0.1",
   "enc_alg": "ML-KEM-768+HKDF-SHA-384+AES-256-GCM",
   "recipients": [
     {
@@ -86,7 +86,7 @@ structure, opaque payload):
   truncated hash of their public key, meaningless without the key
   directory the parties already share. Envelope carries **no** traveler_id,
   org names, or part information in the clear. Filename SHOULD be random,
-  not `{traveler_id}.jobseal`.
+  not `{traveler_id}.sje`.
 
 ## Keys
 

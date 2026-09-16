@@ -1,0 +1,19 @@
+[package]
+name = "secure-job-envelope"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "Secure Job Envelope (SJE) 0.0.1 — content-addressed job envelope for one part family"
+repository = "https://github.com/rivletio/sje"
+homepage = "https://securejobenvelope.org"
+
+[dependencies]
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "1"
+
+[[bin]]
+name = "envelope"
+path = "src/main.rs"

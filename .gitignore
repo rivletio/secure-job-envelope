@@ -4,7 +4,7 @@ dist/
 .nitro/
 .tanstack/
 .vercel/
-crates/jobseal/target/
+crates/secure-job-envelope/target/
 *.log
 .DS_Store
 .env

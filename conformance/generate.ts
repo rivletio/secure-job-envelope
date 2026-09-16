@@ -40,7 +40,7 @@ const invalidValues: Array<{ name: string; value: unknown; reason: string }> = [
 ];
 
 const canonical = {
-  spec: "jobseal/0.0.1",
+  spec: "sje/0.0.1",
   note:
     "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. " +
     "Invalid: implementations MUST refuse to canonicalize `value`. " +
@@ -125,7 +125,7 @@ writeFileSync(`${here}/travelers/expected.json`, JSON.stringify(expected, null, 
 
 // sanity: golden vector must still hold
 const golden = JSON.parse(
-  readFileSync(`${here}/../crates/jobseal/tests/golden.json`, "utf8"),
+  readFileSync(`${here}/../crates/secure-job-envelope/tests/golden.json`, "utf8"),
 );
 console.log("golden:", hashQuoteable(golden));
 console.log("levels:", Object.fromEntries(Object.entries(expected).map(([k, v]) => [k, v.level])));

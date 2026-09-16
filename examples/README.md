@@ -7,9 +7,9 @@ and Incoterms set, ITAR false.
 ## Verify it with the Rust CLI
 
 ```bash
-cd crates/jobseal
+cd crates/secure-job-envelope
 cargo run -- hash  ../../examples/bracket.traveler.json
-# sha384:548c1e425252e08e479c9d2ac8d583311234fe6813109d1b37655c626807995cf3405df7031d2744b0bb3000a86f8435
+# sha384:559c6665c96db0defa6017aefee7dc13815a952c9b6d4bd386eb4c135b7c49b176fbca0fa4723072c5e5c90584134f28
 cargo run -- level ../../examples/bracket.traveler.json
 # L0 Quoteable
 ```
@@ -25,12 +25,12 @@ import { levelOf, parseTraveler } from "../src/lib/traveler/conformance.ts";
 import { readFileSync } from "node:fs";
 
 const traveler = parseTraveler(JSON.parse(readFileSync("examples/bracket.traveler.json", "utf8")));
-console.log(travelerHash(traveler)); // sha384:548c1e42…6f8435 — same as the CLI
+console.log(travelerHash(traveler)); // sha384:559c6665…134f28 — same as the CLI
 console.log(levelOf(traveler).code); // L0
 ```
 
 Both implementations are independent; agreement on this hash (and on the
-golden vector in `crates/jobseal/tests/golden.json`) is what makes a
+golden vector in `crates/secure-job-envelope/tests/golden.json`) is what makes a
 quote's `traveler_hash_quoted` mean the same thing to both parties.
 
 ## The flow from here
