@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://packet.rivlet.io/schemas/quote-0.0.1.json",
+  "title": "Rivlet Packet Quote v0.0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "quote_id",
+    "seller",
+    "packet_hash_quoted",
+    "created_at",
+    "valid_until",
+    "lead_time_days",
+    "pricing"
+  ],
+  "properties": {
+    "quote_id": {
+      "type": "string",
+      "pattern": "^[a-z]{3}_[a-z0-9]{6,24}$"
+    },
+    "seller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "org_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$" },
+        "name": { "type": "string", "minLength": 1 },
+        "city": { "type": "string" },
+        "region": { "type": "string" },
+        "contact": { "type": "string" },
+        "certs": { "type": "array", "items": { "type": "string" } },
+        "itar": {
+          "type": "boolean",
+          "description": "Self-declared ITAR registration. Not a quality certificate."
+        }
+      }
+    },
+    "packet_hash_quoted": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "created_at": { "type": "string" },
+    "valid_until": { "type": "string" },
+    "lead_time_days": { "type": "integer", "minimum": 0, "maximum": 3650 },
+    "need_by_feasible": { "type": "boolean" },
+    "pricing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "lines"],
+      "properties": {
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "nre": { "type": "number", "minimum": 0 },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["qty", "unit"],
+            "properties": {
+              "qty": { "type": "integer", "minimum": 1 },
+              "unit": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "freight_estimate": { "type": "number", "minimum": 0 },
+        "tax_excluded": { "type": "boolean" }
+      }
+    },
+    "assumptions": { "type": "object" },
+    "exceptions": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "proposal"],
+        "properties": {
+          "code": { "type": "string" },
+          "on": { "type": "string" },
+          "proposal": { "type": "string" },
+          "price_delta": { "type": "number" }
+        }
+      }
+    },
+    "capacity": { "type": "object" }
+  }
+}
