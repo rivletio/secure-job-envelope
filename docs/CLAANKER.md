@@ -1,6 +1,6 @@
 # Claanker uses Envelope
 
-This repository is the open-source job file. Apache-2.0. Anyone can implement the traveler, the hash, and the desk.
+This repository is the open-source job file. MIT. Anyone can implement the traveler, the hash, and the desk.
 
 [Claanker](https://github.com/rivletio/claanker) is a product that uses it. Claanker interviews a shop and, after both sides opt in, carries a sealed Envelope to the other side. Claanker is not this spec.
 

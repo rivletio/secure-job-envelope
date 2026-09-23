@@ -1,7 +1,7 @@
 # Secure Job Envelope (SJE)
 
 **A content-addressed job envelope for parts manufacturing.**
-`application/vnd.sje+json` · spec `sje/0.0.1` · Apache-2.0
+`application/vnd.sje+json` · spec `sje/0.0.1` · MIT
 
 A **traveler** is the job object — one part family moving between a buyer and a
 seller: part, material, quantity (with price breaks), need-by, ship-to, the
@@ -107,7 +107,7 @@ their own. The platform can come later; the envelope has to come first.
 ## Governance
 
 SJE is intended as a **vendor-neutral standard** — the name carries no
-company, the spec and both reference implementations are Apache-2.0, and
+company, the spec and both reference implementations are MIT, and
 conformance is defined by the public vector suite, not by anyone's
 product. Rivlet, Inc. authors the spec today and operates a commercial
 **validation and execution service** built on it (envelope.rivlet.io);
@@ -116,4 +116,4 @@ anyone can implement, validate, and run jobs against the same vectors.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

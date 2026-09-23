@@ -6,7 +6,7 @@ export const Route = createFileRoute("/spec")({ component: SpecPage });
 function SpecPage() {
   return (
     <AppShell>
-      <p className="mono-label">Apache-2.0 · application/vnd.sje+json</p>
+      <p className="mono-label">MIT · application/vnd.sje+json</p>
       <h1 className="mt-3 text-4xl tracking-tight text-paper">SJE 0.0.1</h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-soft">
         Implementable draft. A traveler is the job object — not the shop OS and not a
