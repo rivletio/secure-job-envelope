@@ -12,7 +12,7 @@ every implementation that follows this spec computes the same
 `sha384:…` hash for the same quoteable body — so a quote can bind to
 *exactly* the revision it priced.
 
-[Claanker](https://github.com/rivletio/claanker) is the courier, not this format. It interviews a shop and, after both sides opt in, carries a sealed traveler, PO, job, bill of lading, or envelope to the other side. It does not open it. See [docs/CLAANKER.md](docs/CLAANKER.md).
+This format is open source. [Claanker](https://github.com/rivletio/claanker) uses it. After both sides opt in, Claanker carries a sealed traveler, PO, job, bill of lading, or envelope and does not open it. See [docs/CLAANKER.md](docs/CLAANKER.md).
 
 ```
 Buyer composes traveler  ──►  L0 Quoteable   (can price without guessing)
