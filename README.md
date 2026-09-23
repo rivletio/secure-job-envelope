@@ -12,6 +12,8 @@ every implementation that follows this spec computes the same
 `sha384:…` hash for the same quoteable body — so a quote can bind to
 *exactly* the revision it priced.
 
+[Claanker](https://github.com/rivletio/claanker) is the courier, not this format. It interviews a shop and, after both sides opt in, carries a sealed traveler, PO, job, bill of lading, or envelope to the other side. It does not open it. See [docs/CLAANKER.md](docs/CLAANKER.md).
+
 ```
 Buyer composes traveler  ──►  L0 Quoteable   (can price without guessing)
 Sellers attach quotes  ──►  L1 Awardable   (quotes bound to traveler_hash)
@@ -24,6 +26,7 @@ This repo contains:
 | Path | What it is |
 |---|---|
 | `docs/PLAN.md` | Project plan: goals, milestones, current state (shalt manages the live copy in `.shalt/plan.md`) |
+| `docs/CLAANKER.md` | How Claanker carries a sealed envelope and does not open it |
 | `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |
 | `docs/SPEC.md` | The 0.0.1 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
