@@ -2,25 +2,29 @@
 
 This repository is the open-source job file. Apache-2.0. Anyone can implement the traveler, the hash, and the desk.
 
-[Claanker](https://github.com/rivletio/claanker) is a product that uses it. Claanker is not this spec, and this spec is not Claanker. Claanker interviews a shop, finds who can take the stuck job, and after both sides opt in hands them an Envelope.
+[Claanker](https://github.com/rivletio/claanker) is a product that uses it. Claanker interviews a shop and, after both sides opt in, carries a sealed Envelope to the other side. Claanker is not this spec.
 
-Claanker may carry:
+## What Claanker may carry
 
 - a traveler from this spec
 - a purchase order
 - a job
 - a bill of lading
 - a sealed envelope
+- a bond certificate or an insurance certificate, after the shop has stated the carrier, the limit, and the expiry
 
-The agent stores the packet so it can be delivered. It is shown kind, that it is sealed, status, size, and a short hash. It does not open the body, read it back, quote it, or use the contents to match anyone. On a call it does not take the body. The sender texts it.
+The claim (carrier, limit, expiry) is something the person said. The certificate is the document. They are not the same thing.
 
-The hash Claanker keeps is a courier check. It is not the SJE `sha384` that binds a quote to a revision.
+## What the agent cannot do
 
-## Order
+The document does not go on the call and does not go in the text. The agent has no field for a body. A body sent that way is refused and not stored.
 
-1. Claanker interviews. Names stay hidden.
-2. Both sides opt in.
-3. Either side may hand Claanker a sealed Envelope for that match.
-4. Claanker passes it. The receiver opens it in their own system.
+The packet is encrypted at rest. The agent is shown kind, that it is sealed, status, size, and a short hash. It cannot open the body, read it back, or use the contents to match anyone.
+
+The other party can release the bytes only after both sides have opted in.
+
+Claanker's sha384 is a courier check of the bytes it was handed. It is not the SJE `sha384` that binds a quote to a canonical traveler. Claanker does not open the file to compute that hash.
+
+This is not the 0.1 `.sje` encrypted envelope, not a signature, and not proof that a bond or a policy is real. The other shop reads the certificate. Claanker does not underwrite it.
 
 Envelope is public. Claanker is not.
