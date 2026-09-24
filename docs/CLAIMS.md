@@ -22,6 +22,7 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 | C6 | Traveler hash and conformance level agree across implementations for real travelers (README) | `conformance/travelers/{l0,l1,l2}*.json` + `expected.json`, asserted by both runners | ✅ |
 | C7 | Wrong spec string, malformed traveler_id, and ITAR seller mismatch are refused at parse by both sides (SPEC) | `conformance/travelers/reject/*`, both runners | ✅ |
 | C8 | Object keys serialize in lexicographic order even when integer-like — JS numeric key enumeration must not leak into canonical bytes (SPEC §Canonical JSON) | Vector `key-order-digits`, both runners. *This vector caught a real bug in the TS reference serializer on its first run — the register exists precisely for this.* | ✅ |
+| C9 | Every schema field is classified as clear-in-file, and the pre-reveal courier view omits names, contacts, prices, part numbers, and addresses ([DISCLOSURE.md](DISCLOSURE.md)) | `src/lib/traveler/disclosure.test.ts` | ✅ |
 
 ## Quote binding & lifecycle
 

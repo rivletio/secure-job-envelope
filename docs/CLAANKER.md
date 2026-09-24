@@ -2,6 +2,8 @@
 
 This repository is the open-source job file. MIT. Anyone can implement the traveler, the hash, and the desk.
 
+What a courier may say before both sides opt in is [DISCLOSURE.md](DISCLOSURE.md). `courierView` is the allowlist. It is tested. Claanker is supposed to follow it. This repo cannot see Claanker's model, so a spoken name before opt-in is Claanker breaking a public rule, not a hidden one.
+
 [Claanker](https://github.com/rivletio/claanker) is a product that uses it. Claanker interviews a shop and, after both sides opt in, carries a sealed Envelope to the other side. Claanker is not this spec.
 
 ## What Claanker may carry

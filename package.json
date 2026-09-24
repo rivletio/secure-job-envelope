@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts src/lib/traveler/disclosure.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

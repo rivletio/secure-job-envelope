@@ -12,6 +12,8 @@ every implementation that follows this spec computes the same
 `sha384:…` hash for the same quoteable body — so a quote can bind to
 *exactly* the revision it priced.
 
+What the file shows, and what a courier may say before both sides opt in, is [docs/DISCLOSURE.md](docs/DISCLOSURE.md). That list is tested. The hash does not hide the file. Anyone who holds the traveler can read it.
+
 This format is open source. [Claanker](https://github.com/rivletio/claanker) uses it. After both sides opt in, Claanker carries a sealed traveler, PO, job, bill of lading, or envelope and does not open it. See [docs/CLAANKER.md](docs/CLAANKER.md).
 
 ```
