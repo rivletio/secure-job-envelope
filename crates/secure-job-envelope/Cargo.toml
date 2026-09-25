@@ -2,7 +2,7 @@
 name = "secure-job-envelope"
 version = "0.0.1"
 edition = "2021"
-license = "Apache-2.0"
+license = "MIT"
 description = "Secure Job Envelope (SJE) 0.0.1 — content-addressed job envelope for one part family"
 repository = "https://github.com/rivletio/sje"
 homepage = "https://securejobenvelope.org"

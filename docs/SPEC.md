@@ -1,7 +1,7 @@
 # Secure Job Envelope (SJE) — spec 0.0.1
 
 Implementable draft. Media type `application/vnd.sje+json`.
-Archive name `{traveler_id}.traveler.zip`. License Apache-2.0.
+Archive name `{traveler_id}.traveler.zip`. License MIT.
 
 A traveler is the job object — one part family between a buyer and sellers —
 not a shop OS and not a marketplace. Quotes bind to `traveler_hash_quoted`,
