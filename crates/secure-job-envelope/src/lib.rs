@@ -236,14 +236,69 @@ fn id_ok(id: &str) -> bool {
         && rest.bytes().all(|b| b.is_ascii_alphanumeric() && !b.is_ascii_uppercase())
 }
 
+/// The quoteable body is a *closed* field set: absent optionals are dropped,
+/// and — matching the spec and the TypeScript reference (`present()` /
+/// length checks in hash.ts) — empty strings and empty arrays are dropped too.
+/// serde's `skip_serializing_if = "Option::is_none"` only skips `None`, so
+/// `Some("")`/`Some(vec![])` would otherwise be hashed as `""`/`[]` and diverge
+/// from the TypeScript hash for the very same document. Normalize here so both
+/// implementations content-address identically.
+fn nonempty_string(s: &Option<String>) -> Option<String> {
+    match s {
+        Some(v) if !v.is_empty() => Some(v.clone()),
+        _ => None,
+    }
+}
+
+fn nonempty_vec<T: Clone>(v: &Option<Vec<T>>) -> Option<Vec<T>> {
+    match v {
+        Some(x) if !x.is_empty() => Some(x.clone()),
+        _ => None,
+    }
+}
+
+fn quoteable_org(org: &Org) -> Org {
+    Org {
+        org_id: nonempty_string(&org.org_id),
+        name: org.name.clone(),
+        city: nonempty_string(&org.city),
+        region: nonempty_string(&org.region),
+        contact: nonempty_string(&org.contact),
+        certs: nonempty_vec(&org.certs),
+        itar: org.itar,
+    }
+}
+
+fn quoteable_part(part: &Part) -> Part {
+    Part {
+        family: part.family.clone(),
+        part_number: part.part_number.clone(),
+        description: nonempty_string(&part.description),
+        drawing_rev: nonempty_string(&part.drawing_rev),
+        material: Material {
+            spec: part.material.spec.clone(),
+            form: nonempty_string(&part.material.form),
+            thickness_mm: part.material.thickness_mm,
+        },
+        qty: Qty {
+            target: part.qty.target,
+            breaks: nonempty_vec(&part.qty.breaks),
+        },
+        processes: nonempty_vec(&part.processes),
+        finish: nonempty_string(&part.finish),
+        tolerances: nonempty_string(&part.tolerances),
+        notes: nonempty_string(&part.notes),
+    }
+}
+
 pub fn quoteable_from(traveler: &Traveler) -> Quoteable {
     Quoteable {
         spec: traveler.spec.clone(),
         traveler_id: traveler.traveler_id.clone(),
         revision: traveler.revision,
         created_at: traveler.created_at.clone(),
-        buyer: traveler.buyer.clone(),
-        part: traveler.part.clone(),
+        buyer: quoteable_org(&traveler.buyer),
+        part: quoteable_part(&traveler.part),
         need_by: traveler.need_by.clone(),
         incoterms: traveler.incoterms.clone(),
         itar: traveler.itar.unwrap_or(false),
@@ -589,6 +644,47 @@ mod tests {
         )
         .unwrap();
         assert_ne!(traveler_hash(&with).unwrap(), traveler_hash(&without).unwrap());
+    }
+
+    #[test]
+    fn empty_arrays_and_strings_drop_from_the_hash() {
+        // A document carrying empty optional arrays/strings must hash the same
+        // as one that omits them, and identically to the TypeScript reference
+        // (spec: "empty strings and empty arrays are dropped"). Guards against a
+        // serializer that keeps Some(vec![]) as [] and diverges cross-impl.
+        let with_empties = parse_traveler(
+            r#"{
+          "spec":"sje/0.0.1",
+          "traveler_id":"tvl_emptydrop1",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment","certs":[]},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50,"breaks":[]},"processes":[]},
+          "itar":false
+        }"#,
+        )
+        .unwrap();
+        let without = parse_traveler(
+            r#"{
+          "spec":"sje/0.0.1",
+          "traveler_id":"tvl_emptydrop1",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
+          "itar":false
+        }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            traveler_hash(&with_empties).unwrap(),
+            traveler_hash(&without).unwrap()
+        );
+        let canon =
+            canonical_json(&serde_json::to_value(quoteable_from(&with_empties)).unwrap()).unwrap();
+        assert!(!canon.contains("certs"), "empty certs must not be hashed");
+        assert!(!canon.contains("processes"), "empty processes must not be hashed");
+        assert!(!canon.contains("breaks"), "empty breaks must not be hashed");
     }
 
     #[test]

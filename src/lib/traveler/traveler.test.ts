@@ -51,6 +51,28 @@ describe("rivlet traveler 0.0.1", () => {
     assert.equal("extra" in quoteableBody(tainted).buyer, false);
   });
 
+  it("drops empty strings and arrays from the quoteable body (Rust parity)", () => {
+    const withEmpties = parseTraveler({
+      spec: "sje/0.0.1",
+      traveler_id: "tvl_emptydrop1",
+      revision: 1,
+      created_at: "2026-09-08T15:12:00.000Z",
+      buyer: { name: "Northline Equipment", certs: [] },
+      part: {
+        family: "CNC bracket",
+        part_number: "NL-BRK-4410",
+        material: { spec: "6061-T6" },
+        qty: { target: 50, breaks: [] },
+        processes: [],
+      },
+      itar: false,
+    });
+    const canon = canonicalJson(quoteableBody(withEmpties));
+    assert.equal(canon.includes("certs"), false);
+    assert.equal(canon.includes("processes"), false);
+    assert.equal(canon.includes("breaks"), false);
+  });
+
   it("contact is hashed when present", () => {
     const a = hashQuoteable({
       ...GOLDEN_QUOTEABLE,
