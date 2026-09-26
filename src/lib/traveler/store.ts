@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { levelOf, parseTraveler, parseQuote } from "./conformance.ts";
 import { seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote } from "./guards.ts";
@@ -72,6 +72,34 @@ export function sanitizeTravelers(list: unknown): Traveler[] {
     }
   });
 }
+
+/** localStorage that never throws: a quota-exceeded write, a blocked or absent
+ *  store (private mode, SSR), or a disabled origin degrades to a no-op / null
+ *  rather than crashing the desk. The traveler file is the source of truth;
+ *  browser persistence is only a convenience. */
+const safeStorage = {
+  getItem: (name: string): string | null => {
+    try {
+      return typeof localStorage === "undefined" ? null : localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem(name, value);
+    } catch {
+      /* quota exceeded or storage blocked — drop the write, don't crash */
+    }
+  },
+  removeItem: (name: string): void => {
+    try {
+      if (typeof localStorage !== "undefined") localStorage.removeItem(name);
+    } catch {
+      /* ignore */
+    }
+  },
+};
 
 export const useTravelerStore = create<TravelerState>()(
   persist(
@@ -209,6 +237,7 @@ export const useTravelerStore = create<TravelerState>()(
     {
       name: "sje-001",
       skipHydration: true,
+      storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         travelers: s.travelers,
         role: s.role,

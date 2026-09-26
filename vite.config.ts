@@ -5,7 +5,6 @@ import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 
 export default defineConfig(({ command, isPreview }) => ({
-  resolve: { tsconfigPaths: true },
   plugins: [
     tailwindcss(),
     tanstackStart(),

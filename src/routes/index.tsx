@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { levelOf } from "@/lib/traveler/conformance";
 import { itarExportWarning } from "@/lib/traveler/guards";
 import { useTravelerStore } from "@/lib/traveler/store";
+import type { Traveler } from "@/lib/traveler/types";
 import { importTravelerFile } from "@/lib/traveler/zip";
 import { cn } from "@/lib/utils";
 
@@ -18,10 +19,11 @@ type Filter = "all" | "L0" | "L1" | "L2";
 function Desk() {
   const travelers = useTravelerStore((s) => s.travelers);
   const role = useTravelerStore((s) => s.role);
+  const hydrated = useTravelerStore((s) => s.hydrated);
   const importOne = useTravelerStore((s) => s.importOne);
   const resetDesk = useTravelerStore((s) => s.resetDesk);
   const [filter, setFilter] = useState<Filter>("all");
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingTraveler, setPendingTraveler] = useState<Traveler | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
 
   const counts = useMemo(() => {
@@ -46,9 +48,8 @@ function Desk() {
   async function ingest(file: File) {
     try {
       const traveler = await importTravelerFile(file);
-      const warn = itarExportWarning(traveler);
-      if (warn) {
-        setPendingFile(file);
+      if (itarExportWarning(traveler)) {
+        setPendingTraveler(traveler);
         return;
       }
       importOne(traveler);
@@ -58,16 +59,15 @@ function Desk() {
     }
   }
 
-  async function ingestItar() {
-    if (!pendingFile) return;
+  function confirmItarImport() {
+    if (!pendingTraveler) return;
     try {
-      const traveler = await importTravelerFile(pendingFile);
-      importOne(traveler);
-      toast.success(`Opened ${traveler.traveler_id}`);
+      importOne(pendingTraveler);
+      toast.success(`Opened ${pendingTraveler.traveler_id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not open traveler");
     } finally {
-      setPendingFile(null);
+      setPendingTraveler(null);
     }
   }
 
@@ -142,7 +142,11 @@ function Desk() {
         </Button>
       </div>
 
-      {shown.length === 0 ? (
+      {!hydrated ? (
+        <p className="on-paper rounded-sm border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+          Loading desk…
+        </p>
+      ) : shown.length === 0 ? (
         <p className="on-paper rounded-sm border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
           No travelers at this level. Compose one, or reset the seed desk.
         </p>
@@ -155,15 +159,15 @@ function Desk() {
       )}
 
       <ConfirmDialog
-        open={Boolean(pendingFile)}
+        open={Boolean(pendingTraveler)}
         onOpenChange={(v) => {
-          if (!v) setPendingFile(null);
+          if (!v) setPendingTraveler(null);
         }}
         title="ITAR self-declaration"
         body="This traveler is self-declared ITAR. The desk does not implement export-control, deemed-export screening, or a Technology Control Plan. Do not transfer it to foreign persons. Import onto this local desk anyway?"
         confirmLabel="Import anyway"
         destructive
-        onConfirm={() => void ingestItar()}
+        onConfirm={confirmItarImport}
       />
       <ConfirmDialog
         open={resetOpen}
