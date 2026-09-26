@@ -19,7 +19,7 @@ const mem = new Map<string, string>();
   },
 };
 
-const { useTravelerStore } = await import("./store.ts");
+const { useTravelerStore, sanitizeTravelers } = await import("./store.ts");
 const { parseTraveler, levelOf, staleQuotes } = await import("./conformance.ts");
 const { travelerHash } = await import("./hash.ts");
 const { isoNow, randToken } = await import("./ids.ts");
@@ -126,5 +126,17 @@ describe("desk store state machine", () => {
     for (const e of useTravelerStore.getState().audit) {
       assert.ok(e.at, "audit entries are timestamped");
     }
+  });
+
+  it("sanitizeTravelers drops malformed persisted travelers on rehydrate", () => {
+    const valid = freshTraveler();
+    // Simulate a corrupt persisted blob: one valid traveler plus garbage
+    // (schema drift / hand-edited storage / a partial write).
+    const out = sanitizeTravelers([valid, { junk: true, traveler_id: 123 }, null, "nope"]);
+    assert.equal(out.length, 1, "only the well-formed traveler survives");
+    assert.equal(out[0]!.traveler_id, valid.traveler_id);
+    assert.equal(out[0]!.spec, "sje/0.0.1");
+    // rendering-time helpers must not throw on the sanitized set
+    for (const t of out) levelOf(t);
   });
 });

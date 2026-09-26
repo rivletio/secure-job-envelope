@@ -58,6 +58,21 @@ function withAudit(audit: AuditEvent[], ev: Omit<AuditEvent, "at">): AuditEvent[
   return [...audit, { at: isoNow(), ...ev }].slice(-MAX_AUDIT);
 }
 
+/** Rehydrate defensively: keep only persisted travelers that still parse.
+ *  A malformed entry (schema drift across app versions, hand-edited storage,
+ *  a partial write) must not load into state and crash every route on the
+ *  first render — drop it instead of trusting the blob. */
+export function sanitizeTravelers(list: unknown): Traveler[] {
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((t) => {
+    try {
+      return [parseTraveler(t)];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export const useTravelerStore = create<TravelerState>()(
   persist(
     (set, get) => ({
@@ -205,7 +220,9 @@ export const useTravelerStore = create<TravelerState>()(
         return {
           ...current,
           ...p,
-          travelers: Array.isArray(p.travelers) ? p.travelers : current.travelers,
+          travelers: Array.isArray(p.travelers)
+            ? sanitizeTravelers(p.travelers)
+            : current.travelers,
           audit: Array.isArray(p.audit) ? p.audit : [],
           hydrated: false,
         };

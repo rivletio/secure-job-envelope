@@ -54,7 +54,9 @@ function TravelerPage() {
   function runExport(kind: "zip" | "json") {
     logAudit({ act: "export", traveler_id: current.traveler_id, hash });
     if (kind === "zip") {
-      void downloadArchive(current).then(() => toast.success("Exported .traveler.zip"));
+      void downloadArchive(current)
+        .then(() => toast.success("Exported .traveler.zip"))
+        .catch((err) => toast.error(err instanceof Error ? err.message : "Export failed"));
     } else {
       downloadJson(current);
     }
@@ -187,14 +189,14 @@ function TravelerPage() {
                         <Fact k="Rollup" v={money(total, q.pricing.currency)} />
                       </dl>
                       <div className="mt-3 flex flex-wrap gap-2 font-mono text-xs text-muted-foreground">
-                        {q.pricing.lines.map((l) => (
-                          <span key={l.qty}>
+                        {q.pricing.lines.map((l, i) => (
+                          <span key={`${l.qty}-${i}`}>
                             {l.qty} @ {money(l.unit, q.pricing.currency)}
                           </span>
                         ))}
                       </div>
-                      {q.exceptions?.map((ex) => (
-                        <p key={ex.code} className="mt-2 text-xs text-warn">
+                      {q.exceptions?.map((ex, i) => (
+                        <p key={`${ex.code}-${i}`} className="mt-2 text-xs text-warn">
                           {ex.code}: {ex.proposal}
                         </p>
                       ))}
