@@ -138,7 +138,8 @@ function Compose() {
         <h1 className="mt-2 text-3xl tracking-tight text-paper">New traveler</h1>
         <p className="mt-2 max-w-2xl text-sm text-soft">
           Fill material and qty and it is L0 — a shop can price without guessing. The hash
-          on the right is the revision sellers will bind to.
+          on the right tracks the quoteable body as you edit; the sealed traveler gets its
+          own id and timestamp, so its final bind-to hash is fixed when you seal it.
         </p>
       </div>
       <form onSubmit={submit} className="grid gap-8 lg:grid-cols-[1fr_20rem]">
@@ -240,7 +241,7 @@ function Compose() {
         </div>
         <aside className="on-paper traveler-shadow h-fit rounded-sm p-4 lg:sticky lg:top-28">
           <LevelBadge info={info} />
-          <p className="mt-3 font-mono text-xs text-muted-foreground">Live hash of quoteable body</p>
+          <p className="mt-3 font-mono text-xs text-muted-foreground">Live hash — preview (fixed on seal)</p>
           <HashChip hash={hash} className="mt-2 w-full justify-between" />
           <dl className="mt-4 grid gap-2 text-sm">
             <Row k="Family" v={family || "—"} />

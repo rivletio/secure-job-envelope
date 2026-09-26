@@ -4,6 +4,7 @@ dist/
 .nitro/
 .tanstack/
 .vercel/
+/target/
 crates/secure-job-envelope/target/
 *.log
 .DS_Store

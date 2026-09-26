@@ -186,4 +186,47 @@ describe("sje mcp surface", () => {
     const t = quoted.traveler as { quotes: Array<{ traveler_hash_quoted: string }> };
     assert.equal(t.quotes[0]!.traveler_hash_quoted, composed.traveler_hash);
   });
+
+  it("refuses an oversized sealed archive before decoding it", async () => {
+    const huge = "A".repeat(3_000_000); // exceeds the 2 MiB archive budget in base64
+    const res = await call("sje_open", { zip_base64: huge });
+    assert.ok(res.isError, "oversized base64 must be refused");
+    assert.match(String(payload(res).error), /exceeds 2 MB/);
+  });
+
+  it("amend cannot inject ops/ship_to/as_built to escalate the level", async () => {
+    const composed = payload(
+      await call("sje_compose", {
+        buyer: { name: "Northline Equipment" },
+        part: {
+          family: "CNC bracket",
+          part_number: "NL-BRK-4414",
+          material: { spec: "6061-T6" },
+          qty: { target: 40 },
+        },
+      }),
+    );
+    const amended = payload(
+      await call("sje_amend", {
+        traveler: composed.traveler,
+        patch: {
+          need_by: "2027-01-01",
+          ops: [{ seq: 1, code: "laser" }],
+          ship_to: { name: "X", line1: "Y", city: "Z", region: "NV", postal: "1", country: "US" },
+          as_built: { done: true },
+        },
+      }),
+    );
+    const t = amended.traveler as {
+      need_by?: string;
+      ops?: unknown[];
+      ship_to?: unknown;
+      as_built?: unknown;
+    };
+    assert.equal(t.need_by, "2027-01-01", "a real body edit still applies");
+    assert.equal(amended.level, "L0", "injected ops/ship_to/as_built must not escalate the level");
+    assert.equal(t.ops ?? null, null);
+    assert.equal(t.ship_to ?? null, null);
+    assert.equal(t.as_built ?? null, null);
+  });
 });

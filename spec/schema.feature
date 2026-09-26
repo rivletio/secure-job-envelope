@@ -9,7 +9,7 @@ Feature: Traveler and quote schema validation
 
   @rid:S-25ff4dda
   Scenario: Traveler id must match tvl_ style token
-    When a traveler has traveler_id "PACKET-1"
+    When a traveler has traveler_id "BAD-ID-1"
     Then parse fails
 
   @rid:S-892f8a4f

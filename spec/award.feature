@@ -8,10 +8,10 @@ Feature: Award a bound quote and make the traveler executable
 
   @rid:S-ffb48ccf
   Scenario: Buyer awards a live quote with ship-to and ops
-    Given L1 traveler "tvl_award01" with a non-expired bound quote "qte_live01" from "Huron Precision"
+    Given L1 traveler "tvl_award01" with a non-expired bound quote "qot_live01" from "Huron Precision"
     And the quote has a unit price at the traveler target qty 50
     When the buyer opens "/p/tvl_award01"
-    And the buyer clicks "Award" on quote "qte_live01"
+    And the buyer clicks "Award" on quote "qot_live01"
     And the buyer sets ship-to name to "Northline Equipment — Dock 2"
     And the buyer sets street to "4400 W State St"
     And the buyer sets city to "Milwaukee"
@@ -20,7 +20,7 @@ Feature: Award a bound quote and make the traveler executable
     And the buyer sets ops to "MILL, ANODIZE, INSPECT, PACK"
     And the buyer confirms award to "Huron Precision"
     Then traveler "tvl_award01" is level "L2"
-    And the award references quote "qte_live01"
+    And the award references quote "qot_live01"
     And the award qty is 50
     And ship_to country is "US"
     And ops are sequenced MILL, ANODIZE, INSPECT, PACK
@@ -29,9 +29,9 @@ Feature: Award a bound quote and make the traveler executable
 
   @rid:S-3c28a4e7
   Scenario: Award requires a complete ship-to
-    Given L1 traveler "tvl_award01" with a non-expired bound quote "qte_live01"
+    Given L1 traveler "tvl_award01" with a non-expired bound quote "qot_live01"
     When the buyer opens "/p/tvl_award01"
-    And the buyer clicks "Award" on quote "qte_live01"
+    And the buyer clicks "Award" on quote "qot_live01"
     And the buyer clears the street field
     And the buyer confirms award
     Then an error toast says "Ship-to needs street, city, region, postal."
@@ -39,9 +39,9 @@ Feature: Award a bound quote and make the traveler executable
 
   @rid:S-8567ecbe
   Scenario: Award requires at least one op
-    Given L1 traveler "tvl_award01" with a non-expired bound quote "qte_live01"
+    Given L1 traveler "tvl_award01" with a non-expired bound quote "qot_live01"
     When the buyer opens "/p/tvl_award01"
-    And the buyer clicks "Award" on quote "qte_live01"
+    And the buyer clicks "Award" on quote "qot_live01"
     And the buyer sets a complete ship-to
     And the buyer clears the ops field
     And the buyer confirms award
@@ -50,9 +50,9 @@ Feature: Award a bound quote and make the traveler executable
 
   @rid:S-b04f169e
   Scenario: Cannot award an expired quote
-    Given L1 traveler "tvl_award01" with bound quote "qte_old01" whose valid_until is in the past
+    Given L1 traveler "tvl_award01" with bound quote "qot_old01" whose valid_until is in the past
     When the buyer opens "/p/tvl_award01"
-    And the buyer clicks "Award" on quote "qte_old01"
+    And the buyer clicks "Award" on quote "qot_old01"
     Then the award dialog warns the quote is past valid_until
     And the award confirm button is disabled
 

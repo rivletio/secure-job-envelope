@@ -111,9 +111,29 @@ l2.ship_to = {
   country: "US",
 };
 
+// Empty arrays / strings MUST be dropped from the quoteable body identically
+// on both implementations. This vector pins that: a naive Rust serializer that
+// keeps `Some(vec![])` as `[]` produces a different hash and fails here.
+const emptyArrays: Traveler = {
+  spec: "sje/0.0.1",
+  traveler_id: "tvl_conformempt",
+  revision: 1,
+  created_at: "2026-09-16T12:00:00.000Z",
+  buyer: { name: "Northline Equipment", certs: [] },
+  part: {
+    family: "CNC bracket",
+    part_number: "NL-BRK-4410",
+    material: { spec: "6061-T6" },
+    qty: { target: 50, breaks: [] },
+    processes: [],
+  },
+  itar: false,
+};
+
 const expected: Record<string, { traveler_hash: string; level: string }> = {};
 for (const [file, p] of [
   ["l0-bracket.json", l0],
+  ["l0-empty-arrays.json", emptyArrays],
   ["l1-quoted.json", l1],
   ["l2-awarded.json", l2],
 ] as const) {

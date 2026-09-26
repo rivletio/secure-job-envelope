@@ -11,17 +11,19 @@ import {
   type Traveler,
 } from "./types.ts";
 
-const ROOT_PACKET = "traveler.json";
+const ROOT_TRAVELER = "traveler.json";
 const ROOT_META = "META.json";
 const ROOT_CANONICAL = "quoteable.canonical.json";
-const ALLOWED_FILES = new Set([ROOT_PACKET, ROOT_META, ROOT_CANONICAL]);
+const ALLOWED_FILES = new Set([ROOT_TRAVELER, ROOT_META, ROOT_CANONICAL]);
 const MAX_ZIP_FILES = 3;
 const MAX_META_BYTES = 16_384;
 const MAX_CANON_BYTES = 64 * 1024;
 
 function assertSafePath(name: string) {
   const n = name.replace(/\\/g, "/");
-  if (n !== name || n.includes("..") || n.startsWith("/") || n.includes("\0") || n.includes("//")) {
+  // Members are flat root files: refuse any slash, backslash, "..", or NUL
+  // (SPEC §Archive: "refuse paths containing / or \ or ..").
+  if (n !== name || n.includes("..") || n.includes("/") || n.includes("\0")) {
     throw new Error("Archive path is not allowed");
   }
 }
@@ -50,7 +52,7 @@ export async function travelerToZip(traveler: Traveler): Promise<Blob> {
   const zip = new JSZip();
   const hash = travelerHash(traveler);
   const travelerJson = JSON.stringify(traveler, null, 2);
-  zip.file(ROOT_PACKET, travelerJson, { compression: "DEFLATE" });
+  zip.file(ROOT_TRAVELER, travelerJson, { compression: "DEFLATE" });
   zip.file(
     ROOT_META,
     JSON.stringify(
@@ -97,7 +99,7 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
     if (!ALLOWED_FILES.has(name)) throw new Error(`Unexpected archive member: ${name}`);
   }
 
-  const travelerEntry = zip.file(ROOT_PACKET);
+  const travelerEntry = zip.file(ROOT_TRAVELER);
   const metaEntry = zip.file(ROOT_META);
   if (!travelerEntry) throw new Error("Archive has no traveler.json at the root");
   if (!metaEntry) throw new Error("Archive is missing META.json (required for integrity)");
@@ -167,7 +169,7 @@ export function downloadJson(traveler: Traveler) {
   downloadBlob(blob, `${traveler.traveler_id}.json`);
 }
 
-export async function downloadRivpkt(traveler: Traveler) {
+export async function downloadArchive(traveler: Traveler) {
   const blob = await travelerToZip(traveler);
   downloadBlob(blob, archiveName(traveler.traveler_id));
 }

@@ -33,7 +33,7 @@ This repo contains:
 | `docs/SPEC.md` | The 0.0.1 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
 | `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |
-| `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`sje hash|level`) |
+| `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`envelope hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
 | `examples/` | A worked example traveler and how to verify it with both implementations |
 | `mcp/` | **MCP server + two-desk agent demo** — buyer and seller agents transacting over sealed travelers (`npm run demo`) |
@@ -65,7 +65,7 @@ register with a passing test, treat it as unverified.
 ```bash
 npm install
 npm run dev        # browser workbench
-npm test           # traveler test suite (golden hash, guards, zip round-trip)
+npm test           # TS suite: hashes, guards, zip, schema contract, MCP
 npm run typecheck
 ```
 
@@ -81,6 +81,23 @@ cargo test         # includes the shared golden vector
 cargo run -- hash  ../../examples/bracket.traveler.json
 cargo run -- level ../../examples/bracket.traveler.json
 ```
+
+## What is tested, and where
+
+CI (`.github/workflows/ci.yml`) runs every enforced suite: the TypeScript
+tests (`npm test` — the traveler suite, the shared conformance vectors, the
+published-schema contract, and the MCP surface), the two-desk MCP demo
+(`npm run demo`), and the Rust crate (`cargo test` inside
+`crates/secure-job-envelope`). The TypeScript and Rust implementations must
+reproduce the shared conformance vectors byte for byte, and every statement in
+[`docs/CLAIMS.md`](docs/CLAIMS.md) maps to one of these.
+
+The `spec/*.feature` files are the **BDD design spec** — 88 Gherkin scenarios
+of intended desk behavior, managed by the `shalt` workflow. They document
+intent and are **not yet executed in CI**; their behaviors are covered today by
+the suites above. Run the implementation's Rust tests from inside
+`crates/secure-job-envelope` (the repo root also carries a `shalt` scaffold, so
+`cargo test` there exercises the BDD harness, not the implementation).
 
 ## What 0.0.1 deliberately does not do
 

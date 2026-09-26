@@ -19,7 +19,7 @@ export function cannotQuote(traveler: Traveler, quote: Quote): string | null {
     return "Quote is not bound to the current traveler hash.";
   }
   if (traveler.itar && quote.seller.itar !== true) {
-    return "ITAR traveler cannot be quoted by a seller that is not ITAR-registered.";
+    return "ITAR traveler cannot be quoted by a seller that has not self-declared ITAR.";
   }
   if ((traveler.quotes ?? []).some((q) => q.seller.org_id && q.seller.org_id === quote.seller.org_id && q.quote_id !== quote.quote_id)) {
     return "This seller already has a quote on this revision.";
@@ -44,7 +44,7 @@ export function cannotAward(traveler: Traveler, quote: Quote, now = new Date()):
 
 export function cannotQuoteAs(traveler: Traveler, seller: Shop): string | null {
   if (traveler.itar && seller.itar !== true) {
-    return `This traveler is ITAR. ${seller.name} is not ITAR-registered.`;
+    return `This traveler is ITAR. ${seller.name} has not self-declared ITAR.`;
   }
   return null;
 }

@@ -1,5 +1,5 @@
 @epic:archive
-Feature: Import and export Rivlet traveler archives
+Feature: Import and export traveler archives
   Export writes {traveler_id}.traveler.zip with traveler.json, META.json, and
   quoteable.canonical.json. Import verifies paths, size caps, and digests.
 
