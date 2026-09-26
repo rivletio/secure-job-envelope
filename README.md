@@ -33,7 +33,7 @@ This repo contains:
 | `docs/SPEC.md` | The 0.0.1 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
 | `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |
-| `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`sje hash|level`) |
+| `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`envelope hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
 | `examples/` | A worked example traveler and how to verify it with both implementations |
 | `conformance/` | Language-agnostic conformance vectors — both implementations run the same files in CI |
@@ -80,6 +80,21 @@ cargo test         # includes the shared golden vector
 cargo run -- hash  ../../examples/bracket.traveler.json
 cargo run -- level ../../examples/bracket.traveler.json
 ```
+
+## What is tested, and where
+
+CI (`.github/workflows/ci.yml`) runs three enforced suites: the TypeScript
+tests (`npm test`), the Rust crate (`cargo test` inside
+`crates/secure-job-envelope`), and the shared conformance vectors, which both
+implementations must reproduce byte for byte. Every statement in
+[`docs/CLAIMS.md`](docs/CLAIMS.md) maps to one of these.
+
+The `spec/*.feature` files are the **BDD design spec** — 88 Gherkin scenarios
+of intended desk behavior, managed by the `shalt` workflow. They document
+intent and are **not yet executed in CI**; their behaviors are covered today by
+the suites above. Run the implementation's Rust tests from inside
+`crates/secure-job-envelope` (the repo root also carries a `shalt` scaffold, so
+`cargo test` there exercises the BDD harness, not the implementation).
 
 ## What 0.0.1 deliberately does not do
 

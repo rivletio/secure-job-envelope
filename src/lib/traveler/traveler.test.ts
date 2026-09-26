@@ -12,7 +12,7 @@ import { importTravelerFile, travelerToZip } from "./zip.ts";
 
 function validQuote(over: Partial<Quote> & { traveler_hash_quoted: string }): Quote {
   return {
-    quote_id: "qte_testquote01",
+    quote_id: "qot_testquote01",
     seller: { name: "Huron Precision", org_id: "org_huron", itar: true },
     created_at: "2026-09-09T00:00:00.000Z",
     valid_until: "2026-09-30T00:00:00.000Z",
@@ -121,7 +121,7 @@ describe("rivlet traveler 0.0.1", () => {
       traveler_hash_quoted: travelerHash(traveler),
       seller: { name: "Red River Machine", org_id: "org_redriver", itar: false },
     });
-    assert.equal(cannotQuote(traveler, quote), "ITAR traveler cannot be quoted by a seller that is not ITAR-registered.");
+    assert.equal(cannotQuote(traveler, quote), "ITAR traveler cannot be quoted by a seller that has not self-declared ITAR.");
     assert.throws(() => parseTraveler({ ...traveler, quotes: [quote] }));
   });
 

@@ -16,7 +16,7 @@ import { itarExportWarning } from "@/lib/traveler/guards";
 import { travelerHash } from "@/lib/traveler/hash";
 import { useTravelerStore } from "@/lib/traveler/store";
 import type { Quote } from "@/lib/traveler/types";
-import { downloadJson, downloadRivpkt } from "@/lib/traveler/zip";
+import { downloadJson, downloadArchive } from "@/lib/traveler/zip";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/t/$travelerId")({ component: TravelerPage });
@@ -54,7 +54,7 @@ function TravelerPage() {
   function runExport(kind: "zip" | "json") {
     logAudit({ act: "export", traveler_id: current.traveler_id, hash });
     if (kind === "zip") {
-      void downloadRivpkt(current).then(() => toast.success("Exported .traveler.zip"));
+      void downloadArchive(current).then(() => toast.success("Exported .traveler.zip"));
     } else {
       downloadJson(current);
     }

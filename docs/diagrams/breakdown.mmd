@@ -1,7 +1,7 @@
 graph TD
   E_archive["ARCHIVE"]
   style E_archive fill:#3d4f7c,stroke:#2a3757,color:#ffffff
-  E_archive --> S_import-and-export-sje-archives["Import and export Rivlet traveler archives"]
+  E_archive --> S_import-and-export-sje-archives["Import and export traveler archives"]
   style S_import-and-export-sje-archives fill:#eef1f7,stroke:#3d4f7c,color:#1a1f26
   S_import-and-export-sje-archives --> S_426f614a("·  Zip with path traversal is rejected")
   style S_426f614a fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
@@ -123,7 +123,7 @@ graph TD
   style S_itar-self-declaration-guards fill:#eef1f7,stroke:#3d4f7c,color:#1a1f26
   S_itar-self-declaration-guards --> S_2b55a99f("·  Cancel ITAR import leaves the desk unchanged")
   style S_2b55a99f fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  S_itar-self-declaration-guards --> S_93b9ae51("·  ITAR-registered seller can quote an ITAR traveler")
+  S_itar-self-declaration-guards --> S_93b9ae51("·  ITAR self-declared seller can quote an ITAR traveler")
   style S_93b9ae51 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
   S_itar-self-declaration-guards --> S_58ea8df3("·  Traveler schema rejects ITAR traveler carrying a non-ITAR seller quote")
   style S_58ea8df3 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
@@ -149,7 +149,7 @@ graph TD
   style S_8cf485e5 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
   S_amend-revision-and-lock-executable-travelers --> S_3d08634f("·  Executable traveler refuses new quotes")
   style S_3d08634f fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
-  E_traveler["PACKET"]
+  E_traveler["TRAVELER"]
   style E_traveler fill:#3d4f7c,stroke:#2a3757,color:#ffffff
   E_traveler --> S_view-a-traveler-on-the-desk["View a traveler on the desk"]
   style S_view-a-traveler-on-the-desk fill:#eef1f7,stroke:#3d4f7c,color:#1a1f26

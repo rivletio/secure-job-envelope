@@ -31,7 +31,7 @@ export function newTravelerId(): string {
 }
 
 export function newQuoteId(): string {
-  const id = `qte_${randToken(10)}`;
+  const id = `qot_${randToken(10)}`;
   if (!TRAVELER_ID_RE.test(id)) throw new Error("id generation failed");
   return id;
 }

@@ -124,7 +124,7 @@ export function QuoteDialog({
             <HashChip hash={hash} className="mt-1" />
             <p className="mt-2 text-sm">
               {seller.name} · {seller.certs?.join(", ") || "no certs"}
-              {seller.itar ? " · ITAR-registered (self-declared)" : ""}
+              {seller.itar ? " · ITAR self-declared" : ""}
             </p>
           </div>
           {itarBlocked && (

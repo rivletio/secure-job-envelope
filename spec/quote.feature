@@ -1,7 +1,8 @@
 @epic:quote
 Feature: Bind a structured quote to a traveler hash
   A seller prices quantity breaks against the current traveler_hash.
-  Quotes outside the hash climb does not cover unit prices; binding is by hash match.
+  Quotes sit outside the hash so a traveler can climb levels without invalidating
+  prices; the hash does not cover unit prices. Binding is by hash match.
 
   Background:
     Given the desk is seeded with the demo travelers

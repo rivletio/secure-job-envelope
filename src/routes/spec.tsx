@@ -60,8 +60,8 @@ function SpecPage() {
             Language-agnostic on the wire; Rust for the verifier.
           </p>
           <pre className="mt-3 overflow-x-auto rounded-md bg-wash p-3 font-mono text-xs text-foreground">
-            {`sje hash traveler.json
-sje level traveler.json`}
+            {`envelope hash traveler.json
+envelope level traveler.json`}
           </pre>
         </article>
       </section>

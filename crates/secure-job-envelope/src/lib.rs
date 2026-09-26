@@ -698,7 +698,7 @@ mod tests {
           "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
           "itar":true,
           "quotes":[{
-            "quote_id":"qte_notitar01",
+            "quote_id":"qot_notitar01",
             "seller":{"name":"Red River Machine","itar":false},
             "traveler_hash_quoted":"sha384:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "created_at":"2026-09-09T00:00:00.000Z",
@@ -722,7 +722,7 @@ mod tests {
           "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
           "itar":false,
           "quotes":[{
-            "quote_id":"qte_negunit01",
+            "quote_id":"qot_negunit01",
             "seller":{"name":"Huron Precision","itar":true},
             "traveler_hash_quoted":"sha384:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "created_at":"2026-09-09T00:00:00.000Z",

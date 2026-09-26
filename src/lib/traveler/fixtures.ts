@@ -78,7 +78,7 @@ export function seedTravelers(): Traveler[] {
     itar: false,
     quotes: [
       {
-        quote_id: "qte_huron4410",
+        quote_id: "qot_huron4410",
         seller: huron,
         traveler_hash_quoted: "sha384:pending",
         created_at: "2026-09-09T18:40:00.000Z",
@@ -100,7 +100,7 @@ export function seedTravelers(): Traveler[] {
         capacity: { load_pct: 62, hours_open: 80 },
       },
       {
-        quote_id: "qte_red4410",
+        quote_id: "qot_red4410",
         seller: redRiver,
         traveler_hash_quoted: "sha384:pending",
         created_at: "2026-09-10T13:05:00.000Z",
@@ -174,7 +174,7 @@ export function seedTravelers(): Traveler[] {
     ],
     quotes: [
       {
-        quote_id: "qte_casc1601",
+        quote_id: "qot_casc1601",
         seller: cascade,
         traveler_hash_quoted: "sha384:pending",
         created_at: "2026-09-04T16:22:00.000Z",
@@ -195,7 +195,7 @@ export function seedTravelers(): Traveler[] {
       },
     ],
     award: {
-      quote_id: "qte_casc1601",
+      quote_id: "qot_casc1601",
       awarded_at: "2026-09-05T19:10:00.000Z",
       qty: 200,
     },
@@ -228,7 +228,7 @@ export function seedTravelers(): Traveler[] {
     itar: false,
     quotes: [
       {
-        quote_id: "qte_lake303",
+        quote_id: "qot_lake303",
         seller: lakeshore,
         traveler_hash_quoted: "sha384:pending",
         created_at: "2026-09-12T20:00:00.000Z",

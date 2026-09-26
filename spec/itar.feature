@@ -10,11 +10,11 @@ Feature: ITAR self-declaration guards
     And the quoting shop is "org_redriver" with itar false
     When the seller opens the traveler
     And the seller opens the quote dialog
-    Then the dialog shows that Red River Machine is not ITAR-registered
+    Then the dialog shows that Red River Machine has not self-declared ITAR
     And "Bind quote" is disabled
 
   @rid:S-93b9ae51
-  Scenario: ITAR-registered seller can quote an ITAR traveler
+  Scenario: ITAR self-declared seller can quote an ITAR traveler
     Given an L0 traveler with itar true
     And the role is "seller"
     And the quoting shop is "org_huron" with itar true
