@@ -46,7 +46,7 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 
 | # | Claim | Proof | Status |
 |---|---|---|---|
-| M1 | The MCP tools enforce the same guards as the reference implementation — stale quotes unawardable, ITAR mismatch refused, L2 locks against amendment (mcp/README) | `mcp/mcp.test.ts` stale-award, ITAR, and locked-amend cases over a real client/server pair (InMemory transport) | ✅ |
+| M1 | The MCP tools enforce the same guards as the reference implementation — stale quotes unawardable, ITAR mismatch refused, L2 locks against amendment, and `amend` cannot inject `ops`/`ship_to`/`as_built` to escalate the level (mcp/README) | `mcp/mcp.test.ts` stale-award, ITAR, locked-amend, and amend-cannot-inject-fields cases over a real client/server pair (InMemory transport) | ✅ |
 | M2 | Quote binding cannot be asserted through the MCP surface — `traveler_hash_quoted` is computed from the traveler the desk holds (mcp/README) | `mcp/mcp.test.ts` "binding cannot be asserted"; `sje_quote` handler takes no binding input by schema | ✅ |
 | M3 | A tampered sealed archive is refused on open over MCP | `mcp/mcp.test.ts` tamper case; demo step 3 | ✅ |
 | M4 | Two desks with zero shared state complete RFQ → quote → award with hash lineage verified at every hop | `npm run demo` (CI): two separate server processes, asserts on every exchange | ✅ |

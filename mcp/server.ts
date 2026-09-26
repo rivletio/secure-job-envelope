@@ -35,7 +35,7 @@ import {
 import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/traveler/guards.ts";
 import { isoNow, newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
 import { importTravelerFile, travelerToZip } from "../src/lib/traveler/zip.ts";
-import { TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
+import { MAX_ARCHIVE_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
 import type { Award, Op, Quote, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
 
 const COMPANY = process.env.SJE_COMPANY ?? "unnamed-desk";
@@ -43,6 +43,9 @@ const COMPANY = process.env.SJE_COMPANY ?? "unnamed-desk";
 /* ---------------- helpers ---------------- */
 
 function asTraveler(input: unknown): Traveler {
+  if (typeof input === "string" && input.length > MAX_TRAVELER_JSON_BYTES) {
+    throw new Error("traveler JSON exceeds 512 KiB");
+  }
   const doc = typeof input === "string" ? (JSON.parse(input) as unknown) : input;
   return parseTraveler(doc);
 }
@@ -215,6 +218,9 @@ async function handle(name: string, args: Args) {
         revision: t.revision + 1,
         quotes: t.quotes,
         award: null,
+        ship_to: t.ship_to,
+        ops: t.ops,
+        as_built: t.as_built ?? null,
       });
       return ok({ traveler: next, ...report(next) });
     }
@@ -291,7 +297,15 @@ async function handle(name: string, args: Args) {
     }
 
     case "sje_open": {
-      const bytes = Buffer.from(String(args.zip_base64), "base64");
+      const b64 = String(args.zip_base64);
+      // Cap before decoding: base64 inflates ~4/3, so bound the input to the
+      // archive limit up front rather than allocating the decoded buffer first.
+      // This is the one input that crosses the trust boundary (a counterparty's
+      // sealed archive), so it gets the size check the defensive import intends.
+      if (b64.length > Math.ceil((MAX_ARCHIVE_BYTES * 4) / 3) + 1024) {
+        return fail("Sealed archive exceeds 2 MB limit.");
+      }
+      const bytes = Buffer.from(b64, "base64");
       const name = typeof args.filename === "string" ? args.filename : "received.traveler.zip";
       const file = new File([bytes], name, { type: "application/zip" });
       const t = await importTravelerFile(file);

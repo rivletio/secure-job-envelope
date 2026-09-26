@@ -65,7 +65,7 @@ register with a passing test, treat it as unverified.
 ```bash
 npm install
 npm run dev        # browser workbench
-npm test           # traveler test suite (golden hash, guards, zip round-trip)
+npm test           # TS suite: hashes, guards, zip, schema contract, MCP
 npm run typecheck
 ```
 
@@ -84,10 +84,12 @@ cargo run -- level ../../examples/bracket.traveler.json
 
 ## What is tested, and where
 
-CI (`.github/workflows/ci.yml`) runs three enforced suites: the TypeScript
-tests (`npm test`), the Rust crate (`cargo test` inside
-`crates/secure-job-envelope`), and the shared conformance vectors, which both
-implementations must reproduce byte for byte. Every statement in
+CI (`.github/workflows/ci.yml`) runs every enforced suite: the TypeScript
+tests (`npm test` — the traveler suite, the shared conformance vectors, the
+published-schema contract, and the MCP surface), the two-desk MCP demo
+(`npm run demo`), and the Rust crate (`cargo test` inside
+`crates/secure-job-envelope`). The TypeScript and Rust implementations must
+reproduce the shared conformance vectors byte for byte, and every statement in
 [`docs/CLAIMS.md`](docs/CLAIMS.md) maps to one of these.
 
 The `spec/*.feature` files are the **BDD design spec** — 88 Gherkin scenarios
