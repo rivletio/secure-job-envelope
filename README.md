@@ -36,6 +36,7 @@ This repo contains:
 | `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`envelope hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
 | `examples/` | A worked example traveler and how to verify it with both implementations |
+| `mcp/` | **MCP server + two-desk agent demo** — buyer and seller agents transacting over sealed travelers (`npm run demo`) |
 | `conformance/` | Language-agnostic conformance vectors — both implementations run the same files in CI |
 | `docs/CLAIMS.md` | The claims register: every written security claim mapped to the test that proves it |
 | `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.sje`) |
