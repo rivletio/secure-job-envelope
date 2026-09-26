@@ -53,4 +53,17 @@ describe("conformance vectors", () => {
       assert.throws(() => parseTraveler(doc), `must refuse: ${file}`);
     }
   });
+
+  it("keeps the worked example's documented hash and level in sync", () => {
+    const example = parseTraveler(
+      JSON.parse(readFileSync(`${root}../examples/bracket.traveler.json`, "utf8")),
+    );
+    const hash = travelerHash(example);
+    assert.equal(levelOf(example).code, "L0");
+    const readme = readFileSync(`${root}../examples/README.md`, "utf8");
+    assert.ok(
+      readme.includes(hash),
+      `examples/README.md must document the current example hash ${hash}`,
+    );
+  });
 });

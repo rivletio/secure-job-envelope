@@ -21,7 +21,9 @@ const MAX_CANON_BYTES = 64 * 1024;
 
 function assertSafePath(name: string) {
   const n = name.replace(/\\/g, "/");
-  if (n !== name || n.includes("..") || n.startsWith("/") || n.includes("\0") || n.includes("//")) {
+  // Members are flat root files: refuse any slash, backslash, "..", or NUL
+  // (SPEC §Archive: "refuse paths containing / or \ or ..").
+  if (n !== name || n.includes("..") || n.includes("/") || n.includes("\0")) {
     throw new Error("Archive path is not allowed");
   }
 }
