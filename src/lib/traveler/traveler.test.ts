@@ -184,6 +184,19 @@ describe("rivlet traveler 0.0.1", () => {
       importTravelerFile(new File([extraBlob], "extra.zip", { type: "application/zip" })),
       /Unexpected archive member/,
     );
+
+    const badCanon = new JSZip();
+    badCanon.file("traveler.json", JSON.stringify(traveler, null, 2));
+    badCanon.file(
+      "META.json",
+      JSON.stringify({ traveler_id: traveler.traveler_id, traveler_hash: travelerHash(traveler) }),
+    );
+    badCanon.file("quoteable.canonical.json", '{"tampered":true}');
+    const badCanonBlob = await badCanon.generateAsync({ type: "blob" });
+    await assert.rejects(
+      importTravelerFile(new File([badCanonBlob], "badcanon.zip", { type: "application/zip" })),
+      /quoteable\.canonical\.json does not match/,
+    );
   });
 
   it("surfaces the first schema path on invalid travelers", () => {

@@ -69,8 +69,12 @@ RFC 8785-inspired, restricted for cross-language byte equality:
    double, so a JSON round-trip through JavaScript silently changes the
    value (and the hash); below 1e-5, ryu switches to exponential notation
    (`1e-6`) while JavaScript stays fixed (`0.000001`), so the renderings
-   diverge. Non-finite numbers are refused outright. The JSON Schemas
-   bound every numeric field inside this range.
+   diverge. Non-finite numbers are refused outright. The published JSON
+   Schemas bound every numeric field inside this range — integer fields
+   within 2^53−1, and the `money` / `priceDelta` `$defs` in
+   `quote-0.0.1.json` encode the fixed-notation rule directly (an integer,
+   or a non-integer of magnitude ≥ 1e-5, ≤ 1e12). The canonicalizer is the
+   final gate and refuses anything outside the range regardless.
 
 The hash is `"sha384:" + lowercase-hex(SHA-384(canonical_json_bytes))`.
 
@@ -113,15 +117,23 @@ quote an `itar: true` traveler — a consistency check, not compliance).
 Allowlisted members only (max 3):
 
 ```
-traveler.json        the traveler document (required, root only)
-META.json          { spec, traveler_hash, traveler_json_sha384 } (recommended)
-NOTES.txt          free text (optional)
+traveler.json                the traveler document (required, root only)
+META.json                    integrity manifest (required, root only)
+quoteable.canonical.json     canonical quoteable-body bytes (optional)
 ```
 
-Import rules: refuse paths containing `/` or `\` or `..`; cap compressed
-and uncompressed sizes; verify CRC32; when META.json is present, verify
-both digests against the received `traveler.json`; re-canonicalize and check
-`traveler_hash` yourself — treat the archive as the document.
+`META.json` carries at least `{ traveler_id, traveler_hash }` and normally
+also `{ spec, traveler_json_sha384, media_type, archive, itar,
+export_control }`. Any other member — including `NOTES.txt` — is refused.
+
+Import rules: refuse any member outside the allowlist; refuse paths
+containing `/`, `\`, `..`, a leading `/`, or a NUL; cap compressed and
+uncompressed sizes; verify CRC32. `META.json` is **required** — its
+`traveler_id` and `traveler_hash` must match the received `traveler.json`,
+and its `spec` and `traveler_json_sha384` are cross-checked when present.
+When `quoteable.canonical.json` is present it must equal your canonical
+rendering of the quoteable body. Re-canonicalize and check `traveler_hash`
+yourself — treat the archive as the document.
 
 ## Export control & commercial reality
 

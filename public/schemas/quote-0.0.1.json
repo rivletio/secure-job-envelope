@@ -4,6 +4,22 @@
   "title": "SJE Quote v0.0.1",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "money": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000000000000,
+      "anyOf": [{ "type": "integer" }, { "minimum": 0.00001 }],
+      "description": "Non-negative amount in the canonical fixed-notation range: an integer, or a non-integer of magnitude >= 1e-5. IEEE-754 double; a later spec may prefer integer minor units."
+    },
+    "priceDelta": {
+      "type": "number",
+      "minimum": -1000000000000,
+      "maximum": 1000000000000,
+      "anyOf": [{ "type": "integer" }, { "minimum": 0.00001 }, { "maximum": -0.00001 }],
+      "description": "Signed amount in the canonical fixed-notation range: an integer, or a non-integer of magnitude >= 1e-5."
+    }
+  },
   "required": [
     "quote_id",
     "seller",
@@ -24,11 +40,15 @@
       "required": ["name"],
       "properties": {
         "org_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$" },
-        "name": { "type": "string", "minLength": 1 },
-        "city": { "type": "string" },
-        "region": { "type": "string" },
-        "contact": { "type": "string" },
-        "certs": { "type": "array", "items": { "type": "string" } },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "region": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "contact": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "certs": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+        },
         "itar": {
           "type": "boolean",
           "description": "Self-declared ITAR registration. Not a quality certificate."
@@ -39,8 +59,14 @@
       "type": "string",
       "pattern": "^sha384:[0-9a-f]{96}$"
     },
-    "created_at": { "type": "string" },
-    "valid_until": { "type": "string" },
+    "created_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$"
+    },
+    "valid_until": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$"
+    },
     "lead_time_days": { "type": "integer", "minimum": 0, "maximum": 3650 },
     "need_by_feasible": { "type": "boolean" },
     "pricing": {
@@ -49,7 +75,7 @@
       "required": ["currency", "lines"],
       "properties": {
         "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
-        "nre": { "type": "number", "minimum": 0 },
+        "nre": { "$ref": "#/$defs/money" },
         "lines": {
           "type": "array",
           "minItems": 1,
@@ -59,12 +85,12 @@
             "additionalProperties": false,
             "required": ["qty", "unit"],
             "properties": {
-              "qty": { "type": "integer", "minimum": 1 },
-              "unit": { "type": "number", "minimum": 0 }
+              "qty": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+              "unit": { "$ref": "#/$defs/money" }
             }
           }
         },
-        "freight_estimate": { "type": "number", "minimum": 0 },
+        "freight_estimate": { "$ref": "#/$defs/money" },
         "tax_excluded": { "type": "boolean" }
       }
     },
@@ -77,10 +103,10 @@
         "additionalProperties": false,
         "required": ["code", "proposal"],
         "properties": {
-          "code": { "type": "string" },
-          "on": { "type": "string" },
-          "proposal": { "type": "string" },
-          "price_delta": { "type": "number" }
+          "code": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "on": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "proposal": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "price_delta": { "$ref": "#/$defs/priceDelta" }
         }
       }
     },

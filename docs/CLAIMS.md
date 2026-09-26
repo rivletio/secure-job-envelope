@@ -23,6 +23,8 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 | C7 | Wrong spec string, malformed traveler_id, and ITAR seller mismatch are refused at parse by both sides (SPEC) | `conformance/travelers/reject/*`, both runners | ✅ |
 | C8 | Object keys serialize in lexicographic order even when integer-like — JS numeric key enumeration must not leak into canonical bytes (SPEC §Canonical JSON) | Vector `key-order-digits`, both runners. *This vector caught a real bug in the TS reference serializer on its first run — the register exists precisely for this.* | ✅ |
 | C9 | Every schema field is classified as clear-in-file, and the pre-reveal courier view omits names, contacts, prices, part numbers, and addresses ([DISCLOSURE.md](DISCLOSURE.md)) | `src/lib/traveler/disclosure.test.ts` | ✅ |
+| C10 | Empty strings and empty arrays are dropped from the quoteable body identically on both sides (SPEC §quoteable body) — a traveler with `part.processes: []` (or empty `certs`/`breaks`) hashes the same as one that omits them, and TS == Rust | conformance `travelers/l0-empty-arrays.json` (both runners); `traveler.test.ts` "drops empty strings and arrays"; `lib.rs::empty_arrays_and_strings_drop_from_the_hash` | ✅ |
+| C11 | The published JSON Schemas bound every numeric field inside the canonical range and accept the whole reference corpus (SPEC §Canonical JSON) | `src/lib/traveler/schema-contract.test.ts` — ajv validates the example, all conformance vectors, and every seed fixture, and rejects out-of-range integers and sub-1e-5 / >1e12 money | ✅ |
 
 ## Quote binding & lifecycle
 
@@ -38,7 +40,7 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 
 | # | Claim | Proof | Status |
 |---|---|---|---|
-| A1 | Zip import refuses path traversal, non-allowlisted members, oversized entries, CRC mismatches, and META digest mismatches (SPEC §Archive, SECURITY) | `traveler.test.ts` zip round-trip + path-trick + META-mismatch negative cases | ✅ |
+| A1 | Zip import allowlists members (`traveler.json`, `META.json`, `quoteable.canonical.json`), requires `META.json`, and refuses path traversal, non-allowlisted members (e.g. `NOTES.txt`), oversized entries, CRC mismatches, META id/digest mismatches, and a tampered `quoteable.canonical.json` (SPEC §Archive, SECURITY) | `traveler.test.ts` zip round-trip + path-trick + META-mismatch + canonical-member-mismatch negative cases | ✅ |
 
 ## Honest gaps and drafts
 
@@ -46,7 +48,7 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 |---|---|---|---|
 | G1 | The hash is integrity, **not** a signature; parties are unauthenticated in 0.0.1 | README, SPEC, SECURITY, TRUST | ⚠️ stated everywhere; PQ signatures (ML-DSA / SLH-DSA) are the 0.1 headline |
 | G2 | Encrypted envelope (ML-KEM-768 + HKDF-SHA-384 + AES-256-GCM, CNSA 2.0-aligned) | `docs/ENVELOPE-DRAFT.md` | 📝 specified; becomes ✅ only with its own golden vectors in both languages (required by the draft itself) |
-| G3 | TS parse (zod, strict bounds) is stricter than the Rust verifier's structural parse — e.g. Rust accepts an empty `material.spec` and reports level D where TS refuses the document | this file | ⚠️ acceptance sets converge in 0.1; shared vectors pin the surface both sides must agree on today |
+| G3 | TS parse (zod, strict bounds) is stricter than the Rust verifier's structural parse — e.g. Rust accepts an empty `material.spec` (reporting level D where TS refuses the document) and accepts a quote whose `valid_until` is not after `created_at`, which TS rejects. (This is an *acceptance* difference; both sides now **hash** identically — see C10.) | this file | ⚠️ acceptance sets converge in 0.1; shared vectors pin the surface both sides must agree on today |
 | G4 | No forward secrecy with static recipient keys in the envelope draft | `docs/ENVELOPE-DRAFT.md` §Keys | ⚠️ stated, with mitigations (rotation, re-encryption) |
 | G5 | Key sorting for non-ASCII keys can differ across languages (UTF-16 vs UTF-8 order); 0.0.1 field names are ASCII | SPEC §Canonical JSON | ⚠️ documented restriction |
 
