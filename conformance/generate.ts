@@ -80,11 +80,11 @@ const quote: Quote = {
   lead_time_days: 21,
   pricing: {
     currency: "USD",
-    nre: 350,
+    nre: 35000,
     lines: [
-      { qty: 100, unit: 18.5 },
-      { qty: 250, unit: 14.2 },
-      { qty: 500, unit: 11.75 },
+      { qty: 100, unit: 1850 },
+      { qty: 250, unit: 1420 },
+      { qty: 500, unit: 1175 },
     ],
   },
 };

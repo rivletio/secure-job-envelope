@@ -42,7 +42,7 @@ function boundQuoteFor(p: Traveler): Quote {
     created_at: isoNow(),
     valid_until: "2039-01-01T00:00:00.000Z",
     lead_time_days: 21,
-    pricing: { currency: "USD", lines: [{ qty: p.part.qty.target, unit: 14.2 }] },
+    pricing: { currency: "USD", lines: [{ qty: p.part.qty.target, unit: 1420 }] },
   };
 }
 

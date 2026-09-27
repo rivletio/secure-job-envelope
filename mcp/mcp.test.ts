@@ -38,7 +38,7 @@ const QUOTE_ARGS = {
   seller: { org_id: "org_summitfab", name: "Summit Fabrication" },
   valid_until: "2039-01-01T00:00:00.000Z",
   lead_time_days: 21,
-  pricing: { currency: "USD", lines: [{ qty: 250, unit: 14.2 }] },
+  pricing: { currency: "USD", lines: [{ qty: 250, unit: 1420 }] },
 };
 
 describe("sje mcp surface", () => {
@@ -116,7 +116,7 @@ describe("sje mcp surface", () => {
       await call("sje_quote", {
         traveler: composed.traveler,
         ...QUOTE_ARGS,
-        pricing: { currency: "USD", lines: [{ qty: 100, unit: 18.5 }] },
+        pricing: { currency: "USD", lines: [{ qty: 100, unit: 1850 }] },
       }),
     );
     const amended = payload(

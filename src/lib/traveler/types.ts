@@ -66,6 +66,7 @@ export type Op = {
 
 export type PriceLine = {
   qty: number;
+  /** Integer count of the currency's minor unit (e.g. cents for USD). */
   unit: number;
 };
 

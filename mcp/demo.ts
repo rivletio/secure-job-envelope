@@ -122,11 +122,11 @@ try {
         lead_time_days: 21,
         pricing: {
           currency: "USD",
-          nre: 350,
+          nre: 35000,
           lines: [
-            { qty: 100, unit: 18.5 },
-            { qty: 250, unit: 14.2 },
-            { qty: 500, unit: 11.75 },
+            { qty: 100, unit: 1850 },
+            { qty: 250, unit: 1420 },
+            { qty: 500, unit: 1175 },
           ],
         },
       },
@@ -156,7 +156,7 @@ try {
   );
   const evalRow = (evald.evaluation as Array<Record<string, unknown>>)[0];
   note(
-    `bound quote from ${evalRow.seller}: $${evalRow.unit_at_target}/pc at target, ${evalRow.lead_time_days}d lead, blocker: ${evalRow.award_blocker ?? "none"}`,
+    `bound quote from ${evalRow.seller}: $${(Number(evalRow.unit_at_target) / 100).toFixed(2)}/pc at target, ${evalRow.lead_time_days}d lead, blocker: ${evalRow.award_blocker ?? "none"}`,
   );
   assert.equal(evalRow.award_blocker, null);
 

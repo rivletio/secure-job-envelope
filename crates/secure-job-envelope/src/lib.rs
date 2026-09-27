@@ -81,17 +81,18 @@ pub struct Part {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceLine {
     pub qty: i64,
-    pub unit: f64,
+    /// Integer count of the currency's minor unit (e.g. cents for USD).
+    pub unit: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pricing {
     pub currency: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nre: Option<f64>,
+    pub nre: Option<i64>,
     pub lines: Vec<PriceLine>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub freight_estimate: Option<f64>,
+    pub freight_estimate: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tax_excluded: Option<bool>,
 }
@@ -103,7 +104,7 @@ pub struct QuoteException {
     pub on: Option<String>,
     pub proposal: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub price_delta: Option<f64>,
+    pub price_delta: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -452,8 +453,9 @@ pub fn bound_quotes(traveler: &Traveler) -> Vec<&Quote> {
         .collect()
 }
 
-fn money_ok(n: f64) -> bool {
-    n.is_finite() && n >= 0.0 && n <= 1e12
+fn money_ok(n: i64) -> bool {
+    // Integer minor units, non-negative, within a generous bound.
+    (0..=1_000_000_000_000).contains(&n)
 }
 
 fn quote_ok(q: &Quote, traveler: &Traveler) -> bool {

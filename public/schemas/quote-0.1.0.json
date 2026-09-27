@@ -6,18 +6,16 @@
   "additionalProperties": false,
   "$defs": {
     "money": {
-      "type": "number",
+      "type": "integer",
       "minimum": 0,
       "maximum": 1000000000000,
-      "anyOf": [{ "type": "integer" }, { "minimum": 0.00001 }],
-      "description": "Non-negative amount in the canonical fixed-notation range: an integer, or a non-integer of magnitude >= 1e-5. IEEE-754 double; a later spec may prefer integer minor units."
+      "description": "Non-negative integer count of the currency's minor unit (e.g. cents for USD). Exact; no IEEE-754."
     },
     "priceDelta": {
-      "type": "number",
+      "type": "integer",
       "minimum": -1000000000000,
       "maximum": 1000000000000,
-      "anyOf": [{ "type": "integer" }, { "minimum": 0.00001 }, { "maximum": -0.00001 }],
-      "description": "Signed amount in the canonical fixed-notation range: an integer, or a non-integer of magnitude >= 1e-5."
+      "description": "Signed integer count of the currency's minor unit."
     }
   },
   "required": [

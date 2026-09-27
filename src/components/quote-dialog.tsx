@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toMinorUnits } from "@/lib/traveler/format";
 import { cannotQuoteAs } from "@/lib/traveler/guards";
 import { travelerHash } from "@/lib/traveler/hash";
 import { daysFromNow, isoNow, newQuoteId } from "@/lib/traveler/ids";
@@ -57,8 +58,9 @@ export function QuoteDialog({
       return;
     }
     const lines = qtys
-      .map((qty) => ({ qty, unit: Number(units[qty]) }))
-      .filter((l) => Number.isFinite(l.unit) && l.unit > 0);
+      .map((qty) => ({ qty, major: Number(units[qty]) }))
+      .filter((l) => Number.isFinite(l.major) && l.major > 0)
+      .map((l) => ({ qty: l.qty, unit: toMinorUnits(l.major, "USD") }));
     if (!lines.length) {
       toast.error("Price at least one quantity break.");
       return;
@@ -88,9 +90,9 @@ export function QuoteDialog({
       need_by_feasible: feasible,
       pricing: {
         currency: "USD",
-        nre: Math.max(0, Number(nre) || 0),
+        nre: toMinorUnits(Math.max(0, Number(nre) || 0), "USD"),
         lines,
-        freight_estimate: freightN,
+        freight_estimate: freightN === undefined ? undefined : toMinorUnits(freightN, "USD"),
         tax_excluded: true,
       },
       exceptions: exception.trim()

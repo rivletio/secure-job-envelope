@@ -22,9 +22,9 @@ const isoDayOrDt = z.union([z.string().regex(ISO_DAY_RE), isoDt]);
  * or non-integers of magnitude >= 1e-5, so both reference implementations
  * render them identically. */
 const canonicalRange = (v: number) => Number.isInteger(v) || Math.abs(v) >= 1e-5;
-const money = z.number().finite().nonnegative().max(1e12).refine(canonicalRange, {
-  message: "non-integer values below 0.00001 cannot be hashed canonically",
-});
+// Money is an integer count of the currency's minor unit (e.g. cents for USD):
+// exact, no IEEE-754 rounding (SPEC 0.1 — "money is integer minor units").
+const money = z.number().int().nonnegative().max(1e12);
 
 const jsonBlob = z.record(z.string(), z.unknown()).refine((v) => JSON.stringify(v).length <= 8192, {
   message: "object exceeds 8 KiB",
@@ -78,7 +78,7 @@ export const quoteSchema = z
             code: z.string().min(1).max(64),
             on: z.string().min(1).max(128).optional(),
             proposal: longText,
-            price_delta: z.number().finite().min(-1e12).max(1e12).refine(canonicalRange).optional(),
+            price_delta: z.number().int().min(-1e12).max(1e12).optional(),
           })
           .strict(),
       )
