@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha384};
 
+pub mod sign;
+
 pub const SPEC: &str = "sje/0.1.0";
 pub const MEDIA_TYPE: &str = "application/vnd.sje+json";
 pub const GOLDEN_HASH: &str =

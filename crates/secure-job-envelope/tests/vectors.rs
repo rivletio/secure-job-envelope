@@ -70,6 +70,30 @@ fn traveler_vectors_match_expected_hash_and_level() {
 }
 
 #[test]
+fn signature_vector_matches_cross_language() {
+    use secure_job_envelope::sign::{keypair_from_seed, sign_body, verify_body};
+    let raw = fs::read_to_string(conformance_dir().join("signatures/traveler-sig.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let domain = v["domain"].as_str().unwrap();
+    let body = v["canonical_body"].as_str().unwrap();
+    let pk_hex = v["public_key_hex"].as_str().unwrap();
+    let sig_hex = v["signature_hex"].as_str().unwrap();
+
+    let seed_bytes = hex::decode(v["seed_hex"].as_str().unwrap()).unwrap();
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&seed_bytes);
+    let (pk, sk) = keypair_from_seed(&seed);
+
+    // Same public key and same deterministic signature bytes as the TS reference.
+    assert_eq!(pk, pk_hex, "public key mismatch across implementations");
+    assert_eq!(sign_body(domain, body, &sk), sig_hex, "signature bytes mismatch");
+    // Verifies, and tampering / domain-swap fail.
+    assert!(verify_body(domain, body, sig_hex, pk_hex));
+    assert!(!verify_body(domain, &format!("{body} "), sig_hex, pk_hex));
+    assert!(!verify_body("sje-sig/quote/0.1.0", body, sig_hex, pk_hex));
+}
+
+#[test]
 fn reject_vectors_are_refused_at_parse() {
     let dir = conformance_dir().join("travelers/reject");
     let mut count = 0;

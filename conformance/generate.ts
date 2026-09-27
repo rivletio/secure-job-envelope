@@ -5,10 +5,11 @@
  *
  *  Run: node --experimental-strip-types conformance/generate.ts
  */
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/hash.ts";
 import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
+import { keypairFromSeed, signBody, SIG_DOMAIN, bytesToHex } from "../src/lib/traveler/signature.ts";
 import { sha384 } from "js-sha512";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
@@ -162,3 +163,33 @@ console.log("vectors written");
 
 // keep quoteableBody import used (documents that hashes cover the closed body)
 void quoteableBody;
+
+/* ---------- signature vector (ML-DSA-87 / FIPS 204) ---------- */
+// A deterministic keypair from a fixed 32-byte seed. Both implementations MUST
+// derive the same public key, produce the same signature over the same
+// domain-separated canonical body, and verify it — proving cross-language
+// agreement on post-quantum authorship, not just on the content hash.
+const sigSeed = new Uint8Array(32);
+for (let i = 0; i < 32; i++) sigSeed[i] = i;
+const sigKp = keypairFromSeed(sigSeed);
+const sigBody = canonicalJson(golden);
+const signatureVector = {
+  spec: "sje/0.1.0",
+  note:
+    "ML-DSA-87 (FIPS 204) authorship signature over domain-separated canonical bytes. " +
+    "Implementations MUST derive public_key_hex from seed_hex, produce signature_hex " +
+    "deterministically when signing canonical_body under domain, and verify it. The " +
+    "signed message is domain + 0x00 + canonical_body.",
+  alg: "ML-DSA-87",
+  domain: SIG_DOMAIN.traveler,
+  seed_hex: bytesToHex(sigSeed),
+  public_key_hex: bytesToHex(sigKp.publicKey),
+  canonical_body: sigBody,
+  signature_hex: signBody(SIG_DOMAIN.traveler, sigBody, sigKp.secretKey),
+};
+mkdirSync(`${here}/signatures`, { recursive: true });
+writeFileSync(
+  `${here}/signatures/traveler-sig.json`,
+  JSON.stringify(signatureVector, null, 2) + "\n",
+);
+console.log("signature vector written");
