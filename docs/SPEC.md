@@ -1,4 +1,6 @@
-# Secure Job Envelope (SJE) — spec 0.0.1
+# Secure Job Envelope (SJE) — spec 0.1.0
+
+> This is the frozen base spec (canonical JSON, hash, conformance ladder, archive). 0.1 adds ML-DSA-87 authorship signatures, a signed key directory, directory-attested ITAR, integer-minor-unit money, and the encrypted envelope — see docs/CLAIMS.md and SECURITY.md.
 
 Implementable draft. Media type `application/vnd.sje+json`.
 Archive name `{traveler_id}.traveler.zip`. License MIT.
@@ -37,7 +39,8 @@ invalidating quotes. Amending the quoteable body bumps `revision` and
 stale-marks every existing quote.
 
 **The hash is integrity of the buyer-authored body, not a signature, and
-not non-repudiation.** 0.0.1 does not authenticate parties.
+not non-repudiation.** 0.1 adds ML-DSA-87 authorship signatures over the
+canonical body, verified against a signed key directory (see SECURITY.md).
 
 ## Canonical JSON
 
@@ -50,7 +53,7 @@ RFC 8785-inspired, restricted for cross-language byte equality:
    order regardless of insertion order. Conformance vector
    `key-order-digits` pins this.
 2. `undefined` / absent members are omitted entirely.
-3. Strings escape per standard JSON. **Field names in 0.0.1 are ASCII**;
+3. Strings escape per standard JSON. **Field names are ASCII**;
    implementations must not rely on non-ASCII key ordering (JS sorts by
    UTF-16 code units, most other languages by Unicode scalar / UTF-8 bytes
    — these diverge above the BMP).
@@ -138,21 +141,24 @@ yourself — treat the archive as the document.
 ## Export control & commercial reality
 
 - `itar: true` is a self-declaration that the traveler contains
-  ITAR-controlled technical data. It is not DDTC registration, a TCP, or an
-  EAR ECCN. Shop `certs[]` is for ISO/AS/AWS; the ITAR bit lives on
+  ITAR-controlled technical data. 0.1 elevates this to directory attestation —
+  an ITAR traveler's seller must hold the directory's attested ITAR capability,
+  not merely self-declare `seller.itar`. It is still not DDTC registration, a
+  TCP, or an EAR ECCN. Shop `certs[]` is for ISO/AS/AWS; the ITAR bit lives on
   `org.itar`.
 - Do not put actual USML/EAR technical data on a public or shared browser
   desk. localStorage is not a CUI system (DFARS 252.204-7012 / NIST
   800-171).
-- A bound quote is a structured price; an award is not a PO. 0.0.1 has no
-  governing law, warranty, inspection, payment terms, or
-  battle-of-the-forms handling.
+- A bound quote is a structured price; an award is not a PO. The 0.0.1 base
+  had no governing law, warranty, inspection, payment terms, or
+  battle-of-the-forms handling; 0.1 lets an award carry optional commercial
+  terms (governing law, warranty, payment), though an award is still not a
+  contract by itself.
 - Incoterms 2020 `FOB` is for sea/inland waterway with a named port; US
   domestic shops usually mean UCC F.O.B. origin/destination. The field is a
   string in 0.0.1.
-- Money is IEEE-754 double under the fixed-notation rule above. Prefer
-  integer minor units in a later spec if travelers become the commercial
-  record.
+- Money is an integer count of the currency's minor unit (e.g. cents) in 0.1 —
+  exact, no IEEE-754.
 
 ## JSON Schemas
 

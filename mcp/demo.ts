@@ -7,7 +7,7 @@
  *
  *  The demo narrates every exchange, proves the hash lineage at each hop,
  *  and shows the integrity check: a corrupted archive is refused on open.
- *  (0.0.1 detects corruption, not adversarial forgery — a party who re-seals
+ *  (the desk demo detects corruption, not adversarial forgery — a party who re-seals
  *  after editing re-verifies clean. Authenticity via signatures is the 0.1
  *  headline; until then integrity is not tamper-*resistance*.)
  *
@@ -25,7 +25,7 @@ function payload(res: ToolResult): Record<string, unknown> {
 }
 
 async function desk(company: string): Promise<Client> {
-  const client = new Client({ name: `${company}-agent`, version: "0.0.1" });
+  const client = new Client({ name: `${company}-agent`, version: "0.1.0" });
   await client.connect(
     new StdioClientTransport({
       command: process.execPath,

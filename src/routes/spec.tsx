@@ -7,7 +7,7 @@ function SpecPage() {
   return (
     <AppShell>
       <p className="mono-label">MIT · application/vnd.sje+json</p>
-      <h1 className="mt-3 text-4xl tracking-tight text-paper">SJE 0.0.1</h1>
+      <h1 className="mt-3 text-4xl tracking-tight text-paper">SJE 0.1.0</h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-soft">
         Implementable draft. A traveler is the job object — not the shop OS and not a
         marketplace. Archive name is {"{traveler_id}.traveler.zip"}. Quotes bind to{" "}
@@ -34,7 +34,7 @@ function SpecPage() {
                 meaning="At least one structured quote bound to buyer revision"
               />
               <Row code="L2" name="Executable" meaning="Awarded, ops listed, ship-to present" />
-              <Row code="L3" name="As-built" meaning="Reserved. as_built may be null in 0.0.1" />
+              <Row code="L3" name="As-built" meaning="Reserved. as_built may be null in 0.1" />
             </tbody>
           </table>
         </div>
@@ -103,7 +103,8 @@ currency: ^[A-Z]{3}$`}
           <li>
             The hash is integrity of the buyer-authored body, not a signature. 0.1 authenticates
             parties separately: an ML-DSA-87 signature over the canonical body, verified against a
-            signed key directory, so a quote cannot claim a shop it does not control.
+            signed key directory, so a signature whose key’s org does not match the body’s org_id
+            fails verification.
           </li>
           <li>
             Quotes are outside the hash so a traveler can climb L0→L2 without invalidating prices.
@@ -126,6 +127,12 @@ currency: ^[A-Z]{3}$`}
             for the SOC 2 mapping.
           </li>
         </ul>
+        <p className="mt-4 max-w-2xl border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
+          No warranty. SJE is provided as is under the MIT License — best-effort security, not a
+          guarantee, and not legal, compliance, or export-control advice. Selecting NIST/CNSA 2.0
+          algorithms is not certification; SJE is not SOC 2, FIPS, CNSA 2.0, ITAR, DFARS, or NIST
+          800-171 compliant. Meeting your export-control and CUI obligations is your responsibility.
+        </p>
       </section>
 
       <section className="mt-10">
@@ -155,7 +162,7 @@ currency: ^[A-Z]{3}$`}
           </li>
           <li>
             Incoterms 2020 FOB requires a named port and is for sea/inland waterway. US domestic
-            shops usually mean UCC F.O.B. origin/destination. The field is a string in 0.0.1.
+            shops usually mean UCC F.O.B. origin/destination. The field is a string in 0.1.
           </li>
           <li>
             Money is an integer count of the currency’s minor unit (e.g. cents) — exact, no

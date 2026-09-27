@@ -52,4 +52,4 @@ Feature: Desk traveler list
     Then the primary action is "New traveler" linking to "/new"
     Given the role is "seller"
     When the seller opens the desk
-    Then the primary action is "Read spec 0.0.1" linking to "/spec"
+    Then the primary action is "Read spec 0.1.0" linking to "/spec"

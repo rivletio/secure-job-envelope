@@ -1,9 +1,9 @@
 [package]
 name = "secure-job-envelope"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Secure Job Envelope (SJE) 0.0.1 — content-addressed job envelope for one part family"
+description = "Secure Job Envelope (SJE) 0.1.0 — content-addressed job envelope for one part family"
 repository = "https://github.com/rivletio/sje"
 homepage = "https://securejobenvelope.org"
 

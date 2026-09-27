@@ -1,5 +1,5 @@
 /** RFC 8785-ish canonical JSON: keys sorted lexicographically, compact
- *  output, no undefined. ASCII field names in 0.0.1.
+ *  output, no undefined. ASCII field names.
  *
  *  The serializer is explicit — it never round-trips through a rebuilt
  *  object — because JavaScript enumerates integer-like keys ("2", "10") in
@@ -10,7 +10,7 @@
 
 function canonicalNumber(value: number): string {
   // Numbers must land byte-identical across implementations AND survive a
-  // JSON round-trip in every language. 0.0.1 therefore admits only:
+  // JSON round-trip in every language. The format therefore admits only:
   // finite values, |x| <= 2^53-1 (exact in an f64 and in JS), and
   // non-integers of magnitude >= 1e-5 (below that, Rust's ryu switches to
   // exponential notation while JS stays fixed — the renderings diverge).

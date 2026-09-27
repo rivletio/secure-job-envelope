@@ -1,11 +1,11 @@
 @epic:docs
 Feature: Spec documentation page
-  The in-app spec describes SJE 0.0.1 for implementers.
+  The in-app spec describes SJE 0.1.0 for implementers.
 
   @rid:S-75b0c3d7
   Scenario: Spec page states media type and hash rule
     When the user opens "/spec"
-    Then the heading is "SJE 0.0.1"
+    Then the heading is "SJE 0.1.0"
     And the page cites media type "application/vnd.sje+json"
     And the page states quotes bind to traveler_hash_quoted as SHA-384 of the canonical quoteable body
     And the archive name pattern is "{traveler_id}.traveler.zip"

@@ -51,30 +51,35 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 | M3 | A tampered sealed archive is refused on open over MCP | `mcp/mcp.test.ts` tamper case; demo step 3 | ✅ |
 | M4 | Two desks with zero shared state complete RFQ → quote → award with hash lineage verified at every hop | `npm run demo` (CI): two separate server processes, asserts on every exchange | ✅ |
 
-## Post-quantum authenticity & confidentiality (0.1, CNSA 2.0)
+## Post-quantum authenticity & confidentiality (0.1, CNSA 2.0 suite)
 
-The 0.1 profile is **pure CNSA 2.0, Category 5**: ML-KEM-1024 (FIPS 203),
-ML-DSA-87 (FIPS 204), AES-256-GCM, HKDF-SHA-384, SHA-384. Every primitive is
-implemented in **both** languages and pinned by a golden vector the
-TypeScript reference generates and the Rust crate independently verifies
-byte-for-byte — the same discipline as the content-hash vectors above.
+The 0.1 profile selects its algorithms from the **CNSA 2.0 Category 5** suite:
+ML-KEM-1024 (FIPS 203), ML-DSA-87 (FIPS 204), AES-256-GCM, HKDF-SHA-384,
+SHA-384. Algorithm selection is an engineering choice, **not a certification** —
+see the Disclaimer in the README. Every primitive is implemented in **both**
+languages and pinned by a golden vector the TypeScript reference generates and
+the Rust crate independently verifies byte-for-byte — the same discipline as
+the content-hash vectors above.
 
 | # | Claim | Proof | Status |
 |---|---|---|---|
 | PQ1 | ML-DSA-87 authorship signatures over the domain-separated canonical body are byte-identical across implementations, deterministic, and verify each other's output; a tampered body or cross-role (wrong-domain) replay is refused | `conformance/signatures/traveler-sig.json` (both runners); `signature.test.ts`; `sign.rs` unit tests; `vectors.rs::signature_vector_matches_cross_language` | ✅ |
 | PQ2 | A signed key directory (ML-DSA-87) binds `org_id`→key with a validity window, revocation status, and attested capabilities; both sides verify it against the trust root, and tampering a capability or using the wrong root key fails | `conformance/signatures/directory.json` (both runners); `directory.test.ts`; `sign.rs::verify_directory`; `vectors.rs::directory_vector_verifies_cross_language` | ✅ |
-| PQ3 | A traveler's buyer signature is enforced against the directory: a signature whose kid's org ≠ `buyer.org_id` is refused (closes org_id spoofing), and ITAR is gated on the directory's attested capability rather than self-declared `seller.itar` | `conformance/signatures/signed-traveler.json` (both runners); `authenticity.test.ts`; `sign.rs::verify_traveler_authorship`; `vectors.rs::signed_traveler_vector_verifies_cross_language` | ✅ |
-| PQ4 | The encrypted envelope (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM) seals byte-identically across implementations and each side decrypts the other's envelope; a tampered payload or an unknown recipient is refused; AAD binds `{spec, enc_alg}` (payload) and `{spec, enc_alg, kid}` (each wrap) | `conformance/signatures/envelope.json` (both runners); `envelope.test.ts`; `envelope.rs`; `vectors.rs::envelope_vector_roundtrips_cross_language` | ✅ |
+| PQ3 | A traveler's buyer signature is enforced against the directory: a signature whose kid's org ≠ `buyer.org_id` is refused, and one that names no org_id at all is refused (authorship must bind to an org) — enforced identically on **both** implementations | `conformance/signatures/signed-traveler.json` (both runners, incl. the no-org_id case); `authenticity.test.ts`; `sign.rs::verify_traveler_authorship`; `vectors.rs::signed_traveler_vector_verifies_cross_language` | ✅ |
+| PQ4 | The encrypted envelope (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM) seals byte-identically across implementations and each side decrypts the other's envelope; a tampered payload or an unknown recipient is refused; AAD binds `{spec, enc_alg, recipients}` (payload) and `{spec, enc_alg, kid}` (each wrap) | `conformance/signatures/envelope.json` (both runners); `envelope.test.ts`; `envelope.rs`; `vectors.rs::envelope_vector_roundtrips_cross_language` | ✅ |
+| PQ5 | Directory freshness is fail-closed on **both** sides: a directory evaluated outside its own `[issued_at, valid_until)` window, or a signer entry outside its `[valid_from, valid_until)` window (or revoked, or wrong-alg), does not authenticate — bounding revocation rollback | `conformance/signatures/directory-expired-entry.json` (both runners); `directory.test.ts` (H3); `authenticity.test.ts` (H1); `vectors.rs::expired_entry_directory_enforces_window_cross_language`; `sign.rs::verify_directory` / `directory_entry_by_kid` | ✅ |
+| PQ6 | A seller quote signature verifies against the directory, and ITAR is gated on the directory's attested capability (not self-declared `seller.itar`) — enforced identically on **both** implementations | `conformance/signatures/signed-quote.json` (both runners); `authenticity.test.ts`; `sign.rs::verify_quote_signature` / `itar_attestation_blocker`; `vectors.rs::signed_quote_vector_verifies_cross_language` | ✅ |
+| PQ7 | Envelope recipients are resolved through the signed directory (an org's attested ML-KEM key), the recipient kid is derived from that key (`enc_kid`) identically on both sides, and the payload AAD authenticates the ordered recipient set (dropping/reordering a recipient fails open) | `conformance/signatures/envelope.json` recipient (both runners); `envelope.test.ts` (M3 resolution, L2 recipient-set); `vectors.rs` `enc_kid` parity assertion | ✅ |
 
 ## Honest gaps and drafts
 
 | # | Statement | Where | Status |
 |---|---|---|---|
-| G1 | Party authentication. 0.0.1 had none — the hash is integrity, not a signature, so any party could claim any `org_id`. 0.1 implements ML-DSA-87 authorship signatures bound to a signed key directory. | README, SPEC, SECURITY, TRUST | ✅ **resolved in 0.1** (PQ1–PQ3); the browser desk verifies only and never holds signing keys |
-| G2 | Encrypted envelope (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM, **pure CNSA 2.0 Cat 5**). 0.0.1 had no confidentiality. | PQ4; `docs/ENVELOPE-DRAFT.md` | ✅ **resolved in 0.1** with the dual-language golden vectors the draft itself demanded |
+| G1 | Party authentication. 0.0.1 had none — the hash is integrity, not a signature, so any party could claim any `org_id`. 0.1 implements ML-DSA-87 authorship signatures bound to a signed key directory. | README, SPEC, SECURITY, TRUST | ✅ **resolved in 0.1** (PQ1–PQ6); the browser desk verifies only and never holds signing keys |
+| G2 | Encrypted envelope (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM, algorithms from the CNSA 2.0 Cat 5 suite). 0.0.1 had no confidentiality. | PQ4, PQ7; `docs/ENVELOPE-DRAFT.md` | ✅ **resolved in 0.1** with the dual-language golden vectors the draft itself demanded |
 | G3 | TS parse (zod, strict bounds) is stricter than the Rust verifier's structural parse — e.g. Rust accepts an empty `material.spec` and reports level D where TS refuses the document. (An *acceptance* difference; both sides **hash** identically — see C10 — and both now refuse to **bind** a quote whose `valid_until` is not after `created_at`.) | this file; `lib.rs::quote_valid_until_must_be_after_created_at_to_bind` | ⚠️ acceptance sets converge in 0.1; shared vectors pin the surface both sides must agree on today |
-| G4 | No forward secrecy: the 0.1 envelope encapsulates to a recipient's **static** ML-KEM key, so a future compromise of that key exposes past envelopes sent to it | PQ4; `docs/ENVELOPE-DRAFT.md` §Keys | ⚠️ stated, with mitigations (rotation, re-encryption); the standards-track fix — single-use ML-KEM prekeys, PQXDH-style — is the next envelope milestone |
-| G5 | Key sorting for non-ASCII keys can differ across languages (UTF-16 vs UTF-8 order); 0.0.1 field names are ASCII | SPEC §Canonical JSON | ⚠️ documented restriction |
+| G4 | No forward secrecy: the 0.1 envelope encapsulates to a recipient's **static** ML-KEM key — now bound to the org through the signed directory (PQ7), but still long-lived — so a future compromise of that key exposes past envelopes sent to it | PQ4, PQ7; `docs/ENVELOPE-DRAFT.md` §Keys | ⚠️ stated, with mitigations (rotation, re-encryption); the standards-track fix — single-use ML-KEM prekeys, PQXDH-style — is the next envelope milestone |
+| G5 | Key sorting for non-ASCII keys can differ across languages (UTF-16 vs UTF-8 order); field names are ASCII | SPEC §Canonical JSON | ⚠️ documented restriction |
 
 ## Running the proofs
 

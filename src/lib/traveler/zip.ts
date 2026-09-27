@@ -126,7 +126,7 @@ export async function travelerToZip(traveler: Traveler): Promise<Blob> {
         itar: Boolean(traveler.itar),
         export_control: traveler.itar ? "ITAR-self-declared" : "none",
         notice:
-          "traveler_hash is integrity of the quoteable body, not a signature. 0.0.1 does not authenticate parties or implement export-control.",
+          "traveler_hash is integrity of the quoteable body, not a signature; authorship is a separate ML-DSA-87 signature verified against the signed key directory (0.1).",
       },
       null,
       2,

@@ -22,17 +22,28 @@ function TrustPage() {
 
   return (
     <AppShell>
-      <p className="mono-label">Trust boundary · 0.0.1</p>
+      <p className="mono-label">Trust boundary · 0.1</p>
       <h1 className="mt-3 max-w-2xl text-4xl tracking-tight text-paper">
-        Built for shops that already have SOC 2.{" "}
+        Designed to sit alongside a shop’s existing SOC 2 controls — it is not itself an audited or
+        compliant system.{" "}
         <em className="font-normal text-accent italic">This desk is not that system.</em>
       </h1>
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-soft">
-        SJE is a content-addressed job object. Identity, signatures, CUI handling, and
-        a production control environment are out of band in 0.0.1. SOC 2 Type II is an org’s
-        attestation over <em>their</em> system — it does not transfer to a protocol, a hash, or
-        this browser desk.
+        In 0.1, authorship signatures (ML-DSA-87, verified against a signed key directory) establish
+        identity; CUI handling and a production control environment remain out of band and are the
+        operator’s responsibility. SOC 2 Type II is an org’s attestation over <em>their</em> system
+        — it does not transfer to a protocol, a hash, or this browser desk.
       </p>
+
+      <section className="on-paper traveler-shadow mt-8 rounded-sm p-5">
+        <h2 className="text-lg font-medium">Disclaimer</h2>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          No warranty. SJE is provided as is under the MIT License — best-effort security, not a
+          guarantee, and not legal, compliance, or export-control advice. Selecting NIST/CNSA 2.0
+          algorithms is not certification; SJE is not SOC 2, FIPS, CNSA 2.0, ITAR, DFARS, or NIST
+          800-171 compliant. Meeting your export-control and CUI obligations is your responsibility.
+        </p>
+      </section>
 
       <section className="on-paper traveler-shadow mt-8 rounded-sm p-5">
         <h2 className="text-lg font-medium">What this desk is</h2>
@@ -51,8 +62,8 @@ function TrustPage() {
             META.json, allowlisted members, CRC32, size caps, and a matching hash.
           </li>
           <li>
-            ITAR is a self-declared bit plus a quote/award consistency check. It is not a
-            Technology Control Plan, DDTC registration, or deemed-export screen.
+            ITAR is a directory-attested capability in 0.1; the desk’s local bit is a consistency
+            check, not a Technology Control Plan, DDTC registration, or deemed-export screen.
           </li>
         </ul>
       </section>
