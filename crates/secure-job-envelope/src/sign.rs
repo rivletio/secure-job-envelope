@@ -64,10 +64,15 @@ pub fn verify_body(domain: &str, canonical_body: &str, sig_hex: &str, pk_hex: &s
 
 pub const DIRECTORY_SPEC: &str = "sje-directory/0.1.0";
 
-/// Verify a signed key directory (JSON) against the trust-root public key (hex).
-/// The signed body is the directory with its own `sig` field removed, then
-/// canonicalized — identical bytes to the TypeScript `directoryBody`.
-pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
+/// Verify a signed key directory (JSON) against the trust-root public key (hex),
+/// and that `at_ms` falls within the directory's own freshness window
+/// `[issued_at, valid_until)`. The window is part of the signed body, so it
+/// cannot be widened without breaking the root signature; enforcing it here
+/// additionally bounds how long a stale (but validly-signed) directory can be
+/// replayed — the in-band limit on revocation rollback. False on any malformed
+/// or out-of-window input. The signed body is the directory with its own `sig`
+/// removed, then canonicalized — identical bytes to the TypeScript `directoryBody`.
+pub fn verify_directory(dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
     let Ok(mut v) = serde_json::from_str::<Value>(dir_json) else {
         return false;
     };
@@ -75,6 +80,20 @@ pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
         return false;
     };
     if obj.get("spec").and_then(Value::as_str) != Some(DIRECTORY_SPEC) {
+        return false;
+    }
+    let issued = obj
+        .get("issued_at")
+        .and_then(Value::as_str)
+        .and_then(crate::rfc3339_millis);
+    let until = obj
+        .get("valid_until")
+        .and_then(Value::as_str)
+        .and_then(crate::rfc3339_millis);
+    let (Some(issued), Some(until)) = (issued, until) else {
+        return false;
+    };
+    if !(issued <= at_ms && at_ms < until) {
         return false;
     }
     let Some(sig) = obj.remove("sig").and_then(|s| s.as_str().map(str::to_string)) else {
@@ -86,27 +105,54 @@ pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
     verify_body(DOMAIN_DIRECTORY, &canonical, &sig, root_pk_hex)
 }
 
-/// Look up an active directory entry by kid, returning (org_id, public_key_hex).
-pub fn directory_entry_by_kid(dir_json: &str, kid: &str) -> Option<(String, String)> {
+/// Look up a directory entry by kid that is active, of the expected algorithm,
+/// and in its validity window at `at_ms`, returning (org_id, public_key_hex).
+/// Mirrors the TypeScript `entryByKid` / `inWindow`: status, alg, and
+/// `[valid_from, valid_until)` are all enforced, so an expired, not-yet-valid,
+/// revoked, or wrong-algorithm entry never authenticates. Malformed entries are
+/// skipped rather than aborting the search.
+pub fn directory_entry_by_kid(dir_json: &str, kid: &str, at_ms: i64) -> Option<(String, String)> {
     let v: Value = serde_json::from_str(dir_json).ok()?;
     for e in v.get("entries")?.as_array()? {
-        if e.get("kid").and_then(Value::as_str) == Some(kid)
-            && e.get("status").and_then(Value::as_str) == Some("active")
-        {
-            let org = e.get("org_id")?.as_str()?.to_string();
-            let pk = e.get("public_key")?.as_str()?.to_string();
-            return Some((org, pk));
+        let found = (|| -> Option<(String, String)> {
+            if e.get("kid").and_then(Value::as_str)? != kid {
+                return None;
+            }
+            if e.get("status").and_then(Value::as_str)? != "active" {
+                return None;
+            }
+            if e.get("alg").and_then(Value::as_str)? != SIG_ALG {
+                return None;
+            }
+            let from = crate::rfc3339_millis(e.get("valid_from")?.as_str()?)?;
+            let until = crate::rfc3339_millis(e.get("valid_until")?.as_str()?)?;
+            if !(from <= at_ms && at_ms < until) {
+                return None;
+            }
+            Some((
+                e.get("org_id")?.as_str()?.to_string(),
+                e.get("public_key")?.as_str()?.to_string(),
+            ))
+        })();
+        if found.is_some() {
+            return found;
         }
     }
     None
 }
 
-/// Verify a traveler's buyer-authorship signature against a signed directory.
-/// True iff the directory verifies against `root_pk_hex`, and at least one of the
-/// traveler's signatures resolves to a directory entry whose org matches the
-/// buyer's org_id and whose ML-DSA-87 key verifies the canonical quoteable body.
-pub fn verify_traveler_authorship(traveler_json: &str, dir_json: &str, root_pk_hex: &str) -> bool {
-    if !verify_directory(dir_json, root_pk_hex) {
+/// Verify a traveler's buyer-authorship signature against a signed directory at
+/// `at_ms`. True iff the directory verifies (and is in-window) against
+/// `root_pk_hex`, the buyer names an org_id, and at least one of the traveler's
+/// signatures resolves to an active, in-window directory entry whose org matches
+/// `buyer.org_id` and whose ML-DSA-87 key verifies the canonical quoteable body.
+pub fn verify_traveler_authorship(
+    traveler_json: &str,
+    dir_json: &str,
+    root_pk_hex: &str,
+    at_ms: i64,
+) -> bool {
+    if !verify_directory(dir_json, root_pk_hex, at_ms) {
         return false;
     }
     let Ok(t) = crate::parse_traveler(traveler_json) else {
@@ -125,7 +171,7 @@ pub fn verify_traveler_authorship(traveler_json: &str, dir_json: &str, root_pk_h
         if s.alg != SIG_ALG {
             continue;
         }
-        if let Some((org, pk)) = directory_entry_by_kid(dir_json, &s.kid) {
+        if let Some((org, pk)) = directory_entry_by_kid(dir_json, &s.kid, at_ms) {
             if org == buyer_org && verify_body(DOMAIN_TRAVELER, &canonical, &s.sig, &pk) {
                 return true;
             }

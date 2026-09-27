@@ -29,6 +29,13 @@ describe("signed key directory", () => {
     assert.equal(verifyDirectory({ ...structuredClone(dir), sig: undefined }, rootPk), false);
   });
 
+  it("refuses a directory evaluated outside its own validity window (H3)", () => {
+    // The vector directory runs 2026-01-01 .. 2030-01-01.
+    assert.equal(verifyDirectory(dir, rootPk, new Date("2027-01-01T00:00:00.000Z")), true);
+    assert.equal(verifyDirectory(dir, rootPk, new Date("2025-06-01T00:00:00.000Z")), false); // before issued_at
+    assert.equal(verifyDirectory(dir, rootPk, new Date("2031-01-01T00:00:00.000Z")), false); // after valid_until
+  });
+
   it("resolves org and kid entries and attested capabilities", () => {
     assert.equal(entryByOrg(dir, "org_huron", at)?.kid, "huron-2026");
     assert.equal(entryByKid(dir, "summit-2026", at)?.org_id, "org_summitfab");

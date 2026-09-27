@@ -280,6 +280,33 @@ writeFileSync(
 );
 console.log("signed traveler vector written");
 
+/* ---------- expired-entry directory vector (validity-window enforcement) ---------- */
+// The directory itself is valid to 2030, but the org_northline signer entry
+// expires mid-window (2026-07-01). Both implementations MUST verify authorship at
+// valid_at_ms (entry still valid) and MUST refuse it at expired_at_ms (entry
+// expired though the directory is still valid) — proving entry-level window
+// enforcement distinct from the directory-level window (audit H1).
+const expiringDir: Directory = structuredClone(directory);
+const expiringNorthline = expiringDir.entries.find((e) => e.org_id === "org_northline")!;
+expiringNorthline.valid_until = "2026-07-01T00:00:00.000Z";
+const expiredEntryVector = {
+  note:
+    "Entry-level validity window. The directory runs to 2030 but the org_northline " +
+    "entry expires 2026-07-01. Implementations MUST verify authorship at valid_at_ms " +
+    "(entry in window) and MUST refuse it at expired_at_ms (entry expired, directory " +
+    "still valid).",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  valid_at_ms: Date.parse("2026-03-01T00:00:00.000Z"),
+  expired_at_ms: Date.parse("2027-01-01T00:00:00.000Z"),
+  directory: { ...expiringDir, sig: signDirectory(expiringDir, rootKp.secretKey) },
+  traveler: signedTraveler,
+};
+writeFileSync(
+  `${here}/signatures/directory-expired-entry.json`,
+  JSON.stringify(expiredEntryVector, null, 2) + "\n",
+);
+console.log("expired-entry directory vector written");
+
 /* ---------- encrypted envelope vector (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM) ---------- */
 // Deterministic seal (fixed CEK / nonces / KEM coins). Both implementations must
 // re-seal to the same ciphertext bytes and both must decrypt it to the plaintext.

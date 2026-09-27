@@ -519,7 +519,7 @@ pub fn quote_expired(q: &Quote, now_ms: i64) -> bool {
     }
 }
 
-fn rfc3339_millis(iso: &str) -> Option<i64> {
+pub(crate) fn rfc3339_millis(iso: &str) -> Option<i64> {
     // 2026-09-30T00:00:00.000Z or 2026-09-30T00:00:00Z
     let body = iso.strip_suffix('Z')?;
     let (date, time) = body.split_once('T')?;

@@ -13,6 +13,12 @@ fn conformance_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance")
 }
 
+// Fixed evaluation instants (Unix ms) for the directory validity-window checks.
+// The signature vectors' directory runs 2026-01-01 .. 2030-01-01.
+const AT_MS_2027: i64 = 1_798_761_600_000; // within the window
+const AT_MS_2025: i64 = 1_748_736_000_000; // before issued_at
+const AT_MS_2031: i64 = 1_924_992_000_000; // after valid_until
+
 #[test]
 fn canonical_valid_vectors_match_bytes_and_hash() {
     let raw = fs::read_to_string(conformance_dir().join("canonical.json")).unwrap();
@@ -100,15 +106,18 @@ fn directory_vector_verifies_cross_language() {
     let v: Value = serde_json::from_str(&raw).unwrap();
     let root_pk = v["root_public_key_hex"].as_str().unwrap();
     let dir_json = serde_json::to_string(&v["directory"]).unwrap();
-    assert!(verify_directory(&dir_json, root_pk), "directory must verify");
+    assert!(verify_directory(&dir_json, root_pk, AT_MS_2027), "directory must verify in-window");
     // tampering the directory body breaks the root signature
     let mut tampered = v["directory"].clone();
     tampered["entries"][1]["capabilities"]["itar"] = serde_json::json!(true);
     assert!(
-        !verify_directory(&serde_json::to_string(&tampered).unwrap(), root_pk),
+        !verify_directory(&serde_json::to_string(&tampered).unwrap(), root_pk, AT_MS_2027),
         "tampered directory must fail"
     );
-    assert!(!verify_directory(&dir_json, &"00".repeat(2592)), "wrong root key must fail");
+    assert!(!verify_directory(&dir_json, &"00".repeat(2592), AT_MS_2027), "wrong root key must fail");
+    // H3: a directory evaluated outside its own [issued_at, valid_until) window is refused
+    assert!(!verify_directory(&dir_json, root_pk, AT_MS_2025), "before issued_at must fail");
+    assert!(!verify_directory(&dir_json, root_pk, AT_MS_2031), "after valid_until must fail");
 }
 
 #[test]
@@ -120,7 +129,7 @@ fn signed_traveler_vector_verifies_cross_language() {
     let dir_json = serde_json::to_string(&v["directory"]).unwrap();
     let traveler_json = serde_json::to_string(&v["traveler"]).unwrap();
     assert!(
-        verify_traveler_authorship(&traveler_json, &dir_json, root_pk),
+        verify_traveler_authorship(&traveler_json, &dir_json, root_pk, AT_MS_2027),
         "buyer authorship must verify end to end"
     );
     // bumping the hashed body (revision) breaks the authorship signature
@@ -129,10 +138,18 @@ fn signed_traveler_vector_verifies_cross_language() {
     assert!(!verify_traveler_authorship(
         &serde_json::to_string(&tampered).unwrap(),
         &dir_json,
-        root_pk
+        root_pk,
+        AT_MS_2027
     ));
     // a broken directory (wrong root key) fails
-    assert!(!verify_traveler_authorship(&traveler_json, &dir_json, &"00".repeat(2592)));
+    assert!(!verify_traveler_authorship(&traveler_json, &dir_json, &"00".repeat(2592), AT_MS_2027));
+    // H2: an author that names no org_id is refused (matches the TypeScript verifier)
+    let mut no_org = v["traveler"].clone();
+    no_org["buyer"].as_object_mut().unwrap().remove("org_id");
+    assert!(
+        !verify_traveler_authorship(&serde_json::to_string(&no_org).unwrap(), &dir_json, root_pk, AT_MS_2027),
+        "an unbound author (no org_id) must be refused"
+    );
 }
 
 #[test]
@@ -160,6 +177,28 @@ fn envelope_vector_roundtrips_cross_language() {
     let envelope_json = serde_json::to_string(&v["envelope"]).unwrap();
     assert_eq!(open(&envelope_json, kid, &seed).as_deref(), Some(plaintext));
     assert!(open(&envelope_json, "no-such-kid", &seed).is_none());
+}
+
+#[test]
+fn expired_entry_directory_enforces_window_cross_language() {
+    use secure_job_envelope::sign::verify_traveler_authorship;
+    let raw =
+        fs::read_to_string(conformance_dir().join("signatures/directory-expired-entry.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    let traveler_json = serde_json::to_string(&v["traveler"]).unwrap();
+    let valid_at = v["valid_at_ms"].as_i64().unwrap();
+    let expired_at = v["expired_at_ms"].as_i64().unwrap();
+    // Entry in window -> authentic; entry expired (directory still valid) -> refused (H1).
+    assert!(
+        verify_traveler_authorship(&traveler_json, &dir_json, root_pk, valid_at),
+        "authorship must verify while the signer entry is in window"
+    );
+    assert!(
+        !verify_traveler_authorship(&traveler_json, &dir_json, root_pk, expired_at),
+        "authorship must be refused once the signer entry expires"
+    );
 }
 
 #[test]
