@@ -18,11 +18,13 @@ export type DirectoryEntry = {
   org_id: string;
   kid: string;
   alg: string;
-  public_key: string; // lowercase hex ML-DSA-87 public key
+  public_key: string; // lowercase hex ML-DSA-87 signing (verify) key
   valid_from: string;
   valid_until: string;
   status: "active" | "revoked";
   capabilities?: { itar?: boolean };
+  enc_alg?: string; // e.g. "ML-KEM-1024" — the attested encryption-key algorithm
+  enc_public_key?: string; // lowercase hex ML-KEM public key, if the org accepts sealed envelopes
 };
 
 export type Directory = {

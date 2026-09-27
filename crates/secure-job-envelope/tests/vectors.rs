@@ -200,10 +200,13 @@ fn signed_quote_vector_verifies_cross_language() {
 
 #[test]
 fn envelope_vector_roundtrips_cross_language() {
-    use secure_job_envelope::envelope::{open, seal_deterministic_fields};
+    use secure_job_envelope::envelope::{enc_kid, open, seal_deterministic_fields};
     let raw = fs::read_to_string(conformance_dir().join("signatures/envelope.json")).unwrap();
     let v: Value = serde_json::from_str(&raw).unwrap();
     let kid = v["recipient"]["kid"].as_str().unwrap();
+    let pk_hex = v["recipient"]["public_key_hex"].as_str().unwrap();
+    // The recipient kid is derived from its ML-KEM public key, identically to TS (M3).
+    assert_eq!(enc_kid(pk_hex).as_deref(), Some(kid), "enc_kid derivation must match TS");
     let mut seed = [0u8; 64];
     seed.copy_from_slice(&hex::decode(v["recipient"]["seed_hex"].as_str().unwrap()).unwrap());
     let d = &v["determinism"];

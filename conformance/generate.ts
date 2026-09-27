@@ -13,7 +13,11 @@ import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signa
 import { bytesToHex, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signTraveler, signQuote } from "../src/lib/traveler/authenticity.ts";
-import { kemKeypairFromSeed, sealEnvelope } from "../src/lib/traveler/envelope.ts";
+import {
+  kemKeypairFromSeed,
+  sealEnvelopeDeterministic,
+  recipientByOrg,
+} from "../src/lib/traveler/envelope.ts";
 import { sha384 } from "@noble/hashes/sha2.js";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
@@ -207,6 +211,14 @@ const rootKp = keypairFromSeed(fill(0x11));
 const huronKp = keypairFromSeed(fill(0x22));
 const summitKp = keypairFromSeed(fill(0x33));
 const northlineKp = keypairFromSeed(fill(0x44));
+// Per-org ML-KEM-1024 encryption keys, attested alongside the signing keys so a
+// sealer can resolve a recipient's key through the trust root (M3).
+const huronKemSeed = new Uint8Array(64).fill(0x51);
+const summitKemSeed = new Uint8Array(64).fill(0x52);
+const northlineKemSeed = new Uint8Array(64).fill(0x53);
+const huronKem = kemKeypairFromSeed(huronKemSeed);
+const summitKem = kemKeypairFromSeed(summitKemSeed);
+const northlineKem = kemKeypairFromSeed(northlineKemSeed);
 const directory: Directory = {
   spec: DIRECTORY_SPEC,
   issued_at: "2026-01-01T00:00:00.000Z",
@@ -222,6 +234,8 @@ const directory: Directory = {
       valid_until: "2030-01-01T00:00:00.000Z",
       status: "active",
       capabilities: { itar: true },
+      enc_alg: "ML-KEM-1024",
+      enc_public_key: bytesToHex(huronKem.publicKey),
     },
     {
       org_id: "org_summitfab",
@@ -232,6 +246,8 @@ const directory: Directory = {
       valid_until: "2030-01-01T00:00:00.000Z",
       status: "active",
       capabilities: { itar: false },
+      enc_alg: "ML-KEM-1024",
+      enc_public_key: bytesToHex(summitKem.publicKey),
     },
     {
       org_id: "org_northline",
@@ -242,6 +258,8 @@ const directory: Directory = {
       valid_until: "2030-01-01T00:00:00.000Z",
       status: "active",
       capabilities: { itar: false },
+      enc_alg: "ML-KEM-1024",
+      enc_public_key: bytesToHex(northlineKem.publicKey),
     },
   ],
 };
@@ -310,9 +328,11 @@ console.log("expired-entry directory vector written");
 /* ---------- encrypted envelope vector (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM) ---------- */
 // Deterministic seal (fixed CEK / nonces / KEM coins). Both implementations must
 // re-seal to the same ciphertext bytes and both must decrypt it to the plaintext.
-const rcptSeed = new Uint8Array(64);
-for (let i = 0; i < 64; i++) rcptSeed[i] = i;
-const rcptKp = kemKeypairFromSeed(rcptSeed);
+const envRecipient = recipientByOrg(
+  directoryVector.directory,
+  "org_northline",
+  new Date("2027-01-01T00:00:00.000Z"),
+)!;
 const det = {
   cek: new Uint8Array(32).fill(0x2a),
   payload_nonce: new Uint8Array(12).fill(0x01),
@@ -320,20 +340,23 @@ const det = {
   wrap_nonces: [new Uint8Array(12).fill(0x02)],
 };
 const envPlaintext = canonicalJson(golden);
-const envelope = sealEnvelope(
+const envelope = sealEnvelopeDeterministic(
   new TextEncoder().encode(envPlaintext),
-  [{ kid: "rcpt-2026", public_key: bytesToHex(rcptKp.publicKey) }],
+  [envRecipient],
   det,
 );
 const envelopeVector = {
   note:
-    "Encrypted envelope, deterministic seal. Implementations re-seal plaintext_utf8 to the " +
-    "recipient using the fixed determinism values and MUST reproduce envelope byte-for-byte, " +
-    "and MUST decrypt the envelope back to plaintext_utf8 with the recipient seed.",
+    "Encrypted envelope, deterministic seal to a directory-attested recipient. The recipient's " +
+    "ML-KEM key is resolved from the signed directory (org_northline) and the recipient kid is " +
+    "derived from that key (enc_kid). Implementations re-seal plaintext_utf8 with the fixed " +
+    "determinism values and MUST reproduce envelope byte-for-byte, and MUST decrypt it back to " +
+    "plaintext_utf8 with the recipient seed. The payload AAD binds {spec, enc_alg, recipients}.",
   recipient: {
-    kid: "rcpt-2026",
-    seed_hex: bytesToHex(rcptSeed),
-    public_key_hex: bytesToHex(rcptKp.publicKey),
+    kid: envRecipient.kid,
+    org_id: "org_northline",
+    seed_hex: bytesToHex(northlineKemSeed),
+    public_key_hex: envRecipient.public_key,
   },
   determinism: {
     cek_hex: bytesToHex(det.cek),
