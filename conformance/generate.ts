@@ -12,6 +12,7 @@ import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN, bytesToHex } from "../src/lib/traveler/signature.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signTraveler } from "../src/lib/traveler/authenticity.ts";
+import { kemKeypairFromSeed, sealEnvelope } from "../src/lib/traveler/envelope.ts";
 import { sha384 } from "js-sha512";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
@@ -277,3 +278,43 @@ writeFileSync(
   JSON.stringify(signedTravelerVector, null, 2) + "\n",
 );
 console.log("signed traveler vector written");
+
+/* ---------- encrypted envelope vector (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM) ---------- */
+// Deterministic seal (fixed CEK / nonces / KEM coins). Both implementations must
+// re-seal to the same ciphertext bytes and both must decrypt it to the plaintext.
+const rcptSeed = new Uint8Array(64);
+for (let i = 0; i < 64; i++) rcptSeed[i] = i;
+const rcptKp = kemKeypairFromSeed(rcptSeed);
+const det = {
+  cek: new Uint8Array(32).fill(0x2a),
+  payload_nonce: new Uint8Array(12).fill(0x01),
+  coins: [new Uint8Array(32).fill(0x09)],
+  wrap_nonces: [new Uint8Array(12).fill(0x02)],
+};
+const envPlaintext = canonicalJson(golden);
+const envelope = sealEnvelope(
+  new TextEncoder().encode(envPlaintext),
+  [{ kid: "rcpt-2026", public_key: bytesToHex(rcptKp.publicKey) }],
+  det,
+);
+const envelopeVector = {
+  note:
+    "Encrypted envelope, deterministic seal. Implementations re-seal plaintext_utf8 to the " +
+    "recipient using the fixed determinism values and MUST reproduce envelope byte-for-byte, " +
+    "and MUST decrypt the envelope back to plaintext_utf8 with the recipient seed.",
+  recipient: {
+    kid: "rcpt-2026",
+    seed_hex: bytesToHex(rcptSeed),
+    public_key_hex: bytesToHex(rcptKp.publicKey),
+  },
+  determinism: {
+    cek_hex: bytesToHex(det.cek),
+    payload_nonce_hex: bytesToHex(det.payload_nonce),
+    coins_hex: bytesToHex(det.coins[0]!),
+    wrap_nonce_hex: bytesToHex(det.wrap_nonces[0]!),
+  },
+  plaintext_utf8: envPlaintext,
+  envelope,
+};
+writeFileSync(`${here}/signatures/envelope.json`, JSON.stringify(envelopeVector, null, 2) + "\n");
+console.log("envelope vector written");

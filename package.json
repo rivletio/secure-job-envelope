@@ -13,11 +13,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts src/lib/traveler/disclosure.test.ts src/lib/traveler/schema-contract.test.ts src/lib/traveler/signature.test.ts src/lib/traveler/directory.test.ts src/lib/traveler/authenticity.test.ts mcp/mcp.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts src/lib/traveler/disclosure.test.ts src/lib/traveler/schema-contract.test.ts src/lib/traveler/signature.test.ts src/lib/traveler/directory.test.ts src/lib/traveler/authenticity.test.ts src/lib/traveler/envelope.test.ts mcp/mcp.test.ts",
     "mcp": "node --experimental-strip-types mcp/server.ts",
     "demo": "node --experimental-strip-types mcp/demo.ts"
   },
   "dependencies": {
+    "@noble/ciphers": "^2.4.0",
     "@noble/hashes": "^2.4.0",
     "@noble/post-quantum": "^0.7.1",
     "@radix-ui/react-dialog": "^1.1.15",
