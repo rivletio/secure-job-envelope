@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://securejobenvelope.org/schemas/traveler-0.0.1.json",
-  "title": "SJE v0.0.1",
+  "$id": "https://securejobenvelope.org/schemas/traveler-0.1.0.json",
+  "title": "SJE v0.1.0",
   "type": "object",
   "additionalProperties": false,
   "required": ["spec", "traveler_id", "revision", "created_at", "buyer", "part"],
   "properties": {
-    "spec": { "const": "sje/0.0.1" },
+    "spec": { "const": "sje/0.1.0" },
     "traveler_id": {
       "type": "string",
       "pattern": "^[a-z]{3}_[a-z0-9]{6,24}$"
@@ -116,7 +116,7 @@
     "quotes": {
       "type": "array",
       "maxItems": 64,
-      "items": { "$ref": "quote-0.0.1.json" }
+      "items": { "$ref": "quote-0.1.0.json" }
     },
     "award": {
       "type": ["object", "null"],

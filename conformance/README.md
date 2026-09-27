@@ -1,7 +1,7 @@
 # Conformance vectors
 
 Language-agnostic test vectors that define what a conforming
-`sje/0.0.1` implementation must do. The TypeScript and Rust
+`sje/0.1.0` implementation must do. The TypeScript and Rust
 reference implementations both run these exact files in CI; a third
 implementation proves itself the same way.
 

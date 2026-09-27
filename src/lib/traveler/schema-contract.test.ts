@@ -17,13 +17,13 @@ const schemaDir = new URL("../../../public/schemas/", import.meta.url).pathname;
 const conformanceDir = new URL("../../../conformance/", import.meta.url).pathname;
 const examplesDir = new URL("../../../examples/", import.meta.url).pathname;
 
-const travelerSchema = JSON.parse(readFileSync(`${schemaDir}traveler-0.0.1.json`, "utf8"));
-const quoteSchema = JSON.parse(readFileSync(`${schemaDir}quote-0.0.1.json`, "utf8"));
+const travelerSchema = JSON.parse(readFileSync(`${schemaDir}traveler-0.1.0.json`, "utf8"));
+const quoteSchema = JSON.parse(readFileSync(`${schemaDir}quote-0.1.0.json`, "utf8"));
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
-ajv.addSchema(quoteSchema, "quote-0.0.1.json");
+ajv.addSchema(quoteSchema, "quote-0.1.0.json");
 const validateTraveler = ajv.compile(travelerSchema);
-const validateQuote = ajv.getSchema("quote-0.0.1.json")!;
+const validateQuote = ajv.getSchema("quote-0.1.0.json")!;
 
 describe("published JSON Schemas", () => {
   it("accept the example, every conformance traveler, and every seed fixture", () => {

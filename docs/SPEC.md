@@ -72,7 +72,7 @@ RFC 8785-inspired, restricted for cross-language byte equality:
    diverge. Non-finite numbers are refused outright. The published JSON
    Schemas bound every numeric field inside this range — integer fields
    within 2^53−1, and the `money` / `priceDelta` `$defs` in
-   `quote-0.0.1.json` encode the fixed-notation rule directly (an integer,
+   `quote-0.1.0.json` encode the fixed-notation rule directly (an integer,
    or a non-integer of magnitude ≥ 1e-5, ≤ 1e12). The canonicalizer is the
    final gate and refuses anything outside the range regardless.
 
@@ -156,5 +156,5 @@ yourself — treat the archive as the document.
 
 ## JSON Schemas
 
-`public/schemas/traveler-0.0.1.json` and `public/schemas/quote-0.0.1.json`
+`public/schemas/traveler-0.1.0.json` and `public/schemas/quote-0.1.0.json`
 (JSON Schema 2020-12, `$id` under `https://securejobenvelope.org/schemas/`).

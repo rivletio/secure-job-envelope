@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha384};
 
-pub const SPEC: &str = "sje/0.0.1";
+pub const SPEC: &str = "sje/0.1.0";
 pub const MEDIA_TYPE: &str = "application/vnd.sje+json";
 pub const GOLDEN_HASH: &str =
-    "sha384:2646b005fb8489881762995fcb6e179b1051f0104d244fb729e5a900935e085e298ee8a268c800855311e398ccbc464d";
+    "sha384:46f92a7f466fad3f7d616a0c139bf9bf60795b47604f5aa0a6c0dce8f6874cdc80b2b84d7bf79679337811556be7b11a";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -371,7 +371,7 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     if let Some(i) = n.as_i64() {
         if i.unsigned_abs() > MAX_SAFE_INTEGER as u64 {
             return Err(Error::Invalid(
-                "integer exceeds 2^53-1 and is not canonical in sje/0.0.1".into(),
+                "integer exceeds 2^53-1 and is not canonical in sje/0.1.0".into(),
             ));
         }
         out.push_str(&i.to_string());
@@ -380,7 +380,7 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     if let Some(u) = n.as_u64() {
         if u > MAX_SAFE_INTEGER as u64 {
             return Err(Error::Invalid(
-                "integer exceeds 2^53-1 and is not canonical in sje/0.0.1".into(),
+                "integer exceeds 2^53-1 and is not canonical in sje/0.1.0".into(),
             ));
         }
         out.push_str(&u.to_string());
@@ -396,7 +396,7 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     }
     if f.abs() > MAX_SAFE_INTEGER {
         return Err(Error::Invalid(
-            "number exceeds 2^53-1 and is not canonical in sje/0.0.1".into(),
+            "number exceeds 2^53-1 and is not canonical in sje/0.1.0".into(),
         ));
     }
     if f.fract() == 0.0 {
@@ -405,13 +405,13 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     }
     if f.abs() < 1e-5 {
         return Err(Error::Invalid(
-            "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.0.1".into(),
+            "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.1.0".into(),
         ));
     }
     let rendered = serde_json::to_string(&f).expect("finite f64");
     if rendered.contains('e') || rendered.contains('E') {
         return Err(Error::Invalid(
-            "number outside the canonical fixed-notation range of sje/0.0.1".into(),
+            "number outside the canonical fixed-notation range of sje/0.1.0".into(),
         ));
     }
     out.push_str(&rendered);
@@ -643,7 +643,7 @@ mod tests {
     fn contact_is_in_the_hash() {
         let with = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_xcontact01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -657,7 +657,7 @@ mod tests {
         .unwrap();
         let without = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_xcontact01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -680,7 +680,7 @@ mod tests {
         // serializer that keeps Some(vec![]) as [] and diverges cross-impl.
         let with_empties = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_emptydrop1",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -692,7 +692,7 @@ mod tests {
         .unwrap();
         let without = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_emptydrop1",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -716,7 +716,7 @@ mod tests {
     #[test]
     fn itar_traveler_rejects_non_itar_seller() {
         let json = r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_itarfail01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -740,7 +740,7 @@ mod tests {
     fn negative_unit_is_not_bound() {
         let traveler = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_negprice01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -784,7 +784,7 @@ mod tests {
     fn quote_valid_until_must_be_after_created_at_to_bind() {
         let base = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_baddates01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",

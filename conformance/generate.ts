@@ -40,7 +40,7 @@ const invalidValues: Array<{ name: string; value: unknown; reason: string }> = [
 ];
 
 const canonical = {
-  spec: "sje/0.0.1",
+  spec: "sje/0.1.0",
   note:
     "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. " +
     "Invalid: implementations MUST refuse to canonicalize `value`. " +
@@ -115,7 +115,7 @@ l2.ship_to = {
 // on both implementations. This vector pins that: a naive Rust serializer that
 // keeps `Some(vec![])` as `[]` produces a different hash and fails here.
 const emptyArrays: Traveler = {
-  spec: "sje/0.0.1",
+  spec: "sje/0.1.0",
   traveler_id: "tvl_conformempt",
   revision: 1,
   created_at: "2026-09-16T12:00:00.000Z",

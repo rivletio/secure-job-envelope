@@ -44,7 +44,7 @@ const buyer = await desk("northline");
 const seller = await desk("summit-fab");
 
 try {
-  console.log("=== SJE demo: two desks, one sealed job (sje/0.0.1) ===");
+  console.log("=== SJE demo: two desks, one sealed job (sje/0.1.0) ===");
 
   step(1, "BUYER composes a traveler (CNC bracket, 250 pcs)");
   const composed = payload(

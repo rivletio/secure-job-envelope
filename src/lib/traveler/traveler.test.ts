@@ -53,7 +53,7 @@ describe("rivlet traveler 0.0.1", () => {
 
   it("drops empty strings and arrays from the quoteable body (Rust parity)", () => {
     const withEmpties = parseTraveler({
-      spec: "sje/0.0.1",
+      spec: "sje/0.1.0",
       traveler_id: "tvl_emptydrop1",
       revision: 1,
       created_at: "2026-09-08T15:12:00.000Z",

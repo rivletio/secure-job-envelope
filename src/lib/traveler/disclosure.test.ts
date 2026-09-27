@@ -33,10 +33,10 @@ function paths(node: SchemaNode, prefix: string, out: string[]) {
 describe("disclosure", () => {
   it("classifies every field in the traveler and quote schemas", () => {
     const traveler = JSON.parse(
-      readFileSync(new URL("../../../public/schemas/traveler-0.0.1.json", import.meta.url), "utf8"),
+      readFileSync(new URL("../../../public/schemas/traveler-0.1.0.json", import.meta.url), "utf8"),
     ) as SchemaNode;
     const quote = JSON.parse(
-      readFileSync(new URL("../../../public/schemas/quote-0.0.1.json", import.meta.url), "utf8"),
+      readFileSync(new URL("../../../public/schemas/quote-0.1.0.json", import.meta.url), "utf8"),
     ) as SchemaNode;
     const list: string[] = [];
     paths(traveler, "", list);

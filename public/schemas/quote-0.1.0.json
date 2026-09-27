@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://securejobenvelope.org/schemas/quote-0.0.1.json",
-  "title": "SJE Quote v0.0.1",
+  "$id": "https://securejobenvelope.org/schemas/quote-0.1.0.json",
+  "title": "SJE Quote v0.1.0",
   "type": "object",
   "additionalProperties": false,
   "$defs": {

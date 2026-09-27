@@ -70,12 +70,12 @@ envelope level traveler.json`}
         <h2 className="text-lg font-medium text-paper">Quote schema</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Media schemas live at{" "}
-          <a className="underline underline-offset-2" href="/schemas/quote-0.0.1.json">
-            /schemas/quote-0.0.1.json
+          <a className="underline underline-offset-2" href="/schemas/quote-0.1.0.json">
+            /schemas/quote-0.1.0.json
           </a>{" "}
           and{" "}
-          <a className="underline underline-offset-2" href="/schemas/traveler-0.0.1.json">
-            /schemas/traveler-0.0.1.json
+          <a className="underline underline-offset-2" href="/schemas/traveler-0.1.0.json">
+            /schemas/traveler-0.1.0.json
           </a>
           .
         </p>

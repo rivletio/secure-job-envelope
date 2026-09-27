@@ -1,4 +1,4 @@
-export const TRAVELER_SPEC = "sje/0.0.1" as const;
+export const TRAVELER_SPEC = "sje/0.1.0" as const;
 export const TRAVELER_MEDIA = "application/vnd.sje+json" as const;
 export const HASH_RE = /^sha384:[0-9a-f]{96}$/;
 export const TRAVELER_ID_RE = /^[a-z]{3}_[a-z0-9]{6,24}$/;

@@ -1,7 +1,7 @@
 # Secure Job Envelope (SJE)
 
 **A content-addressed job envelope for parts manufacturing.**
-`application/vnd.sje+json` · spec `sje/0.0.1` · MIT
+`application/vnd.sje+json` · spec `sje/0.1.0` · MIT
 
 A **traveler** is the job object — one part family moving between a buyer and a
 seller: part, material, quantity (with price breaks), need-by, ship-to, the

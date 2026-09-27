@@ -9,7 +9,7 @@ and Incoterms set, ITAR false.
 ```bash
 cd crates/secure-job-envelope
 cargo run -- hash  ../../examples/bracket.traveler.json
-# sha384:559c6665c96db0defa6017aefee7dc13815a952c9b6d4bd386eb4c135b7c49b176fbca0fa4723072c5e5c90584134f28
+# sha384:6a0ed45fcbe295e46ba355c679e3d82bb7458d7ed7d0b5f244ee7c2d783524febb77f370c44ff60ce5ec6a98a3d2ec76
 cargo run -- level ../../examples/bracket.traveler.json
 # L0 Quoteable
 ```
@@ -25,7 +25,7 @@ import { levelOf, parseTraveler } from "../src/lib/traveler/conformance.ts";
 import { readFileSync } from "node:fs";
 
 const traveler = parseTraveler(JSON.parse(readFileSync("examples/bracket.traveler.json", "utf8")));
-console.log(travelerHash(traveler)); // sha384:559c6665…134f28 — same as the CLI
+console.log(travelerHash(traveler)); // sha384:6a0ed45f…d2ec76 — same as the CLI
 console.log(levelOf(traveler).code); // L0
 ```
 
