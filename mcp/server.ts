@@ -29,6 +29,7 @@ import {
   awardedQuote,
   boundQuotes,
   levelOf,
+  parseQuote,
   parseTraveler,
   staleQuotes,
 } from "../src/lib/traveler/conformance.ts";
@@ -36,7 +37,7 @@ import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/tra
 import { isoNow, newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
 import { importTravelerFile, travelerToZip } from "../src/lib/traveler/zip.ts";
 import { MAX_ARCHIVE_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
-import type { Award, Op, Quote, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
+import type { Award, Op, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
 
 const COMPANY = process.env.SJE_COMPANY ?? "unnamed-desk";
 
@@ -168,13 +169,7 @@ const TOOLS = [
     name: "sje_open",
     description:
       "Open a received sealed archive (base64). Runs the full defensive import: member allowlist, size caps, path-traversal refusal, META digest cross-checks, canonical-body cross-check, schema validation. Tampered archives are refused.",
-    inputSchema: obj(
-      {
-        zip_base64: { type: "string" },
-        filename: { type: "string", description: "defaults to received.traveler.zip" },
-      },
-      ["zip_base64"],
-    ),
+    inputSchema: obj({ zip_base64: { type: "string" } }, ["zip_base64"]),
   },
 ] as const;
 
@@ -227,17 +222,19 @@ async function handle(name: string, args: Args) {
 
     case "sje_quote": {
       const t = asTraveler(args.traveler);
-      const quote: Quote = {
+      // Validate the assembled quote up front — a malformed seller/pricing gets
+      // a clean schema error here rather than a raw TypeError inside the guard.
+      const quote = parseQuote({
         quote_id: newQuoteId(),
-        seller: args.seller as Quote["seller"],
+        seller: args.seller,
         // Binding is computed from the traveler in hand — never taken from input.
         traveler_hash_quoted: travelerHash(t),
         created_at: isoNow(),
         valid_until: String(args.valid_until),
         lead_time_days: Number(args.lead_time_days),
-        pricing: args.pricing as Quote["pricing"],
-        ...(args.exceptions ? { exceptions: args.exceptions as Quote["exceptions"] } : {}),
-      };
+        pricing: args.pricing,
+        ...(args.exceptions ? { exceptions: args.exceptions } : {}),
+      });
       const err = cannotQuote(t, quote);
       if (err) return fail(err);
       const rest = (t.quotes ?? []).filter((q) => q.quote_id !== quote.quote_id);
@@ -306,8 +303,7 @@ async function handle(name: string, args: Args) {
         return fail("Sealed archive exceeds 2 MB limit.");
       }
       const bytes = Buffer.from(b64, "base64");
-      const name = typeof args.filename === "string" ? args.filename : "received.traveler.zip";
-      const file = new File([bytes], name, { type: "application/zip" });
+      const file = new File([bytes], "received.traveler.zip", { type: "application/zip" });
       const t = await importTravelerFile(file);
       return ok({ traveler: t, ...report(t) });
     }

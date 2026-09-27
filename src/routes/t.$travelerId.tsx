@@ -15,7 +15,7 @@ import { formatDay, money, processLabel, quoteTotal } from "@/lib/traveler/forma
 import { itarExportWarning } from "@/lib/traveler/guards";
 import { travelerHash } from "@/lib/traveler/hash";
 import { useTravelerStore } from "@/lib/traveler/store";
-import type { Quote } from "@/lib/traveler/types";
+import { TRAVELER_ID_RE, type Quote } from "@/lib/traveler/types";
 import { downloadJson, downloadArchive } from "@/lib/traveler/zip";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +24,7 @@ export const Route = createFileRoute("/t/$travelerId")({ component: TravelerPage
 function TravelerPage() {
   const { travelerId } = Route.useParams();
   const traveler = useTravelerStore((s) => s.travelers.find((p) => p.traveler_id === travelerId));
+  const hydrated = useTravelerStore((s) => s.hydrated);
   const role = useTravelerStore((s) => s.role);
   const seller = useTravelerStore((s) => s.seller());
   const logAudit = useTravelerStore((s) => s.logAudit);
@@ -33,6 +34,14 @@ function TravelerPage() {
   const [itarExport, setItarExport] = useState<"zip" | "json" | null>(null);
 
   if (!traveler) {
+    // A well-formed id we simply have not rehydrated yet is "loading", not "gone".
+    if (!hydrated && TRAVELER_ID_RE.test(travelerId)) {
+      return (
+        <AppShell>
+          <p className="text-sm text-muted-foreground">Loading traveler {travelerId}…</p>
+        </AppShell>
+      );
+    }
     return (
       <AppShell>
         <p className="text-sm text-muted-foreground">No traveler {travelerId} on this desk.</p>

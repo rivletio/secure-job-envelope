@@ -453,6 +453,12 @@ fn quote_ok(q: &Quote, traveler: &Traveler) -> bool {
         && q.traveler_hash_quoted.len() == "sha384:".len() + 96
         && q.traveler_hash_quoted[7..].bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
     let itar_ok = !traveler.itar.unwrap_or(false) || q.seller.itar == Some(true);
+    // valid_until must be after created_at. The TypeScript schema enforces this
+    // at parse; the Rust verifier enforces it at bind so the two agree (G3).
+    let dates_ok = match (rfc3339_millis(&q.created_at), rfc3339_millis(&q.valid_until)) {
+        (Some(created), Some(until)) => until > created,
+        _ => false,
+    };
     !q.quote_id.is_empty()
         && id_ok(&q.quote_id)
         && !q.seller.name.is_empty()
@@ -465,6 +471,7 @@ fn quote_ok(q: &Quote, traveler: &Traveler) -> bool {
         && q.pricing.freight_estimate.map(money_ok).unwrap_or(true)
         && hash_ok
         && itar_ok
+        && dates_ok
 }
 
 pub fn quote_expired(q: &Quote, now_ms: i64) -> bool {
@@ -741,5 +748,43 @@ mod tests {
         assert_eq!(rfc3339_millis("1970-01-01T00:00:00Z"), Some(0));
         assert_eq!(rfc3339_millis("1970-01-01T00:00:00.000Z"), Some(0));
         assert!(rfc3339_millis("2026-09-30T00:00:00.000Z").unwrap() > 0);
+    }
+
+    #[test]
+    fn quote_valid_until_must_be_after_created_at_to_bind() {
+        let base = parse_traveler(
+            r#"{
+          "spec":"sje/0.0.1",
+          "traveler_id":"tvl_baddates01",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
+          "itar":false
+        }"#,
+        )
+        .unwrap();
+        let h = traveler_hash(&base).unwrap();
+        let make = |created: &str, valid_until: &str| {
+            let mut t = base.clone();
+            t.quotes = Some(vec![serde_json::from_value(serde_json::json!({
+                "quote_id": "qot_baddate01",
+                "seller": {"name": "Huron Precision", "itar": true},
+                "traveler_hash_quoted": h,
+                "created_at": created,
+                "valid_until": valid_until,
+                "lead_time_days": 12,
+                "pricing": {"currency": "USD", "lines": [{"qty": 50, "unit": 29}]}
+            }))
+            .unwrap()]);
+            t
+        };
+        // valid_until before created_at -> the quote does not bind
+        assert!(bound_quotes(&make("2026-09-09T00:00:00.000Z", "2026-09-08T00:00:00.000Z")).is_empty());
+        // a proper validity window -> it binds
+        assert_eq!(
+            bound_quotes(&make("2026-09-09T00:00:00.000Z", "2039-01-01T00:00:00.000Z")).len(),
+            1
+        );
     }
 }

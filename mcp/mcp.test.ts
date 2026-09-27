@@ -2,7 +2,7 @@
  *  guards as the reference implementation (see docs/CLAIMS.md §MCP).
  */
 import assert from "node:assert/strict";
-import { describe, it, before } from "node:test";
+import { describe, it, before, after } from "node:test";
 import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -12,13 +12,19 @@ type ToolResult = { isError?: boolean; content: Array<{ type: string; text: stri
 const payload = (r: ToolResult) => JSON.parse(r.content[0]!.text) as Record<string, unknown>;
 
 let client: Client;
+let server: ReturnType<typeof buildServer>;
 
 before(async () => {
   const [ct, st] = InMemoryTransport.createLinkedPair();
-  const server = buildServer();
+  server = buildServer();
   await server.connect(st);
   client = new Client({ name: "test-agent", version: "0.0.1" });
   await client.connect(ct);
+});
+
+after(async () => {
+  await client.close();
+  await server.close();
 });
 
 const call = async (name: string, args: Record<string, unknown>) =>

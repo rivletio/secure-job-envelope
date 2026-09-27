@@ -51,6 +51,16 @@ export const SHOPS: Shop[] = [
     processes: ["weld", "cnc_mill", "inspect"],
     blurb: "A36 weldments. AWS D1.1, carts, frames, guards.",
   },
+  {
+    org_id: "org_summitfab",
+    name: "Summit Fabrication",
+    city: "Sparks",
+    region: "NV",
+    certs: ["ISO 9001"],
+    itar: false,
+    processes: ["laser", "brake", "cnc_mill", "inspect"],
+    blurb: "Laser, brake, and mill. Fast-turn brackets and plates.",
+  },
 ];
 
 export function shopById(id: string): Shop | undefined {
