@@ -41,7 +41,11 @@ fn read_input(path: Option<&str>) -> String {
     match path {
         Some("-") | None => {
             let mut buf = String::new();
-            io::stdin().read_to_string(&mut buf).expect("stdin");
+            // No panic on non-UTF-8 or a read error — report and exit cleanly.
+            if let Err(e) = io::stdin().read_to_string(&mut buf) {
+                eprintln!("stdin: {e}");
+                process::exit(1);
+            }
             buf
         }
         Some(p) => fs::read_to_string(p).unwrap_or_else(|e| {

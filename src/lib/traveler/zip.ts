@@ -33,11 +33,71 @@ function archiveName(travelerId: string): string {
   return `${travelerId}.traveler.zip`;
 }
 
-function zipUncompressed(file: JSZip.JSZipObject): number {
-  const n = (file as JSZip.JSZipObject & { _data?: { uncompressedSize?: number } })._data
-    ?.uncompressedSize;
-  if (typeof n !== "number" || n < 0) throw new Error("Archive entry size is unknown");
-  return n;
+/** Inflate one entry with a hard ceiling on *decompressed* bytes, aborting
+ *  mid-stream the instant it is exceeded. A zip header's declared uncompressed
+ *  size is attacker-controlled, so it can't be the gate; this streams the real
+ *  output and stops. Prevents a small archive from expanding into a multi-GB
+ *  decompression (zip-bomb DoS) before any guard runs. */
+function readEntryCapped(
+  entry: JSZip.JSZipObject,
+  maxBytes: number,
+  label: string,
+): Promise<Uint8Array> {
+  type Stream = {
+    on(evt: "data", fn: (chunk: Uint8Array) => void): Stream;
+    on(evt: "error", fn: (err: unknown) => void): Stream;
+    on(evt: "end", fn: () => void): Stream;
+    resume(): Stream;
+    pause(): Stream;
+  };
+  // internalStream works in both the browser and Node (unlike nodeStream) but
+  // is absent from jszip's .d.ts, so it is typed locally.
+  const stream = (
+    entry as unknown as { internalStream(type: "uint8array"): Stream }
+  ).internalStream("uint8array");
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    let settled = false;
+    stream
+      .on("data", (chunk) => {
+        if (settled) return;
+        total += chunk.length;
+        if (total > maxBytes) {
+          settled = true;
+          stream.pause();
+          reject(new Error(`${label} exceeds ${maxBytes} bytes uncompressed`));
+          return;
+        }
+        chunks.push(chunk);
+      })
+      .on("error", (err) => {
+        if (settled) return;
+        settled = true;
+        reject(err instanceof Error ? err : new Error(String(err)));
+      })
+      .on("end", () => {
+        if (settled) return;
+        settled = true;
+        const out = new Uint8Array(total);
+        let off = 0;
+        for (const c of chunks) {
+          out.set(c, off);
+          off += c.length;
+        }
+        resolve(out);
+      })
+      .resume();
+  });
+}
+
+async function readEntryText(
+  entry: JSZip.JSZipObject,
+  maxBytes: number,
+  label: string,
+): Promise<string> {
+  const bytes = await readEntryCapped(entry, maxBytes, label);
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
 function parseJson(text: string, label: string): unknown {
@@ -89,7 +149,13 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 async function importZip(buf: ArrayBuffer): Promise<Traveler> {
-  const zip = await JSZip.loadAsync(buf, { checkCRC32: true });
+  // No { checkCRC32: true }: it would force JSZip to inflate every entry up
+  // front (to verify CRC) before any guard runs, so a ~2 MB archive of
+  // compressible bytes could expand to ~1-2 GB first. loadAsync alone only
+  // parses headers; each allowlisted member is then inflated through
+  // readEntryCapped, which aborts at a hard decompressed-byte ceiling.
+  // Integrity comes from the SHA-384 cross-checks below (they supersede CRC32).
+  const zip = await JSZip.loadAsync(buf);
   const names = Object.keys(zip.files);
   if (names.length > MAX_ZIP_FILES) throw new Error("Archive has too many files");
   for (const name of names) {
@@ -104,17 +170,10 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
   if (!travelerEntry) throw new Error("Archive has no traveler.json at the root");
   if (!metaEntry) throw new Error("Archive is missing META.json (required for integrity)");
 
-  if (zipUncompressed(travelerEntry) > MAX_TRAVELER_JSON_BYTES) {
-    throw new Error("traveler.json exceeds 512 KiB uncompressed");
-  }
-  if (zipUncompressed(metaEntry) > MAX_META_BYTES) throw new Error("META.json too large");
-
-  const text = await travelerEntry.async("string");
-  if (text.length > MAX_TRAVELER_JSON_BYTES) throw new Error("traveler.json exceeds 512 KiB");
+  const text = await readEntryText(travelerEntry, MAX_TRAVELER_JSON_BYTES, "traveler.json");
   const traveler = parseTraveler(parseJson(text, "traveler.json"));
 
-  const metaText = await metaEntry.async("string");
-  if (metaText.length > MAX_META_BYTES) throw new Error("META.json too large");
+  const metaText = await readEntryText(metaEntry, MAX_META_BYTES, "META.json");
   const meta = parseJson(metaText, "META.json");
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
     throw new Error("META.json must be an object");
@@ -127,7 +186,7 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
     throw new Error("META.json traveler_hash does not match quoteable body");
   }
   if (typeof rec.spec === "string" && rec.spec !== TRAVELER_SPEC) {
-    throw new Error("META.json spec does not match sje/0.0.1");
+    throw new Error(`META.json spec does not match ${TRAVELER_SPEC}`);
   }
   if (typeof rec.traveler_json_sha384 === "string" && rec.traveler_json_sha384 !== sha384Hex(text)) {
     throw new Error("traveler.json does not match archive digest");
@@ -135,11 +194,7 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
 
   const canonEntry = zip.file(ROOT_CANONICAL);
   if (canonEntry) {
-    if (zipUncompressed(canonEntry) > MAX_CANON_BYTES) {
-      throw new Error("quoteable.canonical.json too large");
-    }
-    const canon = await canonEntry.async("string");
-    if (canon.length > MAX_CANON_BYTES) throw new Error("quoteable.canonical.json too large");
+    const canon = await readEntryText(canonEntry, MAX_CANON_BYTES, "quoteable.canonical.json");
     if (canon !== canonicalJson(quoteableBody(traveler))) {
       throw new Error("quoteable.canonical.json does not match traveler.json");
     }

@@ -307,13 +307,22 @@ pub fn quoteable_from(traveler: &Traveler) -> Quoteable {
 
 /// RFC 8785-ish: sorted keys, compact JSON, JS NumberToJSON for numbers.
 /// Integer-valued floats emit without a trailing `.0` so Rust matches `JSON.stringify`.
+/// Defense-in-depth bound on nesting; mirrors the TypeScript canonicalizer.
+/// serde_json already caps parse depth, but canonical_json is public.
+const MAX_CANONICAL_DEPTH: usize = 128;
+
 pub fn canonical_json(value: &Value) -> Result<String, Error> {
     let mut out = String::new();
-    write_canonical(&mut out, value)?;
+    write_canonical(&mut out, value, 0)?;
     Ok(out)
 }
 
-fn write_canonical(out: &mut String, value: &Value) -> Result<(), Error> {
+fn write_canonical(out: &mut String, value: &Value, depth: usize) -> Result<(), Error> {
+    if depth > MAX_CANONICAL_DEPTH {
+        return Err(Error::Invalid(
+            "canonical JSON nesting exceeds the maximum depth".into(),
+        ));
+    }
     match value {
         Value::Null => out.push_str("null"),
         Value::Bool(true) => out.push_str("true"),
@@ -328,7 +337,7 @@ fn write_canonical(out: &mut String, value: &Value) -> Result<(), Error> {
                 if i > 0 {
                     out.push(',');
                 }
-                write_canonical(out, item)?;
+                write_canonical(out, item, depth + 1)?;
             }
             out.push(']');
         }
@@ -342,7 +351,7 @@ fn write_canonical(out: &mut String, value: &Value) -> Result<(), Error> {
                 }
                 out.push_str(&serde_json::to_string(*k).expect("key json"));
                 out.push(':');
-                write_canonical(out, &map[*k])?;
+                write_canonical(out, &map[*k], depth + 1)?;
             }
             out.push('}');
         }
@@ -501,7 +510,17 @@ fn rfc3339_millis(iso: &str) -> Option<i64> {
     let h: i64 = t.next()?.parse().ok()?;
     let min: i64 = t.next()?.parse().ok()?;
     let s: i64 = t.next()?.parse().ok()?;
-    if !(1..=12).contains(&m) || !(1..=31).contains(&day) {
+    // Bound every component before the civil-date arithmetic below: without it
+    // a 13-digit year or huge hour ("9999999999999-01-01T…") overflows the i64
+    // multiplication — a panic in debug, a silently wrong value (corrupting
+    // expiry/bind decisions) in release.
+    if !(0..=9999).contains(&y)
+        || !(1..=12).contains(&m)
+        || !(1..=31).contains(&day)
+        || !(0..=23).contains(&h)
+        || !(0..=59).contains(&min)
+        || !(0..=60).contains(&s)
+    {
         return None;
     }
     let mut ms: i64 = 0;
@@ -748,6 +767,17 @@ mod tests {
         assert_eq!(rfc3339_millis("1970-01-01T00:00:00Z"), Some(0));
         assert_eq!(rfc3339_millis("1970-01-01T00:00:00.000Z"), Some(0));
         assert!(rfc3339_millis("2026-09-30T00:00:00.000Z").unwrap() > 0);
+    }
+
+    #[test]
+    fn rfc3339_millis_rejects_out_of_range_components() {
+        // Adversarial components must return None, never overflow/panic.
+        assert_eq!(rfc3339_millis("9999999999999-01-01T00:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-13-01T00:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-01-32T00:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-01-01T25:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-01-01T00:60:00Z"), None);
+        assert!(rfc3339_millis("2026-01-01T00:00:00Z").is_some());
     }
 
     #[test]

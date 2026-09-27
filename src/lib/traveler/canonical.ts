@@ -35,7 +35,15 @@ function canonicalNumber(value: number): string {
   return rendered;
 }
 
-function writeCanonical(value: unknown): string {
+// Defense-in-depth bound on nesting. The hashed body is fixed-shape and small,
+// and JSON.parse already caps input depth, but canonicalJson is exported, so a
+// hand-built deeply-nested object cannot be allowed to blow the stack.
+const MAX_CANONICAL_DEPTH = 128;
+
+function writeCanonical(value: unknown, depth = 0): string {
+  if (depth > MAX_CANONICAL_DEPTH) {
+    throw new Error("canonical JSON nesting exceeds the maximum depth");
+  }
   if (value === null) return "null";
   switch (typeof value) {
     case "boolean":
@@ -47,14 +55,14 @@ function writeCanonical(value: unknown): string {
     case "object": {
       if (Array.isArray(value)) {
         // JSON.stringify semantics: undefined array members serialize as null.
-        return `[${value.map((v) => (v === undefined ? "null" : writeCanonical(v))).join(",")}]`;
+        return `[${value.map((v) => (v === undefined ? "null" : writeCanonical(v, depth + 1))).join(",")}]`;
       }
       const obj = value as Record<string, unknown>;
       const parts: string[] = [];
       for (const key of Object.keys(obj).sort()) {
         const v = obj[key];
         if (v === undefined) continue;
-        parts.push(`${JSON.stringify(key)}:${writeCanonical(v)}`);
+        parts.push(`${JSON.stringify(key)}:${writeCanonical(v, depth + 1)}`);
       }
       return `{${parts.join(",")}}`;
     }

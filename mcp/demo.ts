@@ -6,7 +6,10 @@
  *  boundary is the sealed archive, exactly as the protocol intends.
  *
  *  The demo narrates every exchange, proves the hash lineage at each hop,
- *  and demonstrates the defense: a tampered archive is refused on open.
+ *  and shows the integrity check: a corrupted archive is refused on open.
+ *  (0.0.1 detects corruption, not adversarial forgery — a party who re-seals
+ *  after editing re-verifies clean. Authenticity via signatures is the 0.1
+ *  headline; until then integrity is not tamper-*resistance*.)
  *
  *  Run: npm run demo
  */
@@ -84,7 +87,7 @@ try {
   );
   note(`${sealed1.filename} (${sealed1.bytes} bytes)`);
 
-  step(3, "TRANSIT: a tampered copy is refused by the seller's desk");
+  step(3, "TRANSIT: a corrupted copy is refused by the seller's desk");
   const zipB64 = sealed1.zip_base64 as string;
   const tampered = Buffer.from(zipB64, "base64");
   tampered[Math.floor(tampered.length / 2)] ^= 0xff;
@@ -92,7 +95,7 @@ try {
     name: "sje_open",
     arguments: { zip_base64: tampered.toString("base64") },
   })) as ToolResult;
-  assert.ok(tamperedRes.isError, "tampered archive must be refused");
+  assert.ok(tamperedRes.isError, "corrupted archive must be refused");
   note(`refused: ${String(payload(tamperedRes).error).slice(0, 60)}…`);
 
   step(4, "SELLER opens the genuine archive — full defensive import");
@@ -214,7 +217,7 @@ try {
   note(`refused: ${payload(amendRes).error}`);
 
   console.log(
-    "\n=== DONE — RFQ → quote → award, two agents, two desks, zero shared state; every hop hash-verified; tamper refused; L2 locked. ===",
+    "\n=== DONE — RFQ → quote → award, two agents, two desks, zero shared state; every hop hash-verified; corruption refused; L2 locked. ===",
   );
 } finally {
   await buyer.close();
