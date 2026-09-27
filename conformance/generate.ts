@@ -9,11 +9,12 @@ import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/hash.ts";
 import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
-import { keypairFromSeed, signBody, SIG_DOMAIN, bytesToHex } from "../src/lib/traveler/signature.ts";
+import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signature.ts";
+import { bytesToHex, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signTraveler } from "../src/lib/traveler/authenticity.ts";
 import { kemKeypairFromSeed, sealEnvelope } from "../src/lib/traveler/envelope.ts";
-import { sha384 } from "js-sha512";
+import { sha384 } from "@noble/hashes/sha2.js";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
 const here = new URL(".", import.meta.url).pathname;
@@ -53,7 +54,7 @@ const canonical = {
     "covered by language-local unit tests on both sides.",
   valid: validValues.map(({ name, value }) => {
     const c = canonicalJson(value);
-    return { name, value, canonical: c, sha384: `sha384:${sha384(c)}` };
+    return { name, value, canonical: c, sha384: `sha384:${bytesToHex(sha384(utf8ToBytes(c)))}` };
   }),
   invalid: invalidValues,
 };

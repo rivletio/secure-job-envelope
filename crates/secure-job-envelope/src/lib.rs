@@ -513,14 +513,10 @@ fn quote_ok(q: &Quote, traveler: &Traveler) -> bool {
 }
 
 pub fn quote_expired(q: &Quote, now_ms: i64) -> bool {
-    match chrono_millis(&q.valid_until) {
+    match rfc3339_millis(&q.valid_until) {
         Some(until) => now_ms > until,
         None => true,
     }
-}
-
-fn chrono_millis(iso: &str) -> Option<i64> {
-    rfc3339_millis(iso)
 }
 
 fn rfc3339_millis(iso: &str) -> Option<i64> {

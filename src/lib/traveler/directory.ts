@@ -9,7 +9,8 @@
  *  ITAR (caveat 3) become attested facts rather than free-text claims.
  */
 import { canonicalJson } from "./canonical.ts";
-import { SIG_DOMAIN, SIG_ALG, signBody, verifyBody, hexToBytes } from "./signature.ts";
+import { SIG_DOMAIN, SIG_ALG, signBody, verifyBody } from "./signature.ts";
+import { hexToBytes } from "./bytes.ts";
 
 export const DIRECTORY_SPEC = "sje-directory/0.1.0" as const;
 

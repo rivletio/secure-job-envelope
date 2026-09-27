@@ -9,7 +9,8 @@
  */
 import { canonicalJson } from "./canonical.ts";
 import { quoteableBody } from "./hash.ts";
-import { SIG_ALG, SIG_DOMAIN, signBody, verifyBody, hexToBytes } from "./signature.ts";
+import { SIG_ALG, SIG_DOMAIN, signBody, verifyBody } from "./signature.ts";
+import { hexToBytes } from "./bytes.ts";
 import { entryByKid, orgHasCapability, verifyDirectory, type Directory } from "./directory.ts";
 import type { Traveler, Quote, Signature } from "./types.ts";
 

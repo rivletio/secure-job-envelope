@@ -9,7 +9,8 @@ import {
   verifyQuoteSignature,
   itarAttestationBlocker,
 } from "./authenticity.ts";
-import { keypairFromSeed, hexToBytes } from "./signature.ts";
+import { keypairFromSeed } from "./signature.ts";
+import { hexToBytes } from "./bytes.ts";
 import type { Directory } from "./directory.ts";
 import type { Traveler, Quote } from "./types.ts";
 

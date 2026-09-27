@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
-import { keypairFromSeed, signBody, verifyBody, bytesToHex, hexToBytes, SIG_ALG } from "./signature.ts";
+import { keypairFromSeed, signBody, verifyBody, SIG_ALG } from "./signature.ts";
+import { bytesToHex, hexToBytes } from "./bytes.ts";
 
 const vector = JSON.parse(
   readFileSync(

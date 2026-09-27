@@ -16,17 +16,17 @@ import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import { hkdf } from "@noble/hashes/hkdf.js";
 import { sha384 } from "@noble/hashes/sha2.js";
 import { gcm } from "@noble/ciphers/aes.js";
-import { bytesToHex, hexToBytes } from "./signature.ts";
+import { bytesToHex, hexToBytes, utf8ToBytes } from "./bytes.ts";
 
 export const ENVELOPE_SPEC = "sje-envelope/0.1.0" as const;
 export const ENC_ALG = "ML-KEM-1024+HKDF-SHA-384+AES-256-GCM" as const;
-const KEK_SALT = new TextEncoder().encode("sje-kek/0.1.0");
+const KEK_SALT = utf8ToBytes("sje-kek/0.1.0");
 
 function aadPayload(): Uint8Array {
-  return new TextEncoder().encode(`${ENVELOPE_SPEC}\u0000${ENC_ALG}`);
+  return utf8ToBytes(`${ENVELOPE_SPEC}\u0000${ENC_ALG}`);
 }
 function aadRecipient(kid: string): Uint8Array {
-  return new TextEncoder().encode(`${ENVELOPE_SPEC}\u0000${ENC_ALG}\u0000${kid}`);
+  return utf8ToBytes(`${ENVELOPE_SPEC}\u0000${ENC_ALG}\u0000${kid}`);
 }
 function kek(sharedSecret: Uint8Array, kid: string): Uint8Array {
   return hkdf(sha384, sharedSecret, KEK_SALT, aadRecipient(kid), 32);

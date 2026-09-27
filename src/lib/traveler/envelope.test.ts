@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { kemKeypairFromSeed, sealEnvelope, openEnvelope, type Envelope } from "./envelope.ts";
-import { bytesToHex, hexToBytes } from "./signature.ts";
+import { bytesToHex, hexToBytes } from "./bytes.ts";
 
 const vec = JSON.parse(
   readFileSync(new URL("../../../conformance/signatures/envelope.json", import.meta.url), "utf8"),
