@@ -10,6 +10,7 @@ import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/hash.ts";
 import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN, bytesToHex } from "../src/lib/traveler/signature.ts";
+import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { sha384 } from "js-sha512";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
@@ -193,3 +194,50 @@ writeFileSync(
   JSON.stringify(signatureVector, null, 2) + "\n",
 );
 console.log("signature vector written");
+
+/* ---------- signed key directory vector ---------- */
+// A trust root signs a directory of org -> key entries (with ITAR capability
+// attested per org). Both implementations verify the directory signature over
+// the canonical directory body, so org identity and capability are cross-checked.
+const fill = (b: number) => new Uint8Array(32).fill(b);
+const rootKp = keypairFromSeed(fill(0x11));
+const huronKp = keypairFromSeed(fill(0x22));
+const summitKp = keypairFromSeed(fill(0x33));
+const directory: Directory = {
+  spec: DIRECTORY_SPEC,
+  issued_at: "2026-01-01T00:00:00.000Z",
+  valid_until: "2030-01-01T00:00:00.000Z",
+  root_kid: "root-2026",
+  entries: [
+    {
+      org_id: "org_huron",
+      kid: "huron-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(huronKp.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      capabilities: { itar: true },
+    },
+    {
+      org_id: "org_summitfab",
+      kid: "summit-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(summitKp.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      capabilities: { itar: false },
+    },
+  ],
+};
+const directoryVector = {
+  note:
+    "Signed key directory. Verify the directory signature (directory.sig) with " +
+    "root_public_key_hex over the canonical directory body (the directory with its " +
+    "own sig removed), then trust each entry's org_id -> public_key and capabilities.",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  directory: { ...directory, sig: signDirectory(directory, rootKp.secretKey) },
+};
+writeFileSync(`${here}/signatures/directory.json`, JSON.stringify(directoryVector, null, 2) + "\n");
+console.log("directory vector written");

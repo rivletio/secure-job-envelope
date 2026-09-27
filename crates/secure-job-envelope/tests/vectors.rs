@@ -94,6 +94,24 @@ fn signature_vector_matches_cross_language() {
 }
 
 #[test]
+fn directory_vector_verifies_cross_language() {
+    use secure_job_envelope::sign::verify_directory;
+    let raw = fs::read_to_string(conformance_dir().join("signatures/directory.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    assert!(verify_directory(&dir_json, root_pk), "directory must verify");
+    // tampering the directory body breaks the root signature
+    let mut tampered = v["directory"].clone();
+    tampered["entries"][1]["capabilities"]["itar"] = serde_json::json!(true);
+    assert!(
+        !verify_directory(&serde_json::to_string(&tampered).unwrap(), root_pk),
+        "tampered directory must fail"
+    );
+    assert!(!verify_directory(&dir_json, &"00".repeat(2592)), "wrong root key must fail");
+}
+
+#[test]
 fn reject_vectors_are_refused_at_parse() {
     let dir = conformance_dir().join("travelers/reject");
     let mut count = 0;

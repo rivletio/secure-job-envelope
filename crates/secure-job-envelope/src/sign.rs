@@ -6,10 +6,12 @@
 //! verifies here and vice versa. The shared `conformance/signatures/*` vectors
 //! pin this agreement across the two independent codebases.
 
+use crate::canonical_json;
 use ml_dsa::signature::{Keypair, Signer, Verifier};
 use ml_dsa::{
     EncodedSignature, EncodedVerifyingKey, MlDsa87, Signature, SigningKey, VerifyingKey, B32,
 };
+use serde_json::Value;
 
 pub const SIG_ALG: &str = "ML-DSA-87";
 pub const DOMAIN_TRAVELER: &str = "sje-sig/traveler/0.1.0";
@@ -58,6 +60,30 @@ pub fn verify_body(domain: &str, canonical_body: &str, sig_hex: &str, pk_hex: &s
         return false;
     };
     vk.verify(&signed_message(domain, canonical_body), &sig).is_ok()
+}
+
+pub const DIRECTORY_SPEC: &str = "sje-directory/0.1.0";
+
+/// Verify a signed key directory (JSON) against the trust-root public key (hex).
+/// The signed body is the directory with its own `sig` field removed, then
+/// canonicalized — identical bytes to the TypeScript `directoryBody`.
+pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
+    let Ok(mut v) = serde_json::from_str::<Value>(dir_json) else {
+        return false;
+    };
+    let Some(obj) = v.as_object_mut() else {
+        return false;
+    };
+    if obj.get("spec").and_then(Value::as_str) != Some(DIRECTORY_SPEC) {
+        return false;
+    }
+    let Some(sig) = obj.remove("sig").and_then(|s| s.as_str().map(str::to_string)) else {
+        return false;
+    };
+    let Ok(canonical) = canonical_json(&v) else {
+        return false;
+    };
+    verify_body(DOMAIN_DIRECTORY, &canonical, &sig, root_pk_hex)
 }
 
 #[cfg(test)]
