@@ -86,6 +86,54 @@ pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
     verify_body(DOMAIN_DIRECTORY, &canonical, &sig, root_pk_hex)
 }
 
+/// Look up an active directory entry by kid, returning (org_id, public_key_hex).
+pub fn directory_entry_by_kid(dir_json: &str, kid: &str) -> Option<(String, String)> {
+    let v: Value = serde_json::from_str(dir_json).ok()?;
+    for e in v.get("entries")?.as_array()? {
+        if e.get("kid").and_then(Value::as_str) == Some(kid)
+            && e.get("status").and_then(Value::as_str) == Some("active")
+        {
+            let org = e.get("org_id")?.as_str()?.to_string();
+            let pk = e.get("public_key")?.as_str()?.to_string();
+            return Some((org, pk));
+        }
+    }
+    None
+}
+
+/// Verify a traveler's buyer-authorship signature against a signed directory.
+/// True iff the directory verifies against `root_pk_hex`, and at least one of the
+/// traveler's signatures resolves to a directory entry whose org matches the
+/// buyer's org_id and whose ML-DSA-87 key verifies the canonical quoteable body.
+pub fn verify_traveler_authorship(traveler_json: &str, dir_json: &str, root_pk_hex: &str) -> bool {
+    if !verify_directory(dir_json, root_pk_hex) {
+        return false;
+    }
+    let Ok(t) = crate::parse_traveler(traveler_json) else {
+        return false;
+    };
+    let Some(buyer_org) = t.buyer.org_id.clone() else {
+        return false;
+    };
+    let Ok(body_value) = serde_json::to_value(crate::quoteable_from(&t)) else {
+        return false;
+    };
+    let Ok(canonical) = canonical_json(&body_value) else {
+        return false;
+    };
+    for s in t.signatures.as_deref().unwrap_or(&[]) {
+        if s.alg != SIG_ALG {
+            continue;
+        }
+        if let Some((org, pk)) = directory_entry_by_kid(dir_json, &s.kid) {
+            if org == buyer_org && verify_body(DOMAIN_TRAVELER, &canonical, &s.sig, &pk) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

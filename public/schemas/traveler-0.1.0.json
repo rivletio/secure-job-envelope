@@ -140,6 +140,20 @@
         }
       }
     },
-    "as_built": { "type": ["object", "null"] }
+    "as_built": { "type": ["object", "null"] },
+    "signatures": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["alg", "kid", "sig"],
+        "properties": {
+          "alg": { "const": "ML-DSA-87" },
+          "kid": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "sig": { "type": "string", "pattern": "^[0-9a-f]+$", "maxLength": 20000 }
+        }
+      }
+    }
   }
 }

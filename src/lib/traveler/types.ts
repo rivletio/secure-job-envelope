@@ -85,6 +85,15 @@ export type QuotePricing = {
   tax_excluded?: boolean;
 };
 
+/** A post-quantum authorship signature (ML-DSA-87) over a domain-separated
+ *  canonical body, verified against a signed key directory. Sits outside the
+ *  quoteable hash (it cannot sign the bytes that contain it). */
+export type Signature = {
+  alg: string;
+  kid: string;
+  sig: string;
+};
+
 export type Quote = {
   quote_id: string;
   seller: Org;
@@ -97,6 +106,8 @@ export type Quote = {
   assumptions?: Record<string, unknown>;
   exceptions?: QuoteException[];
   capacity?: Record<string, unknown>;
+  /** Seller's ML-DSA-87 signature over the quote body (excluding this field). */
+  sig?: Signature;
 };
 
 export type AwardTerms = {
@@ -129,6 +140,8 @@ export type Traveler = {
   quotes?: Quote[];
   award?: Award | null;
   as_built?: Record<string, unknown> | null;
+  /** Buyer's ML-DSA-87 authorship signature(s) over the quoteable body. */
+  signatures?: Signature[];
 };
 
 /** Buyer-authored body. Quotes bind to the hash of this object. */

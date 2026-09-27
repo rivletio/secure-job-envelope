@@ -110,6 +110,13 @@ pub struct QuoteException {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Signature {
+    pub alg: String,
+    pub kid: String,
+    pub sig: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quote {
     pub quote_id: String,
     pub seller: Org,
@@ -126,6 +133,8 @@ pub struct Quote {
     pub exceptions: Option<Vec<QuoteException>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capacity: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sig: Option<Signature>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,6 +201,8 @@ pub struct Traveler {
     pub award: Option<Award>,
     #[serde(default)]
     pub as_built: Option<Value>,
+    #[serde(default)]
+    pub signatures: Option<Vec<Signature>>,
 }
 
 /// Buyer-authored body. Quotes bind to the hash of this object.

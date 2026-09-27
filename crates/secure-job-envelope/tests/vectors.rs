@@ -112,6 +112,30 @@ fn directory_vector_verifies_cross_language() {
 }
 
 #[test]
+fn signed_traveler_vector_verifies_cross_language() {
+    use secure_job_envelope::sign::verify_traveler_authorship;
+    let raw = fs::read_to_string(conformance_dir().join("signatures/signed-traveler.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    let traveler_json = serde_json::to_string(&v["traveler"]).unwrap();
+    assert!(
+        verify_traveler_authorship(&traveler_json, &dir_json, root_pk),
+        "buyer authorship must verify end to end"
+    );
+    // bumping the hashed body (revision) breaks the authorship signature
+    let mut tampered = v["traveler"].clone();
+    tampered["revision"] = serde_json::json!(tampered["revision"].as_i64().unwrap() + 1);
+    assert!(!verify_traveler_authorship(
+        &serde_json::to_string(&tampered).unwrap(),
+        &dir_json,
+        root_pk
+    ));
+    // a broken directory (wrong root key) fails
+    assert!(!verify_traveler_authorship(&traveler_json, &dir_json, &"00".repeat(2592)));
+}
+
+#[test]
 fn reject_vectors_are_refused_at_parse() {
     let dir = conformance_dir().join("travelers/reject");
     let mut count = 0;

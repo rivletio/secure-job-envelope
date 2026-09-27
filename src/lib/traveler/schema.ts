@@ -30,6 +30,17 @@ const jsonBlob = z.record(z.string(), z.unknown()).refine((v) => JSON.stringify(
   message: "object exceeds 8 KiB",
 });
 
+const signature = z
+  .object({
+    alg: z.literal("ML-DSA-87"),
+    kid: z.string().min(1).max(64),
+    sig: z
+      .string()
+      .regex(/^[0-9a-f]+$/, "lowercase hex")
+      .max(20000),
+  })
+  .strict();
+
 const orgSchema = z
   .object({
     org_id: z
@@ -85,6 +96,7 @@ export const quoteSchema = z
       .max(16)
       .optional(),
     capacity: jsonBlob.optional(),
+    sig: signature.optional(),
   })
   .strict()
   .superRefine((q, ctx) => {
@@ -176,6 +188,7 @@ export const travelerSchema = z
       .nullable()
       .optional(),
     as_built: jsonBlob.nullable().optional(),
+    signatures: z.array(signature).max(8).optional(),
   })
   .strict()
   .superRefine((p, ctx) => {

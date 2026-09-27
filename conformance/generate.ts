@@ -11,6 +11,7 @@ import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/
 import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN, bytesToHex } from "../src/lib/traveler/signature.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { signTraveler } from "../src/lib/traveler/authenticity.ts";
 import { sha384 } from "js-sha512";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
@@ -203,6 +204,7 @@ const fill = (b: number) => new Uint8Array(32).fill(b);
 const rootKp = keypairFromSeed(fill(0x11));
 const huronKp = keypairFromSeed(fill(0x22));
 const summitKp = keypairFromSeed(fill(0x33));
+const northlineKp = keypairFromSeed(fill(0x44));
 const directory: Directory = {
   spec: DIRECTORY_SPEC,
   issued_at: "2026-01-01T00:00:00.000Z",
@@ -229,6 +231,16 @@ const directory: Directory = {
       status: "active",
       capabilities: { itar: false },
     },
+    {
+      org_id: "org_northline",
+      kid: "northline-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(northlineKp.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      capabilities: { itar: false },
+    },
   ],
 };
 const directoryVector = {
@@ -241,3 +253,27 @@ const directoryVector = {
 };
 writeFileSync(`${here}/signatures/directory.json`, JSON.stringify(directoryVector, null, 2) + "\n");
 console.log("directory vector written");
+
+/* ---------- signed traveler vector (end-to-end authorship) ---------- */
+// A real traveler carrying a buyer authorship signature, plus the directory and
+// root key needed to verify it. Both implementations run the full chain:
+// directory verifies -> signature kid resolves to buyer.org_id -> ML-DSA verify.
+const signedTraveler: Traveler = structuredClone(l0);
+signedTraveler.traveler_id = "tvl_signed00001";
+signedTraveler.buyer = { ...signedTraveler.buyer, org_id: "org_northline" };
+signedTraveler.signatures = [signTraveler(signedTraveler, "northline-2026", northlineKp.secretKey)];
+const signedTravelerVector = {
+  note:
+    "End-to-end authorship. Verify the directory against root_public_key_hex, resolve the " +
+    "traveler signature's kid to a directory entry whose org_id equals buyer.org_id, then " +
+    "verify the ML-DSA-87 signature over the canonical quoteable body. A tampered body, a " +
+    "wrong signer org, or a broken directory all fail.",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  directory: directoryVector.directory,
+  traveler: signedTraveler,
+};
+writeFileSync(
+  `${here}/signatures/signed-traveler.json`,
+  JSON.stringify(signedTravelerVector, null, 2) + "\n",
+);
+console.log("signed traveler vector written");
