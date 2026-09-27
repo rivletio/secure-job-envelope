@@ -86,6 +86,9 @@ export const FIELD_DISCLOSURE: readonly FieldDisclosure[] = [
   { path: "award.quote_id", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.awarded_at", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.qty", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.terms.governing_law", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.terms.warranty", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.terms.payment_terms", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "as_built", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
 ];
 

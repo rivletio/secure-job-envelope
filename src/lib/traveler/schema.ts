@@ -163,6 +163,14 @@ export const travelerSchema = z
         quote_id: z.string().regex(TRAVELER_ID_RE),
         awarded_at: isoDt,
         qty: z.number().int().min(1).max(1_000_000),
+        terms: z
+          .object({
+            governing_law: z.string().trim().min(1).max(128).optional(),
+            warranty: z.string().min(1).max(MAX_STRING).optional(),
+            payment_terms: z.string().trim().min(1).max(128).optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .nullable()

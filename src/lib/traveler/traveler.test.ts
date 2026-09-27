@@ -223,6 +223,20 @@ describe("rivlet traveler 0.0.1", () => {
     assert.ok(ops.some((o) => o.code === "MILL"));
   });
 
+  it("accepts optional award commercial terms (caveat 5)", () => {
+    const base = seedTravelers().find((t) => t.award);
+    assert.ok(base?.award, "a seed traveler is awarded");
+    const withTerms = parseTraveler({
+      ...base,
+      award: {
+        ...base!.award!,
+        terms: { governing_law: "US-DE", warranty: "12 months", payment_terms: "Net 30" },
+      },
+    });
+    assert.equal(withTerms.award?.terms?.payment_terms, "Net 30");
+    assert.equal(levelOf(withTerms).code, "L2");
+  });
+
   it("surfaces the first schema path on invalid travelers", () => {
     assert.match(
       (() => {

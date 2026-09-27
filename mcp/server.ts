@@ -163,6 +163,7 @@ const TOOLS = [
         qty: { type: "number" },
         ops: { type: "array", description: "[{seq, code, notes?}]" },
         ship_to: obj({}, []),
+        terms: obj({}, []),
       },
       ["traveler", "quote_id", "qty", "ops", "ship_to"],
     ),
@@ -282,6 +283,7 @@ async function handle(name: string, args: Args) {
         quote_id: quote.quote_id,
         awarded_at: isoNow(),
         qty: Number(args.qty),
+        ...(args.terms ? { terms: args.terms as Award["terms"] } : {}),
       };
       const next = parseTraveler({ ...t, award, ship_to: shipTo, ops });
       const lvl = levelOf(next);

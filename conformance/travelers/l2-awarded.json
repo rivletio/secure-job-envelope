@@ -79,7 +79,12 @@
   "award": {
     "quote_id": "qot_conform01",
     "awarded_at": "2026-09-17T09:00:00.000Z",
-    "qty": 250
+    "qty": 250,
+    "terms": {
+      "governing_law": "US-DE",
+      "warranty": "12 months, parts and labor",
+      "payment_terms": "Net 30"
+    }
   },
   "ops": [
     {

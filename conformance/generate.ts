@@ -96,7 +96,16 @@ l1.quotes = [{ ...structuredClone(quote), traveler_hash_quoted: l1Hash }];
 const l2: Traveler = { ...structuredClone(l1), traveler_id: "tvl_conform0l2" };
 const l2Hash = travelerHash(l2);
 l2.quotes = [{ ...structuredClone(quote), traveler_hash_quoted: l2Hash }];
-l2.award = { quote_id: "qot_conform01", awarded_at: "2026-09-17T09:00:00.000Z", qty: 250 };
+l2.award = {
+  quote_id: "qot_conform01",
+  awarded_at: "2026-09-17T09:00:00.000Z",
+  qty: 250,
+  terms: {
+    governing_law: "US-DE",
+    warranty: "12 months, parts and labor",
+    payment_terms: "Net 30",
+  },
+};
 l2.ops = [
   { seq: 1, code: "laser" },
   { seq: 2, code: "cnc-mill" },

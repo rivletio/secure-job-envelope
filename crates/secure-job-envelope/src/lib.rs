@@ -147,10 +147,23 @@ pub struct Op {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwardTerms {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub governing_law: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warranty: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payment_terms: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Award {
     pub quote_id: String,
     pub awarded_at: String,
     pub qty: i64,
+    /// Optional purchase-order terms (governing law, warranty, payment).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<AwardTerms>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -99,10 +99,19 @@ export type Quote = {
   capacity?: Record<string, unknown>;
 };
 
+export type AwardTerms = {
+  governing_law?: string;
+  warranty?: string;
+  payment_terms?: string;
+};
+
 export type Award = {
   quote_id: string;
   awarded_at: string;
   qty: number;
+  /** Optional purchase-order terms. An award carrying terms is closer to a PO
+   *  (governing law, warranty, payment); still not a contract by itself. */
+  terms?: AwardTerms;
 };
 
 export type Traveler = {
