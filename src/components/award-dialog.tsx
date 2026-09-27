@@ -15,7 +15,7 @@ import { money, pricedLine } from "@/lib/traveler/format";
 import { isoNow } from "@/lib/traveler/ids";
 import { opsFromProcesses } from "@/lib/traveler/network";
 import { useTravelerStore } from "@/lib/traveler/store";
-import type { Traveler, Quote } from "@/lib/traveler/types";
+import type { Traveler, Quote, AwardTerms } from "@/lib/traveler/types";
 
 export function AwardDialog({
   traveler,
@@ -39,6 +39,9 @@ export function AwardDialog({
       .map((o) => o.code)
       .join(", "),
   );
+  const [law, setLaw] = useState(traveler.award?.terms?.governing_law ?? "");
+  const [warranty, setWarranty] = useState(traveler.award?.terms?.warranty ?? "");
+  const [pay, setPay] = useState(traveler.award?.terms?.payment_terms ?? "");
 
   function submit() {
     if (!quote) return;
@@ -60,10 +63,19 @@ export function AwardDialog({
       toast.error("List at least one op.");
       return;
     }
+    const terms: AwardTerms = {};
+    if (law.trim()) terms.governing_law = law.trim();
+    if (warranty.trim()) terms.warranty = warranty.trim();
+    if (pay.trim()) terms.payment_terms = pay.trim();
     try {
       award(
         traveler.traveler_id,
-        { quote_id: quote.quote_id, awarded_at: isoNow(), qty: traveler.part.qty.target },
+        {
+          quote_id: quote.quote_id,
+          awarded_at: isoNow(),
+          qty: traveler.part.qty.target,
+          ...(Object.keys(terms).length ? { terms } : {}),
+        },
         {
           name: name.trim(),
           line1: line1.trim(),
@@ -126,6 +138,9 @@ export function AwardDialog({
             value={opsText}
             onChange={setOpsText}
           />
+          <Field label="Governing law (optional)" value={law} onChange={setLaw} />
+          <Field label="Warranty (optional)" value={warranty} onChange={setWarranty} />
+          <Field label="Payment terms (optional)" value={pay} onChange={setPay} />
         </div>
         <Button type="button" onClick={submit} disabled={!quote || expired}>
           Award to {quote?.seller.name ?? "seller"}

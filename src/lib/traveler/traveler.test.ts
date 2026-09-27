@@ -53,7 +53,7 @@ describe("rivlet traveler 0.0.1", () => {
 
   it("drops empty strings and arrays from the quoteable body (Rust parity)", () => {
     const withEmpties = parseTraveler({
-      spec: "sje/0.0.1",
+      spec: "sje/0.1.0",
       traveler_id: "tvl_emptydrop1",
       revision: 1,
       created_at: "2026-09-08T15:12:00.000Z",
@@ -197,6 +197,44 @@ describe("rivlet traveler 0.0.1", () => {
       importTravelerFile(new File([badCanonBlob], "badcanon.zip", { type: "application/zip" })),
       /quoteable\.canonical\.json does not match/,
     );
+  });
+
+  it("refuses a zip whose member inflates past the decompressed cap (zip-bomb)", async () => {
+    // A tiny compressed archive whose traveler.json inflates far past the
+    // 512 KiB member cap must be refused mid-decompression, not fully inflated.
+    const bomb = new JSZip();
+    bomb.file("traveler.json", "a".repeat(2 * 1024 * 1024), { compression: "DEFLATE" });
+    bomb.file(
+      "META.json",
+      JSON.stringify({ traveler_id: "tvl_zipbomb001", traveler_hash: "sha384:x" }),
+    );
+    const blob = await bomb.generateAsync({ type: "blob", compression: "DEFLATE" });
+    assert.ok(blob.size < 64 * 1024, `bomb should compress small, got ${blob.size} bytes`);
+    await assert.rejects(
+      importTravelerFile(new File([blob], "bomb.zip", { type: "application/zip" })),
+      /exceeds \d+ bytes uncompressed/,
+    );
+  });
+
+  it("opsFromProcesses ignores prototype-chain keys (no phantom op)", async () => {
+    const { opsFromProcesses } = await import("./network.ts");
+    const ops = opsFromProcesses(["__proto__", "constructor", "toString", "cnc_mill"]);
+    assert.ok(ops.every((o) => typeof o.code === "string" && o.code.length > 0));
+    assert.ok(ops.some((o) => o.code === "MILL"));
+  });
+
+  it("accepts optional award commercial terms (caveat 5)", () => {
+    const base = seedTravelers().find((t) => t.award);
+    assert.ok(base?.award, "a seed traveler is awarded");
+    const withTerms = parseTraveler({
+      ...base,
+      award: {
+        ...base!.award!,
+        terms: { governing_law: "US-DE", warranty: "12 months", payment_terms: "Net 30" },
+      },
+    });
+    assert.equal(withTerms.award?.terms?.payment_terms, "Net 30");
+    assert.equal(levelOf(withTerms).code, "L2");
   });
 
   it("surfaces the first schema path on invalid travelers", () => {

@@ -1,18 +1,18 @@
 {
   "l0-bracket.json": {
-    "traveler_hash": "sha384:681bd492b707564f1270ada6909367b6aa0debcf896f904a2305ec861c9c0e61e2761b0b36086886c636c337cd0f710e",
+    "traveler_hash": "sha384:2bb2f98f2956a51ead879ae39bd947b67e7d50019ee988f2afbf2381867be558c2e3bd5909aa824f3e3678832469c5a3",
     "level": "L0"
   },
   "l0-empty-arrays.json": {
-    "traveler_hash": "sha384:ed8b8884bf2850524fa0e079a1c721cc929f76b97a73682d3feeb5c37a4a5f1e9139ee96f330cf8ee316f6a82536706a",
+    "traveler_hash": "sha384:b9d263b4aa0e8379f121603bb333f9e590388d723d94e30b0d90ef82d3f9e19ae81e46e72cb7366106ee3411e93d3585",
     "level": "L0"
   },
   "l1-quoted.json": {
-    "traveler_hash": "sha384:9f95d53a885b2ddcc4a20d059adc6db22b175de332e9b03ddadcec98691b73f41268e32b482f6d571e66f752e9d22200",
+    "traveler_hash": "sha384:4871e74c196830284a760d90a839acc925fa36cb13f4ef535df5e4427dce5d2190c83f726227889d53b2c4f3f97ba35f",
     "level": "L1"
   },
   "l2-awarded.json": {
-    "traveler_hash": "sha384:8bb6b146f87fa38d52da5eea9746ebc4ea01b75159d3f621e020d95fb99ab0c6b1b5eaa9dde29fa8cf03feca9edf3a16",
+    "traveler_hash": "sha384:cf5e363e7740a04383b82d5e5143e6224e3990ac319644d7a4cdd5a2de64fcdab5302530fca5c6b4df91e0312f7f841f",
     "level": "L2"
   }
 }

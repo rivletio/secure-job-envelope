@@ -1,4 +1,4 @@
-export const TRAVELER_SPEC = "sje/0.0.1" as const;
+export const TRAVELER_SPEC = "sje/0.1.0" as const;
 export const TRAVELER_MEDIA = "application/vnd.sje+json" as const;
 export const HASH_RE = /^sha384:[0-9a-f]{96}$/;
 export const TRAVELER_ID_RE = /^[a-z]{3}_[a-z0-9]{6,24}$/;
@@ -66,6 +66,7 @@ export type Op = {
 
 export type PriceLine = {
   qty: number;
+  /** Integer count of the currency's minor unit (e.g. cents for USD). */
   unit: number;
 };
 
@@ -84,6 +85,15 @@ export type QuotePricing = {
   tax_excluded?: boolean;
 };
 
+/** A post-quantum authorship signature (ML-DSA-87) over a domain-separated
+ *  canonical body, verified against a signed key directory. Sits outside the
+ *  quoteable hash (it cannot sign the bytes that contain it). */
+export type Signature = {
+  alg: string;
+  kid: string;
+  sig: string;
+};
+
 export type Quote = {
   quote_id: string;
   seller: Org;
@@ -96,12 +106,23 @@ export type Quote = {
   assumptions?: Record<string, unknown>;
   exceptions?: QuoteException[];
   capacity?: Record<string, unknown>;
+  /** Seller's ML-DSA-87 signature over the quote body (excluding this field). */
+  sig?: Signature;
+};
+
+export type AwardTerms = {
+  governing_law?: string;
+  warranty?: string;
+  payment_terms?: string;
 };
 
 export type Award = {
   quote_id: string;
   awarded_at: string;
   qty: number;
+  /** Optional purchase-order terms. An award carrying terms is closer to a PO
+   *  (governing law, warranty, payment); still not a contract by itself. */
+  terms?: AwardTerms;
 };
 
 export type Traveler = {
@@ -119,6 +140,8 @@ export type Traveler = {
   quotes?: Quote[];
   award?: Award | null;
   as_built?: Record<string, unknown> | null;
+  /** Buyer's ML-DSA-87 authorship signature(s) over the quoteable body. */
+  signatures?: Signature[];
 };
 
 /** Buyer-authored body. Quotes bind to the hash of this object. */

@@ -8,10 +8,14 @@ repository = "https://github.com/rivletio/sje"
 homepage = "https://securejobenvelope.org"
 
 [dependencies]
+aes-gcm = "0.11.1"
 hex = "0.4"
+hkdf = "0.13.0"
+ml-dsa = "0.1.1"
+ml-kem = "0.3.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 thiserror = "1"
 
 [[bin]]

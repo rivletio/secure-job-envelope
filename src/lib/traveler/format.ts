@@ -1,12 +1,30 @@
 import { format, parseISO } from "date-fns";
 import type { PriceLine } from "./types.ts";
 
-export function money(amount: number, currency = "USD"): string {
+function currencyExponent(currency: string): number {
+  try {
+    return (
+      new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions()
+        .maximumFractionDigits ?? 2
+    );
+  } catch {
+    return 2;
+  }
+}
+
+/** Format an integer amount of a currency's minor unit (e.g. cents) for display. */
+export function money(minorUnits: number, currency = "USD"): string {
+  const exp = currencyExponent(currency);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-  }).format(amount);
+    maximumFractionDigits: minorUnits % 10 ** exp === 0 ? 0 : exp,
+  }).format(minorUnits / 10 ** exp);
+}
+
+/** Convert a user-entered major amount (e.g. dollars) to integer minor units. */
+export function toMinorUnits(major: number, currency = "USD"): number {
+  return Math.round(major * 10 ** currencyExponent(currency));
 }
 
 export function pricedLine(

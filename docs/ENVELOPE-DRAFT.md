@@ -1,6 +1,11 @@
 # Encrypted envelope — draft for 0.1
 
-**Status: DRAFT — design document, not yet implemented or normative.**
+**Status: IMPLEMENTED in 0.1 as the pure CNSA 2.0 Category 5 profile —
+ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM (this draft's earlier ML-KEM-768
+default was promoted to 1024). Proven by dual-language golden vectors; see
+`docs/CLAIMS.md` PQ4 and `src/lib/traveler/envelope.ts` /
+`crates/secure-job-envelope/src/envelope.rs`. Forward secrecy (single-use
+prekeys) remains future work.**
 File extension `.sje`. Goal: a traveler exchanged between two shops is
 confidential against an adversary who records everything today and owns a
 cryptographically relevant quantum computer later.

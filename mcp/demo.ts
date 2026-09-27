@@ -6,7 +6,10 @@
  *  boundary is the sealed archive, exactly as the protocol intends.
  *
  *  The demo narrates every exchange, proves the hash lineage at each hop,
- *  and demonstrates the defense: a tampered archive is refused on open.
+ *  and shows the integrity check: a corrupted archive is refused on open.
+ *  (0.0.1 detects corruption, not adversarial forgery — a party who re-seals
+ *  after editing re-verifies clean. Authenticity via signatures is the 0.1
+ *  headline; until then integrity is not tamper-*resistance*.)
  *
  *  Run: npm run demo
  */
@@ -41,7 +44,7 @@ const buyer = await desk("northline");
 const seller = await desk("summit-fab");
 
 try {
-  console.log("=== SJE demo: two desks, one sealed job (sje/0.0.1) ===");
+  console.log("=== SJE demo: two desks, one sealed job (sje/0.1.0) ===");
 
   step(1, "BUYER composes a traveler (CNC bracket, 250 pcs)");
   const composed = payload(
@@ -84,7 +87,7 @@ try {
   );
   note(`${sealed1.filename} (${sealed1.bytes} bytes)`);
 
-  step(3, "TRANSIT: a tampered copy is refused by the seller's desk");
+  step(3, "TRANSIT: a corrupted copy is refused by the seller's desk");
   const zipB64 = sealed1.zip_base64 as string;
   const tampered = Buffer.from(zipB64, "base64");
   tampered[Math.floor(tampered.length / 2)] ^= 0xff;
@@ -92,7 +95,7 @@ try {
     name: "sje_open",
     arguments: { zip_base64: tampered.toString("base64") },
   })) as ToolResult;
-  assert.ok(tamperedRes.isError, "tampered archive must be refused");
+  assert.ok(tamperedRes.isError, "corrupted archive must be refused");
   note(`refused: ${String(payload(tamperedRes).error).slice(0, 60)}…`);
 
   step(4, "SELLER opens the genuine archive — full defensive import");
@@ -119,11 +122,11 @@ try {
         lead_time_days: 21,
         pricing: {
           currency: "USD",
-          nre: 350,
+          nre: 35000,
           lines: [
-            { qty: 100, unit: 18.5 },
-            { qty: 250, unit: 14.2 },
-            { qty: 500, unit: 11.75 },
+            { qty: 100, unit: 1850 },
+            { qty: 250, unit: 1420 },
+            { qty: 500, unit: 1175 },
           ],
         },
       },
@@ -153,7 +156,7 @@ try {
   );
   const evalRow = (evald.evaluation as Array<Record<string, unknown>>)[0];
   note(
-    `bound quote from ${evalRow.seller}: $${evalRow.unit_at_target}/pc at target, ${evalRow.lead_time_days}d lead, blocker: ${evalRow.award_blocker ?? "none"}`,
+    `bound quote from ${evalRow.seller}: $${(Number(evalRow.unit_at_target) / 100).toFixed(2)}/pc at target, ${evalRow.lead_time_days}d lead, blocker: ${evalRow.award_blocker ?? "none"}`,
   );
   assert.equal(evalRow.award_blocker, null);
 
@@ -214,7 +217,7 @@ try {
   note(`refused: ${payload(amendRes).error}`);
 
   console.log(
-    "\n=== DONE — RFQ → quote → award, two agents, two desks, zero shared state; every hop hash-verified; tamper refused; L2 locked. ===",
+    "\n=== DONE — RFQ → quote → award, two agents, two desks, zero shared state; every hop hash-verified; corruption refused; L2 locked. ===",
   );
 } finally {
   await buyer.close();

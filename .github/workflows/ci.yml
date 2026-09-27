@@ -35,3 +35,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test
       - run: cargo build --release
+
+  audit:
+    # Advisory coverage for the Rust crate (RUSTSEC). Non-blocking: it surfaces
+    # advisories in the log without gating merges on a transitive-dependency
+    # issue outside a given PR's scope. Promote to blocking once the baseline
+    # is known clean.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo audit (non-blocking)
+        working-directory: crates/secure-job-envelope
+        run: |
+          cargo install cargo-audit --locked || { echo "cargo-audit install failed (non-blocking)"; exit 0; }
+          cargo audit || echo "advisories found (non-blocking)"

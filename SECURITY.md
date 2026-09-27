@@ -6,7 +6,7 @@ Report vulnerabilities to **security@rivlet.io**. Please include a
 reproduction; we aim to acknowledge within two business days. Do not open a
 public issue for an unpatched vulnerability.
 
-## Threat model (0.0.1)
+## Threat model (0.1)
 
 What the format defends, by design:
 
@@ -21,20 +21,27 @@ What the format defends, by design:
   refuses path traversal, caps compressed and uncompressed sizes, verifies
   CRC32, and cross-checks META.json digests.
 - **ID generation** uses `crypto.getRandomValues` with rejection sampling
-  (no modulo bias).
+  (no modulo bias); there is no non-cryptographic fallback.
+- **Party authentication (0.1).** ML-DSA-87 (FIPS 204) authorship signatures
+  bind a traveler/quote to a key in a signed directory; a signature whose
+  key's `org_id` differs from the body's is refused, closing org_id spoofing.
+- **Confidentiality (0.1).** The encrypted envelope (ML-KEM-1024 +
+  HKDF-SHA-384 + AES-256-GCM) protects payloads in transit and at rest, with
+  AEAD binding the spec/alg/recipient so a stripped or swapped field fails.
 
 What the format does **not** defend — known, stated, and the roadmap for
 future versions:
 
-- **No signatures.** The hash is integrity, not authentication. Any party
-  can author a quote claiming any `seller.org_id`. Treat the transport
-  channel (email, portal) as the trust anchor until travelers are signed.
-- **No identity or tenancy.** The desk's Buyer/Seller toggle is a view.
-- **No confidentiality.** Traveler JSON is plaintext; encrypt in transit and
-  at rest with your own tooling.
+- **No multi-tenant access control.** The signed directory establishes
+  *identity* (org_id → key with attested capabilities), but there is no
+  per-tenant authorization layer; the desk's Buyer/Seller toggle is a view.
+- **No forward secrecy.** The envelope encapsulates to a recipient's static
+  ML-KEM key, so a future compromise of that key exposes past envelopes sent
+  to it. Single-use prekeys (PQXDH-style) are the next envelope milestone.
 - **Quotes are outside the hash** (deliberately, so travelers can climb
-  levels without invalidating prices) — a quote's own content is covered
-  only by the archive's META.json digests, not by `traveler_hash`.
+  levels without invalidating prices) — a quote's content is covered by its
+  own seller signature and the archive's META.json digests, not by
+  `traveler_hash`.
 
 ## Proving these claims
 
@@ -51,19 +58,21 @@ in [docs/CLAIMS.md](docs/CLAIMS.md); the shared vector corpus lives in
   SHA-384 keeps ≥128-bit collision and ~192-bit (Grover-adjusted) preimage
   security. This was fixed **before first release**, so no fielded hash
   ever migrates.
-- **Signatures (0.1 roadmap): post-quantum from day one.** The plan is
-  **ML-DSA-65 (FIPS 204)** as the primary scheme, with **SLH-DSA
-  (FIPS 205)** — hash-based, the most conservative assumption set, matching
-  a spec whose only trust primitive is a hash — as a supported alternative
-  for parties that want it. A transitional hybrid (Ed25519 + ML-DSA) may be
-  offered for ecosystem compatibility; a traveler's signature block will
-  carry the algorithm identifier so verifiers reject schemes they do not
-  accept.
-- **Confidentiality: encrypted envelope drafted for 0.1.** 0.0.1 defines
-  no encryption; the 0.1 envelope draft ([docs/ENVELOPE-DRAFT.md](docs/ENVELOPE-DRAFT.md))
-  specifies ML-KEM-768 + HKDF-SHA-384 + AES-256-GCM, multi-recipient,
-  CNSA 2.0-aligned, with metadata minimization as a design requirement —
-  the threat model is harvest-now-decrypt-later at industrial-base scale.
+- **Signatures (0.1): implemented, pure CNSA 2.0 Category 5.** **ML-DSA-87
+  (FIPS 204)** authorship signatures over the domain-separated canonical body,
+  verified against a signed key directory (org_id → key, with attested
+  capabilities including ITAR). Every signature carries its `alg`; verifiers
+  reject schemes they do not accept. SLH-DSA (FIPS 205) — hash-based, the most
+  conservative assumption set — remains a supported alternative on the roadmap
+  (NIST, not a CNSA 2.0 algorithm). Signing keys stay off the browser desk,
+  which verifies only.
+- **Confidentiality (0.1): implemented, pure CNSA 2.0 Category 5.** The
+  encrypted envelope ([docs/ENVELOPE-DRAFT.md](docs/ENVELOPE-DRAFT.md)) is
+  **ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM**, multi-recipient, with metadata
+  minimization and AAD binding {spec, enc_alg, kid} — the threat model is
+  harvest-now-decrypt-later at industrial-base scale. Both the signatures and
+  the envelope ship with dual-language golden vectors. Forward secrecy
+  (single-use prekeys) is the next milestone.
 
 ## Handling of sensitive data
 

@@ -182,24 +182,22 @@ export const useTravelerStore = create<TravelerState>()(
         set((s) => {
           const current = s.travelers.find((p) => p.traveler_id === travelerId);
           if (!current || executable(current)) return s;
-          const travelers = s.travelers.map((p) => {
-            if (p.traveler_id !== travelerId) return p;
-            return {
-              ...p,
-              ...patch,
-              traveler_id: p.traveler_id,
-              spec: p.spec,
-              created_at: p.created_at,
-              revision: p.revision + 1,
-              quotes: p.quotes,
-              award: null,
-              ship_to: p.ship_to,
-              ops: p.ops,
-            };
+          // Re-validate the merged result through the schema (as the MCP amend
+          // does) so a malformed patch cannot land unvalidated in state.
+          const next = parseTraveler({
+            ...current,
+            ...patch,
+            traveler_id: current.traveler_id,
+            spec: current.spec,
+            created_at: current.created_at,
+            revision: current.revision + 1,
+            quotes: current.quotes,
+            award: null,
+            ship_to: current.ship_to,
+            ops: current.ops,
           });
-          const next = travelers.find((p) => p.traveler_id === travelerId)!;
           return {
-            travelers,
+            travelers: s.travelers.map((p) => (p.traveler_id === travelerId ? next : p)),
             audit: withAudit(s.audit, {
               act: "amend",
               traveler_id: travelerId,

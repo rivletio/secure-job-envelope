@@ -4,7 +4,7 @@ import type { Org, Traveler, Part, QuoteableBody } from "./types.ts";
 import { TRAVELER_SPEC } from "./types.ts";
 
 export const GOLDEN_HASH =
-  "sha384:2646b005fb8489881762995fcb6e179b1051f0104d244fb729e5a900935e085e298ee8a268c800855311e398ccbc464d";
+  "sha384:46f92a7f466fad3f7d616a0c139bf9bf60795b47604f5aa0a6c0dce8f6874cdc80b2b84d7bf79679337811556be7b11a";
 
 function present(s?: string): string | undefined {
   return s && s.length > 0 ? s : undefined;

@@ -5,10 +5,14 @@
  *
  *  Run: node --experimental-strip-types conformance/generate.ts
  */
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/hash.ts";
 import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
+import { keypairFromSeed, signBody, SIG_DOMAIN, bytesToHex } from "../src/lib/traveler/signature.ts";
+import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { signTraveler } from "../src/lib/traveler/authenticity.ts";
+import { kemKeypairFromSeed, sealEnvelope } from "../src/lib/traveler/envelope.ts";
 import { sha384 } from "js-sha512";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
@@ -40,7 +44,7 @@ const invalidValues: Array<{ name: string; value: unknown; reason: string }> = [
 ];
 
 const canonical = {
-  spec: "sje/0.0.1",
+  spec: "sje/0.1.0",
   note:
     "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. " +
     "Invalid: implementations MUST refuse to canonicalize `value`. " +
@@ -80,11 +84,11 @@ const quote: Quote = {
   lead_time_days: 21,
   pricing: {
     currency: "USD",
-    nre: 350,
+    nre: 35000,
     lines: [
-      { qty: 100, unit: 18.5 },
-      { qty: 250, unit: 14.2 },
-      { qty: 500, unit: 11.75 },
+      { qty: 100, unit: 1850 },
+      { qty: 250, unit: 1420 },
+      { qty: 500, unit: 1175 },
     ],
   },
 };
@@ -96,7 +100,16 @@ l1.quotes = [{ ...structuredClone(quote), traveler_hash_quoted: l1Hash }];
 const l2: Traveler = { ...structuredClone(l1), traveler_id: "tvl_conform0l2" };
 const l2Hash = travelerHash(l2);
 l2.quotes = [{ ...structuredClone(quote), traveler_hash_quoted: l2Hash }];
-l2.award = { quote_id: "qot_conform01", awarded_at: "2026-09-17T09:00:00.000Z", qty: 250 };
+l2.award = {
+  quote_id: "qot_conform01",
+  awarded_at: "2026-09-17T09:00:00.000Z",
+  qty: 250,
+  terms: {
+    governing_law: "US-DE",
+    warranty: "12 months, parts and labor",
+    payment_terms: "Net 30",
+  },
+};
 l2.ops = [
   { seq: 1, code: "laser" },
   { seq: 2, code: "cnc-mill" },
@@ -115,7 +128,7 @@ l2.ship_to = {
 // on both implementations. This vector pins that: a naive Rust serializer that
 // keeps `Some(vec![])` as `[]` produces a different hash and fails here.
 const emptyArrays: Traveler = {
-  spec: "sje/0.0.1",
+  spec: "sje/0.1.0",
   traveler_id: "tvl_conformempt",
   revision: 1,
   created_at: "2026-09-16T12:00:00.000Z",
@@ -153,3 +166,155 @@ console.log("vectors written");
 
 // keep quoteableBody import used (documents that hashes cover the closed body)
 void quoteableBody;
+
+/* ---------- signature vector (ML-DSA-87 / FIPS 204) ---------- */
+// A deterministic keypair from a fixed 32-byte seed. Both implementations MUST
+// derive the same public key, produce the same signature over the same
+// domain-separated canonical body, and verify it — proving cross-language
+// agreement on post-quantum authorship, not just on the content hash.
+const sigSeed = new Uint8Array(32);
+for (let i = 0; i < 32; i++) sigSeed[i] = i;
+const sigKp = keypairFromSeed(sigSeed);
+const sigBody = canonicalJson(golden);
+const signatureVector = {
+  spec: "sje/0.1.0",
+  note:
+    "ML-DSA-87 (FIPS 204) authorship signature over domain-separated canonical bytes. " +
+    "Implementations MUST derive public_key_hex from seed_hex, produce signature_hex " +
+    "deterministically when signing canonical_body under domain, and verify it. The " +
+    "signed message is domain + 0x00 + canonical_body.",
+  alg: "ML-DSA-87",
+  domain: SIG_DOMAIN.traveler,
+  seed_hex: bytesToHex(sigSeed),
+  public_key_hex: bytesToHex(sigKp.publicKey),
+  canonical_body: sigBody,
+  signature_hex: signBody(SIG_DOMAIN.traveler, sigBody, sigKp.secretKey),
+};
+mkdirSync(`${here}/signatures`, { recursive: true });
+writeFileSync(
+  `${here}/signatures/traveler-sig.json`,
+  JSON.stringify(signatureVector, null, 2) + "\n",
+);
+console.log("signature vector written");
+
+/* ---------- signed key directory vector ---------- */
+// A trust root signs a directory of org -> key entries (with ITAR capability
+// attested per org). Both implementations verify the directory signature over
+// the canonical directory body, so org identity and capability are cross-checked.
+const fill = (b: number) => new Uint8Array(32).fill(b);
+const rootKp = keypairFromSeed(fill(0x11));
+const huronKp = keypairFromSeed(fill(0x22));
+const summitKp = keypairFromSeed(fill(0x33));
+const northlineKp = keypairFromSeed(fill(0x44));
+const directory: Directory = {
+  spec: DIRECTORY_SPEC,
+  issued_at: "2026-01-01T00:00:00.000Z",
+  valid_until: "2030-01-01T00:00:00.000Z",
+  root_kid: "root-2026",
+  entries: [
+    {
+      org_id: "org_huron",
+      kid: "huron-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(huronKp.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      capabilities: { itar: true },
+    },
+    {
+      org_id: "org_summitfab",
+      kid: "summit-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(summitKp.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      capabilities: { itar: false },
+    },
+    {
+      org_id: "org_northline",
+      kid: "northline-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(northlineKp.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      capabilities: { itar: false },
+    },
+  ],
+};
+const directoryVector = {
+  note:
+    "Signed key directory. Verify the directory signature (directory.sig) with " +
+    "root_public_key_hex over the canonical directory body (the directory with its " +
+    "own sig removed), then trust each entry's org_id -> public_key and capabilities.",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  directory: { ...directory, sig: signDirectory(directory, rootKp.secretKey) },
+};
+writeFileSync(`${here}/signatures/directory.json`, JSON.stringify(directoryVector, null, 2) + "\n");
+console.log("directory vector written");
+
+/* ---------- signed traveler vector (end-to-end authorship) ---------- */
+// A real traveler carrying a buyer authorship signature, plus the directory and
+// root key needed to verify it. Both implementations run the full chain:
+// directory verifies -> signature kid resolves to buyer.org_id -> ML-DSA verify.
+const signedTraveler: Traveler = structuredClone(l0);
+signedTraveler.traveler_id = "tvl_signed00001";
+signedTraveler.buyer = { ...signedTraveler.buyer, org_id: "org_northline" };
+signedTraveler.signatures = [signTraveler(signedTraveler, "northline-2026", northlineKp.secretKey)];
+const signedTravelerVector = {
+  note:
+    "End-to-end authorship. Verify the directory against root_public_key_hex, resolve the " +
+    "traveler signature's kid to a directory entry whose org_id equals buyer.org_id, then " +
+    "verify the ML-DSA-87 signature over the canonical quoteable body. A tampered body, a " +
+    "wrong signer org, or a broken directory all fail.",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  directory: directoryVector.directory,
+  traveler: signedTraveler,
+};
+writeFileSync(
+  `${here}/signatures/signed-traveler.json`,
+  JSON.stringify(signedTravelerVector, null, 2) + "\n",
+);
+console.log("signed traveler vector written");
+
+/* ---------- encrypted envelope vector (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM) ---------- */
+// Deterministic seal (fixed CEK / nonces / KEM coins). Both implementations must
+// re-seal to the same ciphertext bytes and both must decrypt it to the plaintext.
+const rcptSeed = new Uint8Array(64);
+for (let i = 0; i < 64; i++) rcptSeed[i] = i;
+const rcptKp = kemKeypairFromSeed(rcptSeed);
+const det = {
+  cek: new Uint8Array(32).fill(0x2a),
+  payload_nonce: new Uint8Array(12).fill(0x01),
+  coins: [new Uint8Array(32).fill(0x09)],
+  wrap_nonces: [new Uint8Array(12).fill(0x02)],
+};
+const envPlaintext = canonicalJson(golden);
+const envelope = sealEnvelope(
+  new TextEncoder().encode(envPlaintext),
+  [{ kid: "rcpt-2026", public_key: bytesToHex(rcptKp.publicKey) }],
+  det,
+);
+const envelopeVector = {
+  note:
+    "Encrypted envelope, deterministic seal. Implementations re-seal plaintext_utf8 to the " +
+    "recipient using the fixed determinism values and MUST reproduce envelope byte-for-byte, " +
+    "and MUST decrypt the envelope back to plaintext_utf8 with the recipient seed.",
+  recipient: {
+    kid: "rcpt-2026",
+    seed_hex: bytesToHex(rcptSeed),
+    public_key_hex: bytesToHex(rcptKp.publicKey),
+  },
+  determinism: {
+    cek_hex: bytesToHex(det.cek),
+    payload_nonce_hex: bytesToHex(det.payload_nonce),
+    coins_hex: bytesToHex(det.coins[0]!),
+    wrap_nonce_hex: bytesToHex(det.wrap_nonces[0]!),
+  },
+  plaintext_utf8: envPlaintext,
+  envelope,
+};
+writeFileSync(`${here}/signatures/envelope.json`, JSON.stringify(envelopeVector, null, 2) + "\n");
+console.log("envelope vector written");

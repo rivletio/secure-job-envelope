@@ -1,5 +1,5 @@
 {
-  "spec": "sje/0.0.1",
+  "spec": "sje/0.1.0",
   "traveler_id": "tvl_conform0l2",
   "revision": 1,
   "created_at": "2026-09-15T17:00:00.000Z",
@@ -52,25 +52,25 @@
           "ISO 9001"
         ]
       },
-      "traveler_hash_quoted": "sha384:8bb6b146f87fa38d52da5eea9746ebc4ea01b75159d3f621e020d95fb99ab0c6b1b5eaa9dde29fa8cf03feca9edf3a16",
+      "traveler_hash_quoted": "sha384:cf5e363e7740a04383b82d5e5143e6224e3990ac319644d7a4cdd5a2de64fcdab5302530fca5c6b4df91e0312f7f841f",
       "created_at": "2026-09-16T12:00:00.000Z",
       "valid_until": "2039-01-01T00:00:00.000Z",
       "lead_time_days": 21,
       "pricing": {
         "currency": "USD",
-        "nre": 350,
+        "nre": 35000,
         "lines": [
           {
             "qty": 100,
-            "unit": 18.5
+            "unit": 1850
           },
           {
             "qty": 250,
-            "unit": 14.2
+            "unit": 1420
           },
           {
             "qty": 500,
-            "unit": 11.75
+            "unit": 1175
           }
         ]
       }
@@ -79,7 +79,12 @@
   "award": {
     "quote_id": "qot_conform01",
     "awarded_at": "2026-09-17T09:00:00.000Z",
-    "qty": 250
+    "qty": 250,
+    "terms": {
+      "governing_law": "US-DE",
+      "warranty": "12 months, parts and labor",
+      "payment_terms": "Net 30"
+    }
   },
   "ops": [
     {

@@ -194,7 +194,7 @@ graph TD
   style E_schema fill:#3d4f7c,stroke:#2a3757,color:#ffffff
   E_schema --> S_traveler-and-quote-schema-validation["Traveler and quote schema validation"]
   style S_traveler-and-quote-schema-validation fill:#eef1f7,stroke:#3d4f7c,color:#1a1f26
-  S_traveler-and-quote-schema-validation --> S_b3a29bb1("·  Traveler requires sje/0.0.1 spec and id shape")
+  S_traveler-and-quote-schema-validation --> S_b3a29bb1("·  Traveler requires sje/0.1.0 spec and id shape")
   style S_b3a29bb1 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff
   S_traveler-and-quote-schema-validation --> S_cd4463f3("·  Quote rejects non-finite unit price")
   style S_cd4463f3 fill:#3d4f7c,stroke:#1a1f26,color:#ffffff

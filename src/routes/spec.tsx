@@ -70,12 +70,12 @@ envelope level traveler.json`}
         <h2 className="text-lg font-medium text-paper">Quote schema</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Media schemas live at{" "}
-          <a className="underline underline-offset-2" href="/schemas/quote-0.0.1.json">
-            /schemas/quote-0.0.1.json
+          <a className="underline underline-offset-2" href="/schemas/quote-0.1.0.json">
+            /schemas/quote-0.1.0.json
           </a>{" "}
           and{" "}
-          <a className="underline underline-offset-2" href="/schemas/traveler-0.0.1.json">
-            /schemas/traveler-0.0.1.json
+          <a className="underline underline-offset-2" href="/schemas/traveler-0.1.0.json">
+            /schemas/traveler-0.1.0.json
           </a>
           .
         </p>
@@ -101,8 +101,9 @@ currency: ^[A-Z]{3}$`}
         </p>
         <ul className="mt-3 max-w-2xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted-foreground">
           <li>
-            The hash is integrity of the buyer-authored body, not a signature. Anyone can mint a
-            quote that claims to be a named shop. 0.0.1 does not authenticate parties.
+            The hash is integrity of the buyer-authored body, not a signature. 0.1 authenticates
+            parties separately: an ML-DSA-87 signature over the canonical body, verified against a
+            signed key directory, so a quote cannot claim a shop it does not control.
           </li>
           <li>
             Quotes are outside the hash so a traveler can climb L0→L2 without invalidating prices.
@@ -147,8 +148,8 @@ currency: ^[A-Z]{3}$`}
             bit lives on <code className="font-mono text-foreground">org.itar</code>.
           </li>
           <li>
-            A bound quote is a structured price. Award is not a PO. 0.0.1 has no governing law,
-            warranty, inspection, payment terms, or battle-of-the-forms handling.{" "}
+            A bound quote is a structured price. An award is not a purchase order by itself, but
+            0.1 lets it carry optional commercial terms — governing law, warranty, payment.{" "}
             <code className="font-mono text-foreground">valid_until</code> is enforced at award on
             this desk.
           </li>
@@ -157,8 +158,8 @@ currency: ^[A-Z]{3}$`}
             shops usually mean UCC F.O.B. origin/destination. The field is a string in 0.0.1.
           </li>
           <li>
-            Money is IEEE-754. Negative unit/freight/NRE are refused. Prefer integer cents in a
-            later spec if this becomes the commercial record.
+            Money is an integer count of the currency’s minor unit (e.g. cents) — exact, no
+            IEEE-754. Negative unit/freight/NRE are refused.
           </li>
         </ul>
       </section>

@@ -86,7 +86,16 @@ export const FIELD_DISCLOSURE: readonly FieldDisclosure[] = [
   { path: "award.quote_id", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.awarded_at", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.qty", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.terms.governing_law", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.terms.warranty", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.terms.payment_terms", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "as_built", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "signatures.alg", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "signatures.kid", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "signatures.sig", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "quotes.sig.alg", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "quotes.sig.kid", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "quotes.sig.sig", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
 ];
 
 const COURIER_ALLOWED = new Set(

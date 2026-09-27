@@ -22,13 +22,24 @@ const isoDayOrDt = z.union([z.string().regex(ISO_DAY_RE), isoDt]);
  * or non-integers of magnitude >= 1e-5, so both reference implementations
  * render them identically. */
 const canonicalRange = (v: number) => Number.isInteger(v) || Math.abs(v) >= 1e-5;
-const money = z.number().finite().nonnegative().max(1e12).refine(canonicalRange, {
-  message: "non-integer values below 0.00001 cannot be hashed canonically",
-});
+// Money is an integer count of the currency's minor unit (e.g. cents for USD):
+// exact, no IEEE-754 rounding (SPEC 0.1 — "money is integer minor units").
+const money = z.number().int().nonnegative().max(1e12);
 
 const jsonBlob = z.record(z.string(), z.unknown()).refine((v) => JSON.stringify(v).length <= 8192, {
   message: "object exceeds 8 KiB",
 });
+
+const signature = z
+  .object({
+    alg: z.literal("ML-DSA-87"),
+    kid: z.string().min(1).max(64),
+    sig: z
+      .string()
+      .regex(/^[0-9a-f]+$/, "lowercase hex")
+      .max(20000),
+  })
+  .strict();
 
 const orgSchema = z
   .object({
@@ -78,13 +89,14 @@ export const quoteSchema = z
             code: z.string().min(1).max(64),
             on: z.string().min(1).max(128).optional(),
             proposal: longText,
-            price_delta: z.number().finite().min(-1e12).max(1e12).refine(canonicalRange).optional(),
+            price_delta: z.number().int().min(-1e12).max(1e12).optional(),
           })
           .strict(),
       )
       .max(16)
       .optional(),
     capacity: jsonBlob.optional(),
+    sig: signature.optional(),
   })
   .strict()
   .superRefine((q, ctx) => {
@@ -163,11 +175,20 @@ export const travelerSchema = z
         quote_id: z.string().regex(TRAVELER_ID_RE),
         awarded_at: isoDt,
         qty: z.number().int().min(1).max(1_000_000),
+        terms: z
+          .object({
+            governing_law: z.string().trim().min(1).max(128).optional(),
+            warranty: z.string().min(1).max(MAX_STRING).optional(),
+            payment_terms: z.string().trim().min(1).max(128).optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .nullable()
       .optional(),
     as_built: jsonBlob.nullable().optional(),
+    signatures: z.array(signature).max(8).optional(),
   })
   .strict()
   .superRefine((p, ctx) => {

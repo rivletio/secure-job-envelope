@@ -1,23 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://securejobenvelope.org/schemas/quote-0.0.1.json",
-  "title": "SJE Quote v0.0.1",
+  "$id": "https://securejobenvelope.org/schemas/quote-0.1.0.json",
+  "title": "SJE Quote v0.1.0",
   "type": "object",
   "additionalProperties": false,
   "$defs": {
     "money": {
-      "type": "number",
+      "type": "integer",
       "minimum": 0,
       "maximum": 1000000000000,
-      "anyOf": [{ "type": "integer" }, { "minimum": 0.00001 }],
-      "description": "Non-negative amount in the canonical fixed-notation range: an integer, or a non-integer of magnitude >= 1e-5. IEEE-754 double; a later spec may prefer integer minor units."
+      "description": "Non-negative integer count of the currency's minor unit (e.g. cents for USD). Exact; no IEEE-754."
     },
     "priceDelta": {
-      "type": "number",
+      "type": "integer",
       "minimum": -1000000000000,
       "maximum": 1000000000000,
-      "anyOf": [{ "type": "integer" }, { "minimum": 0.00001 }, { "maximum": -0.00001 }],
-      "description": "Signed amount in the canonical fixed-notation range: an integer, or a non-integer of magnitude >= 1e-5."
+      "description": "Signed integer count of the currency's minor unit."
     }
   },
   "required": [
@@ -110,6 +108,16 @@
         }
       }
     },
-    "capacity": { "type": "object" }
+    "capacity": { "type": "object" },
+    "sig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alg", "kid", "sig"],
+      "properties": {
+        "alg": { "const": "ML-DSA-87" },
+        "kid": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "sig": { "type": "string", "pattern": "^[0-9a-f]+$", "maxLength": 20000 }
+      }
+    }
   }
 }

@@ -4,7 +4,7 @@ This is the page to read if you want to know what a traveler shows, and what a c
 
 ## The file is not encrypted
 
-Spec `sje/0.0.1` is a plaintext JSON file. The SHA-384 hash does not hide anything. Anyone who holds `traveler.json` can read every field in it: buyer name, contact, part number, notes, prices, ship-to. Holding the file is the reveal.
+Spec `sje/0.1.0` is a plaintext JSON file. The SHA-384 hash does not hide anything. Anyone who holds `traveler.json` can read every field in it: buyer name, contact, part number, notes, prices, ship-to. Holding the file is the reveal.
 
 `quotes.assumptions`, `quotes.capacity`, and `as_built` are objects the schema does not close. A writer can put any key in them, and that key is still in the clear. The courier view omits those objects entirely.
 

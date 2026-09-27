@@ -47,7 +47,15 @@ function asTraveler(input: unknown): Traveler {
   if (typeof input === "string" && input.length > MAX_TRAVELER_JSON_BYTES) {
     throw new Error("traveler JSON exceeds 512 KiB");
   }
-  const doc = typeof input === "string" ? (JSON.parse(input) as unknown) : input;
+  let doc: unknown = input;
+  if (typeof input === "string") {
+    try {
+      doc = JSON.parse(input) as unknown;
+    } catch {
+      // Normalize a raw V8 SyntaxError to a generic message (don't echo parser internals).
+      throw new Error("traveler is not valid JSON");
+    }
+  }
   return parseTraveler(doc);
 }
 
@@ -155,6 +163,7 @@ const TOOLS = [
         qty: { type: "number" },
         ops: { type: "array", description: "[{seq, code, notes?}]" },
         ship_to: obj({}, []),
+        terms: obj({}, []),
       },
       ["traveler", "quote_id", "qty", "ops", "ship_to"],
     ),
@@ -274,6 +283,7 @@ async function handle(name: string, args: Args) {
         quote_id: quote.quote_id,
         awarded_at: isoNow(),
         qty: Number(args.qty),
+        ...(args.terms ? { terms: args.terms as Award["terms"] } : {}),
       };
       const next = parseTraveler({ ...t, award, ship_to: shipTo, ops });
       const lvl = levelOf(next);

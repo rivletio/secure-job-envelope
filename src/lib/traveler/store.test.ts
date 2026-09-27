@@ -42,7 +42,7 @@ function boundQuoteFor(p: Traveler): Quote {
     created_at: isoNow(),
     valid_until: "2039-01-01T00:00:00.000Z",
     lead_time_days: 21,
-    pricing: { currency: "USD", lines: [{ qty: p.part.qty.target, unit: 14.2 }] },
+    pricing: { currency: "USD", lines: [{ qty: p.part.qty.target, unit: 1420 }] },
   };
 }
 
@@ -135,7 +135,7 @@ describe("desk store state machine", () => {
     const out = sanitizeTravelers([valid, { junk: true, traveler_id: 123 }, null, "nope"]);
     assert.equal(out.length, 1, "only the well-formed traveler survives");
     assert.equal(out[0]!.traveler_id, valid.traveler_id);
-    assert.equal(out[0]!.spec, "sje/0.0.1");
+    assert.equal(out[0]!.spec, "sje/0.1.0");
     // rendering-time helpers must not throw on the sanitized set
     for (const t of out) levelOf(t);
   });

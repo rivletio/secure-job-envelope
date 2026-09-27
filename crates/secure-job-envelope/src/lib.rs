@@ -10,10 +10,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha384};
 
-pub const SPEC: &str = "sje/0.0.1";
+pub mod envelope;
+pub mod sign;
+
+pub const SPEC: &str = "sje/0.1.0";
 pub const MEDIA_TYPE: &str = "application/vnd.sje+json";
 pub const GOLDEN_HASH: &str =
-    "sha384:2646b005fb8489881762995fcb6e179b1051f0104d244fb729e5a900935e085e298ee8a268c800855311e398ccbc464d";
+    "sha384:46f92a7f466fad3f7d616a0c139bf9bf60795b47604f5aa0a6c0dce8f6874cdc80b2b84d7bf79679337811556be7b11a";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -81,17 +84,18 @@ pub struct Part {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceLine {
     pub qty: i64,
-    pub unit: f64,
+    /// Integer count of the currency's minor unit (e.g. cents for USD).
+    pub unit: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pricing {
     pub currency: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nre: Option<f64>,
+    pub nre: Option<i64>,
     pub lines: Vec<PriceLine>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub freight_estimate: Option<f64>,
+    pub freight_estimate: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tax_excluded: Option<bool>,
 }
@@ -103,7 +107,14 @@ pub struct QuoteException {
     pub on: Option<String>,
     pub proposal: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub price_delta: Option<f64>,
+    pub price_delta: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Signature {
+    pub alg: String,
+    pub kid: String,
+    pub sig: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,6 +134,8 @@ pub struct Quote {
     pub exceptions: Option<Vec<QuoteException>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capacity: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sig: Option<Signature>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,10 +159,23 @@ pub struct Op {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwardTerms {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub governing_law: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warranty: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payment_terms: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Award {
     pub quote_id: String,
     pub awarded_at: String,
     pub qty: i64,
+    /// Optional purchase-order terms (governing law, warranty, payment).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<AwardTerms>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,6 +202,8 @@ pub struct Traveler {
     pub award: Option<Award>,
     #[serde(default)]
     pub as_built: Option<Value>,
+    #[serde(default)]
+    pub signatures: Option<Vec<Signature>>,
 }
 
 /// Buyer-authored body. Quotes bind to the hash of this object.
@@ -307,13 +335,22 @@ pub fn quoteable_from(traveler: &Traveler) -> Quoteable {
 
 /// RFC 8785-ish: sorted keys, compact JSON, JS NumberToJSON for numbers.
 /// Integer-valued floats emit without a trailing `.0` so Rust matches `JSON.stringify`.
+/// Defense-in-depth bound on nesting; mirrors the TypeScript canonicalizer.
+/// serde_json already caps parse depth, but canonical_json is public.
+const MAX_CANONICAL_DEPTH: usize = 128;
+
 pub fn canonical_json(value: &Value) -> Result<String, Error> {
     let mut out = String::new();
-    write_canonical(&mut out, value)?;
+    write_canonical(&mut out, value, 0)?;
     Ok(out)
 }
 
-fn write_canonical(out: &mut String, value: &Value) -> Result<(), Error> {
+fn write_canonical(out: &mut String, value: &Value, depth: usize) -> Result<(), Error> {
+    if depth > MAX_CANONICAL_DEPTH {
+        return Err(Error::Invalid(
+            "canonical JSON nesting exceeds the maximum depth".into(),
+        ));
+    }
     match value {
         Value::Null => out.push_str("null"),
         Value::Bool(true) => out.push_str("true"),
@@ -328,7 +365,7 @@ fn write_canonical(out: &mut String, value: &Value) -> Result<(), Error> {
                 if i > 0 {
                     out.push(',');
                 }
-                write_canonical(out, item)?;
+                write_canonical(out, item, depth + 1)?;
             }
             out.push(']');
         }
@@ -342,7 +379,7 @@ fn write_canonical(out: &mut String, value: &Value) -> Result<(), Error> {
                 }
                 out.push_str(&serde_json::to_string(*k).expect("key json"));
                 out.push(':');
-                write_canonical(out, &map[*k])?;
+                write_canonical(out, &map[*k], depth + 1)?;
             }
             out.push('}');
         }
@@ -362,7 +399,7 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     if let Some(i) = n.as_i64() {
         if i.unsigned_abs() > MAX_SAFE_INTEGER as u64 {
             return Err(Error::Invalid(
-                "integer exceeds 2^53-1 and is not canonical in sje/0.0.1".into(),
+                "integer exceeds 2^53-1 and is not canonical in sje/0.1.0".into(),
             ));
         }
         out.push_str(&i.to_string());
@@ -371,7 +408,7 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     if let Some(u) = n.as_u64() {
         if u > MAX_SAFE_INTEGER as u64 {
             return Err(Error::Invalid(
-                "integer exceeds 2^53-1 and is not canonical in sje/0.0.1".into(),
+                "integer exceeds 2^53-1 and is not canonical in sje/0.1.0".into(),
             ));
         }
         out.push_str(&u.to_string());
@@ -387,7 +424,7 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     }
     if f.abs() > MAX_SAFE_INTEGER {
         return Err(Error::Invalid(
-            "number exceeds 2^53-1 and is not canonical in sje/0.0.1".into(),
+            "number exceeds 2^53-1 and is not canonical in sje/0.1.0".into(),
         ));
     }
     if f.fract() == 0.0 {
@@ -396,13 +433,13 @@ fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     }
     if f.abs() < 1e-5 {
         return Err(Error::Invalid(
-            "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.0.1".into(),
+            "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.1.0".into(),
         ));
     }
     let rendered = serde_json::to_string(&f).expect("finite f64");
     if rendered.contains('e') || rendered.contains('E') {
         return Err(Error::Invalid(
-            "number outside the canonical fixed-notation range of sje/0.0.1".into(),
+            "number outside the canonical fixed-notation range of sje/0.1.0".into(),
         ));
     }
     out.push_str(&rendered);
@@ -443,8 +480,9 @@ pub fn bound_quotes(traveler: &Traveler) -> Vec<&Quote> {
         .collect()
 }
 
-fn money_ok(n: f64) -> bool {
-    n.is_finite() && n >= 0.0 && n <= 1e12
+fn money_ok(n: i64) -> bool {
+    // Integer minor units, non-negative, within a generous bound.
+    (0..=1_000_000_000_000).contains(&n)
 }
 
 fn quote_ok(q: &Quote, traveler: &Traveler) -> bool {
@@ -501,7 +539,17 @@ fn rfc3339_millis(iso: &str) -> Option<i64> {
     let h: i64 = t.next()?.parse().ok()?;
     let min: i64 = t.next()?.parse().ok()?;
     let s: i64 = t.next()?.parse().ok()?;
-    if !(1..=12).contains(&m) || !(1..=31).contains(&day) {
+    // Bound every component before the civil-date arithmetic below: without it
+    // a 13-digit year or huge hour ("9999999999999-01-01T…") overflows the i64
+    // multiplication — a panic in debug, a silently wrong value (corrupting
+    // expiry/bind decisions) in release.
+    if !(0..=9999).contains(&y)
+        || !(1..=12).contains(&m)
+        || !(1..=31).contains(&day)
+        || !(0..=23).contains(&h)
+        || !(0..=59).contains(&min)
+        || !(0..=60).contains(&s)
+    {
         return None;
     }
     let mut ms: i64 = 0;
@@ -624,7 +672,7 @@ mod tests {
     fn contact_is_in_the_hash() {
         let with = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_xcontact01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -638,7 +686,7 @@ mod tests {
         .unwrap();
         let without = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_xcontact01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -661,7 +709,7 @@ mod tests {
         // serializer that keeps Some(vec![]) as [] and diverges cross-impl.
         let with_empties = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_emptydrop1",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -673,7 +721,7 @@ mod tests {
         .unwrap();
         let without = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_emptydrop1",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -697,7 +745,7 @@ mod tests {
     #[test]
     fn itar_traveler_rejects_non_itar_seller() {
         let json = r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_itarfail01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -721,7 +769,7 @@ mod tests {
     fn negative_unit_is_not_bound() {
         let traveler = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_negprice01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",
@@ -751,10 +799,21 @@ mod tests {
     }
 
     #[test]
+    fn rfc3339_millis_rejects_out_of_range_components() {
+        // Adversarial components must return None, never overflow/panic.
+        assert_eq!(rfc3339_millis("9999999999999-01-01T00:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-13-01T00:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-01-32T00:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-01-01T25:00:00Z"), None);
+        assert_eq!(rfc3339_millis("2026-01-01T00:60:00Z"), None);
+        assert!(rfc3339_millis("2026-01-01T00:00:00Z").is_some());
+    }
+
+    #[test]
     fn quote_valid_until_must_be_after_created_at_to_bind() {
         let base = parse_traveler(
             r#"{
-          "spec":"sje/0.0.1",
+          "spec":"sje/0.1.0",
           "traveler_id":"tvl_baddates01",
           "revision":1,
           "created_at":"2026-09-08T15:12:00.000Z",

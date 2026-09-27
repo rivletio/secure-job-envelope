@@ -13,3 +13,6 @@ crates/secure-job-envelope/target/
 
 # shalt
 .shalt/cucumber.json
+
+# local planning notes (not part of the repo)
+tasks/

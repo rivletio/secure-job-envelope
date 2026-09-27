@@ -1,7 +1,7 @@
 # Secure Job Envelope (SJE)
 
 **A content-addressed job envelope for parts manufacturing.**
-`application/vnd.sje+json` · spec `sje/0.0.1` · MIT
+`application/vnd.sje+json` · spec `sje/0.1.0` · MIT
 
 A **traveler** is the job object — one part family moving between a buyer and a
 seller: part, material, quantity (with price breaks), need-by, ship-to, the
@@ -99,21 +99,30 @@ the suites above. Run the implementation's Rust tests from inside
 `crates/secure-job-envelope` (the repo root also carries a `shalt` scaffold, so
 `cargo test` there exercises the BDD harness, not the implementation).
 
-## What 0.0.1 deliberately does not do
+## What 0.1 resolves — and the edges that remain
 
-Stated here so nobody discovers it the hard way:
+0.1 closes the five caveats 0.0.1 flagged, each proven by dual-language golden
+vectors (see `docs/CLAIMS.md`):
 
-- **The hash is integrity, not a signature.** Anyone can mint a quote
-  claiming to be a named shop. Party authentication (signing) is the top
-  candidate for 0.1.
-- **No identity, tenancy, or access control.** `org_id` is self-asserted.
-- **`itar: true` is a self-declaration** with a quote/award consistency
-  check — not DDTC registration, not a Technology Control Plan. Do not put
-  actual USML/EAR technical data in a browser demo (see `TRUST.md`).
-- **Money is IEEE-754** with fixed-notation canonical bounds; a later spec
-  should prefer integer minor units if travelers become the commercial record.
-- An award is a structured decision, **not a purchase order** — 0.0.1 has no
-  governing law, warranty, or payment terms.
+- **Party authentication — post-quantum signatures.** ML-DSA-87 (FIPS 204)
+  authorship signatures over the canonical body, verified against a signed key
+  directory: a signature whose key's org ≠ the body's `org_id` is refused, so a
+  quote can no longer claim a shop it does not control. (The hash itself is
+  still integrity, not a signature; authorship is the separate signature.)
+- **Identity via the directory.** `org_id` is bound to a key in the signed
+  directory. There is still no multi-tenant access-control layer — that sits
+  above the format.
+- **`itar` is directory-attested.** An ITAR traveler's seller must hold the
+  directory's attested ITAR capability, not merely self-declare `seller.itar`.
+  Still not DDTC registration or a Technology Control Plan — do not put actual
+  USML/EAR technical data in a browser demo (see `TRUST.md`).
+- **Money is integer minor units** of an ISO-4217 currency — exact, no IEEE-754.
+- **An award can carry commercial terms** (governing law, warranty, payment) —
+  closer to a purchase order, though still not a contract by itself.
+
+Remaining honest edges: the encrypted envelope uses static recipient keys, so it
+has no forward secrecy yet (single-use prekeys are the next milestone); the
+browser desk verifies signatures but never holds signing keys. See `SECURITY.md`.
 
 ## Why a file format
 

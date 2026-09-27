@@ -1,6 +1,6 @@
 {
   "name": "secure-job-envelope",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "description": "SJE — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/secure-job-envelope.",
@@ -13,11 +13,14 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts src/lib/traveler/disclosure.test.ts src/lib/traveler/schema-contract.test.ts mcp/mcp.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/store.test.ts src/lib/traveler/disclosure.test.ts src/lib/traveler/schema-contract.test.ts src/lib/traveler/signature.test.ts src/lib/traveler/directory.test.ts src/lib/traveler/authenticity.test.ts src/lib/traveler/envelope.test.ts mcp/mcp.test.ts",
     "mcp": "node --experimental-strip-types mcp/server.ts",
     "demo": "node --experimental-strip-types mcp/demo.ts"
   },
   "dependencies": {
+    "@noble/ciphers": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@noble/post-quantum": "^0.7.1",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-separator": "^1.1.8",

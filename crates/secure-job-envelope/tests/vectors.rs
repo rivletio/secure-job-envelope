@@ -70,6 +70,99 @@ fn traveler_vectors_match_expected_hash_and_level() {
 }
 
 #[test]
+fn signature_vector_matches_cross_language() {
+    use secure_job_envelope::sign::{keypair_from_seed, sign_body, verify_body};
+    let raw = fs::read_to_string(conformance_dir().join("signatures/traveler-sig.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let domain = v["domain"].as_str().unwrap();
+    let body = v["canonical_body"].as_str().unwrap();
+    let pk_hex = v["public_key_hex"].as_str().unwrap();
+    let sig_hex = v["signature_hex"].as_str().unwrap();
+
+    let seed_bytes = hex::decode(v["seed_hex"].as_str().unwrap()).unwrap();
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&seed_bytes);
+    let (pk, sk) = keypair_from_seed(&seed);
+
+    // Same public key and same deterministic signature bytes as the TS reference.
+    assert_eq!(pk, pk_hex, "public key mismatch across implementations");
+    assert_eq!(sign_body(domain, body, &sk), sig_hex, "signature bytes mismatch");
+    // Verifies, and tampering / domain-swap fail.
+    assert!(verify_body(domain, body, sig_hex, pk_hex));
+    assert!(!verify_body(domain, &format!("{body} "), sig_hex, pk_hex));
+    assert!(!verify_body("sje-sig/quote/0.1.0", body, sig_hex, pk_hex));
+}
+
+#[test]
+fn directory_vector_verifies_cross_language() {
+    use secure_job_envelope::sign::verify_directory;
+    let raw = fs::read_to_string(conformance_dir().join("signatures/directory.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    assert!(verify_directory(&dir_json, root_pk), "directory must verify");
+    // tampering the directory body breaks the root signature
+    let mut tampered = v["directory"].clone();
+    tampered["entries"][1]["capabilities"]["itar"] = serde_json::json!(true);
+    assert!(
+        !verify_directory(&serde_json::to_string(&tampered).unwrap(), root_pk),
+        "tampered directory must fail"
+    );
+    assert!(!verify_directory(&dir_json, &"00".repeat(2592)), "wrong root key must fail");
+}
+
+#[test]
+fn signed_traveler_vector_verifies_cross_language() {
+    use secure_job_envelope::sign::verify_traveler_authorship;
+    let raw = fs::read_to_string(conformance_dir().join("signatures/signed-traveler.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    let traveler_json = serde_json::to_string(&v["traveler"]).unwrap();
+    assert!(
+        verify_traveler_authorship(&traveler_json, &dir_json, root_pk),
+        "buyer authorship must verify end to end"
+    );
+    // bumping the hashed body (revision) breaks the authorship signature
+    let mut tampered = v["traveler"].clone();
+    tampered["revision"] = serde_json::json!(tampered["revision"].as_i64().unwrap() + 1);
+    assert!(!verify_traveler_authorship(
+        &serde_json::to_string(&tampered).unwrap(),
+        &dir_json,
+        root_pk
+    ));
+    // a broken directory (wrong root key) fails
+    assert!(!verify_traveler_authorship(&traveler_json, &dir_json, &"00".repeat(2592)));
+}
+
+#[test]
+fn envelope_vector_roundtrips_cross_language() {
+    use secure_job_envelope::envelope::{open, seal_deterministic_fields};
+    let raw = fs::read_to_string(conformance_dir().join("signatures/envelope.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let kid = v["recipient"]["kid"].as_str().unwrap();
+    let mut seed = [0u8; 64];
+    seed.copy_from_slice(&hex::decode(v["recipient"]["seed_hex"].as_str().unwrap()).unwrap());
+    let d = &v["determinism"];
+    let cek: [u8; 32] = hex::decode(d["cek_hex"].as_str().unwrap()).unwrap().try_into().unwrap();
+    let pn: [u8; 12] = hex::decode(d["payload_nonce_hex"].as_str().unwrap()).unwrap().try_into().unwrap();
+    let coins: [u8; 32] = hex::decode(d["coins_hex"].as_str().unwrap()).unwrap().try_into().unwrap();
+    let wn: [u8; 12] = hex::decode(d["wrap_nonce_hex"].as_str().unwrap()).unwrap().try_into().unwrap();
+    let plaintext = v["plaintext_utf8"].as_str().unwrap().as_bytes();
+
+    // Rust re-seals to byte-identical ciphertext fields as the TS reference.
+    let (kem_ct, wrapped, payload) = seal_deterministic_fields(plaintext, &seed, kid, &cek, &pn, &coins, &wn);
+    assert_eq!(kem_ct, v["envelope"]["recipients"][0]["kem_ct"].as_str().unwrap());
+    assert_eq!(wrapped, v["envelope"]["recipients"][0]["wrapped_cek"].as_str().unwrap());
+    assert_eq!(payload, v["envelope"]["payload"].as_str().unwrap());
+
+    // Rust opens the TS-sealed envelope back to the plaintext.
+    let envelope_json = serde_json::to_string(&v["envelope"]).unwrap();
+    assert_eq!(open(&envelope_json, kid, &seed).as_deref(), Some(plaintext));
+    assert!(open(&envelope_json, "no-such-kid", &seed).is_none());
+}
+
+#[test]
 fn reject_vectors_are_refused_at_parse() {
     let dir = conformance_dir().join("travelers/reject");
     let mut count = 0;

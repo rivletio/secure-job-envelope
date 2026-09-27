@@ -17,13 +17,13 @@ const schemaDir = new URL("../../../public/schemas/", import.meta.url).pathname;
 const conformanceDir = new URL("../../../conformance/", import.meta.url).pathname;
 const examplesDir = new URL("../../../examples/", import.meta.url).pathname;
 
-const travelerSchema = JSON.parse(readFileSync(`${schemaDir}traveler-0.0.1.json`, "utf8"));
-const quoteSchema = JSON.parse(readFileSync(`${schemaDir}quote-0.0.1.json`, "utf8"));
+const travelerSchema = JSON.parse(readFileSync(`${schemaDir}traveler-0.1.0.json`, "utf8"));
+const quoteSchema = JSON.parse(readFileSync(`${schemaDir}quote-0.1.0.json`, "utf8"));
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
-ajv.addSchema(quoteSchema, "quote-0.0.1.json");
+ajv.addSchema(quoteSchema, "quote-0.1.0.json");
 const validateTraveler = ajv.compile(travelerSchema);
-const validateQuote = ajv.getSchema("quote-0.0.1.json")!;
+const validateQuote = ajv.getSchema("quote-0.1.0.json")!;
 
 describe("published JSON Schemas", () => {
   it("accept the example, every conformance traveler, and every seed fixture", () => {
@@ -59,7 +59,7 @@ describe("published JSON Schemas", () => {
     assert.ok(validateTraveler(okBoundary), "thickness minimum 0.0001 accepted");
   });
 
-  it("enforce the fixed-notation money rule (integer or |x| >= 1e-5, <= 1e12)", () => {
+  it("enforce integer minor-unit money (no fractional currency, 0..1e12)", () => {
     const quote = (unit: number) => ({
       quote_id: "qot_schema001",
       seller: { name: "Summit Fabrication" },
@@ -69,10 +69,10 @@ describe("published JSON Schemas", () => {
       lead_time_days: 5,
       pricing: { currency: "USD", lines: [{ qty: 1, unit }] },
     });
-    assert.equal(validateQuote(quote(0.000001)), false, "sub-1e-5 non-integer refused");
-    assert.equal(validateQuote(quote(5_000_000_000_000)), false, "> 1e12 refused");
-    assert.equal(validateQuote(quote(0.00001)), true, "1e-5 boundary accepted");
+    assert.equal(validateQuote(quote(14.2)), false, "fractional money refused");
+    assert.equal(validateQuote(quote(5_000_000_000_000)), false, "> 1e12 minor units refused");
+    assert.equal(validateQuote(quote(-100)), false, "negative unit refused");
     assert.equal(validateQuote(quote(0)), true, "zero accepted");
-    assert.equal(validateQuote(quote(14.2)), true, "normal price accepted");
+    assert.equal(validateQuote(quote(1420)), true, "integer minor units accepted");
   });
 });

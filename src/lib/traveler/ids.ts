@@ -19,7 +19,9 @@ export function randToken(len = 10): string {
       }
     }
   } else {
-    for (let i = 0; i < len; i++) out[i] = ALPH[Math.floor(Math.random() * ALPH.length)]!;
+    // No Math.random() fallback: ids must come from a CSPRNG, never a
+    // predictable source. A runtime without crypto.getRandomValues is refused.
+    throw new Error("a secure random source (crypto.getRandomValues) is required");
   }
   return out.join("");
 }

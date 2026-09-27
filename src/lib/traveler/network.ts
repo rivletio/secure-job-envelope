@@ -83,7 +83,9 @@ export function opsFromProcesses(processes: string[] = []): { seq: number; code:
     inspect: { code: "INSPECT", notes: "First article + in-process" },
   };
   const ops = processes
-    .map((p) => map[p])
+    // Object.hasOwn: a process named "__proto__"/"constructor"/"toString" must
+    // not resolve to an inherited prototype member (would yield a phantom op).
+    .map((p) => (Object.hasOwn(map, p) ? map[p] : undefined))
     .filter((x): x is { code: string; notes?: string } => Boolean(x));
   if (!ops.some((o) => o.code === "INSPECT")) {
     ops.push({ code: "INSPECT", notes: "Dimensional per drawing" });
