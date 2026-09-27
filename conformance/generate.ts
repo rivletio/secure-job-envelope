@@ -12,7 +12,7 @@ import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signature.ts";
 import { bytesToHex, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
-import { signTraveler } from "../src/lib/traveler/authenticity.ts";
+import { signTraveler, signQuote } from "../src/lib/traveler/authenticity.ts";
 import { kemKeypairFromSeed, sealEnvelope } from "../src/lib/traveler/envelope.ts";
 import { sha384 } from "@noble/hashes/sha2.js";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
@@ -346,3 +346,44 @@ const envelopeVector = {
 };
 writeFileSync(`${here}/signatures/envelope.json`, JSON.stringify(envelopeVector, null, 2) + "\n");
 console.log("envelope vector written");
+
+/* ---------- signed quote vector (seller authorship) ---------- */
+// A seller quote carrying an ML-DSA-87 signature, with the directory and root key
+// needed to verify it. Both implementations verify the directory, resolve the
+// quote signature's kid to a directory entry whose org_id equals seller.org_id,
+// and verify the signature over the canonical quote body (the quote with its own
+// sig removed). org_huron is ITAR-attested, so the same vector exercises the
+// directory-attested ITAR gate.
+const signedQuote: Quote = {
+  quote_id: "qot_signed00001",
+  seller: {
+    org_id: "org_huron",
+    name: "Huron Precision",
+    city: "Ann Arbor",
+    region: "MI",
+    certs: ["AS9100"],
+    itar: true,
+  },
+  traveler_hash_quoted: l0Hash,
+  created_at: "2026-02-01T00:00:00.000Z",
+  valid_until: "2027-02-01T00:00:00.000Z",
+  lead_time_days: 18,
+  pricing: { currency: "USD", nre: 25000, lines: [{ qty: 100, unit: 1600 }] },
+};
+signedQuote.sig = signQuote(signedQuote, "huron-2026", huronKp.secretKey);
+const signedQuoteVector = {
+  note:
+    "Seller quote authorship. Verify the directory against root_public_key_hex, resolve the " +
+    "quote sig's kid to a directory entry whose org_id equals seller.org_id, then verify the " +
+    "ML-DSA-87 signature over the canonical quote body (the quote with its own sig removed). " +
+    "Evaluate at at_ms (inside the directory and entry windows). org_huron is ITAR-attested.",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  at_ms: Date.parse("2026-06-01T00:00:00.000Z"),
+  directory: directoryVector.directory,
+  quote: signedQuote,
+};
+writeFileSync(
+  `${here}/signatures/signed-quote.json`,
+  JSON.stringify(signedQuoteVector, null, 2) + "\n",
+);
+console.log("signed quote vector written");

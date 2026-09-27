@@ -153,6 +153,52 @@ fn signed_traveler_vector_verifies_cross_language() {
 }
 
 #[test]
+fn signed_quote_vector_verifies_cross_language() {
+    use secure_job_envelope::sign::{itar_attestation_blocker, verify_quote_signature};
+    let raw = fs::read_to_string(conformance_dir().join("signatures/signed-quote.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let at = v["at_ms"].as_i64().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    let quote_json = serde_json::to_string(&v["quote"]).unwrap();
+
+    // Seller quote signature verifies against the directory (same canonical bytes as TS).
+    assert!(
+        verify_quote_signature(&quote_json, &dir_json, root_pk, at),
+        "seller quote signature must verify"
+    );
+    // Tampering the quote body breaks the signature.
+    let mut tampered = v["quote"].clone();
+    tampered["lead_time_days"] = serde_json::json!(999);
+    assert!(!verify_quote_signature(
+        &serde_json::to_string(&tampered).unwrap(),
+        &dir_json,
+        root_pk,
+        at
+    ));
+    // Directory-attested ITAR gate: org_huron is attested -> allowed; a non-attested
+    // seller org -> blocked. Parity with the TypeScript itarAttestationBlocker.
+    let itar_traveler = r#"{"itar":true}"#;
+    assert!(
+        itar_attestation_blocker(itar_traveler, &quote_json, &dir_json, root_pk, at).is_none(),
+        "attested ITAR seller must pass the gate"
+    );
+    let mut summit = v["quote"].clone();
+    summit["seller"]["org_id"] = serde_json::json!("org_summitfab");
+    assert!(
+        itar_attestation_blocker(
+            itar_traveler,
+            &serde_json::to_string(&summit).unwrap(),
+            &dir_json,
+            root_pk,
+            at
+        )
+        .is_some(),
+        "a non-attested ITAR seller must be blocked"
+    );
+}
+
+#[test]
 fn envelope_vector_roundtrips_cross_language() {
     use secure_job_envelope::envelope::{open, seal_deterministic_fields};
     let raw = fs::read_to_string(conformance_dir().join("signatures/envelope.json")).unwrap();

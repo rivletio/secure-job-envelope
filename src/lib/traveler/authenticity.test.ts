@@ -137,3 +137,40 @@ describe("directory validity windows (entry level)", () => {
     );
   });
 });
+
+describe("seller quote authorship (signed-quote vector)", () => {
+  const qv = JSON.parse(
+    readFileSync(
+      new URL("../../../conformance/signatures/signed-quote.json", import.meta.url),
+      "utf8",
+    ),
+  ) as { root_public_key_hex: string; at_ms: number; directory: Directory; quote: Quote };
+  const when = new Date(qv.at_ms);
+
+  it("verifies the seller quote signature against the directory", () => {
+    const check = verifyQuoteSignature(qv.quote, qv.directory, qv.root_public_key_hex, when);
+    assert.equal(check?.ok, true);
+    assert.equal(check?.org_id, "org_huron");
+    // tampering the quote body breaks the signature
+    const tampered: Quote = { ...structuredClone(qv.quote), lead_time_days: 999 };
+    assert.equal(
+      verifyQuoteSignature(tampered, qv.directory, qv.root_public_key_hex, when)?.ok,
+      false,
+    );
+  });
+
+  it("gates ITAR on directory attestation of the seller org", () => {
+    const itarT: Traveler = { ...parseTraveler(vec.traveler), itar: true };
+    // org_huron IS attested -> allowed
+    assert.equal(
+      itarAttestationBlocker(itarT, qv.quote, qv.directory, qv.root_public_key_hex, when),
+      null,
+    );
+    // same quote re-addressed to a non-attested org -> blocked
+    const summit: Quote = {
+      ...structuredClone(qv.quote),
+      seller: { ...qv.quote.seller, org_id: "org_summitfab" },
+    };
+    assert.ok(itarAttestationBlocker(itarT, summit, qv.directory, qv.root_public_key_hex, when));
+  });
+});
