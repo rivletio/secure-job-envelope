@@ -45,6 +45,18 @@ describe("conformance vectors", () => {
     assert.doesNotThrow(() => canonicalJson({ s: "ok \u{1F600}" }));
   });
 
+  it("parseTraveler refuses a lone surrogate in any string field (matches serde)", () => {
+    // serde rejects the whole document at parse; TS must reject it too, or the two
+    // implementations disagree on whether the document is even acceptable.
+    const base = JSON.parse(
+      readFileSync(`${root}travelers/l0-bracket.json`, "utf8"),
+    ) as Record<string, any>;
+    assert.doesNotThrow(() => parseTraveler(structuredClone(base)));
+    const withSurrogate = structuredClone(base);
+    withSurrogate.part.notes = "note\uD800end";
+    assert.throws(() => parseTraveler(withSurrogate), /lone surrogate/);
+  });
+
   it("computes the expected hash and level for every traveler vector", () => {
     const expected = JSON.parse(readFileSync(`${root}travelers/expected.json`, "utf8")) as Record<
       string,

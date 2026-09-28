@@ -45,7 +45,9 @@ function canonicalNumber(value: number): string {
 // A lone surrogate — a high surrogate not followed by a low, or a low not
 // preceded by a high. Such a string is not well-formed UTF-16 and has no UTF-8
 // encoding, so serde_json refuses it at parse; TypeScript must refuse it too.
-const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+// Exported so the parser can refuse a lone surrogate in ANY string (not only the
+// hashed ones), matching serde's parse-time rejection across the whole document.
+export const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
 function canonicalString(value: string): string {
   if (LONE_SURROGATE.test(value)) {
