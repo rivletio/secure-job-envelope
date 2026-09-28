@@ -635,6 +635,13 @@ mod tests {
     }
 
     #[test]
+    fn serde_rejects_lone_surrogate() {
+        // Rust cannot represent a lone surrogate; serde refuses it at parse, so
+        // neither implementation hashes one (the TS canonicalizer refuses it too).
+        assert!(serde_json::from_str::<Value>(r#"{"s":"A\uD800B"}"#).is_err());
+    }
+
+    #[test]
     fn canonical_sorts_keys() {
         let v: Value = serde_json::from_str(r#"{"b":1,"a":2}"#).unwrap();
         assert_eq!(canonical_json(&v).unwrap(), r#"{"a":2,"b":1}"#);

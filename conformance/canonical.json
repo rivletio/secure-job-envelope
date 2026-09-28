@@ -123,6 +123,47 @@
       },
       "canonical": "{\"10\":1,\"2\":2,\"A\":3,\"a\":4}",
       "sha384": "sha384:9bea5f70233cc64deb51ed50f1bcde475ccebd8aa0322a692fe0ee818390a27c1ac0d605850845a03a8c43fa40864196"
+    },
+    {
+      "name": "long-decimal",
+      "value": {
+        "t": 223.23501793805622
+      },
+      "canonical": "{\"t\":223.23501793805622}",
+      "sha384": "sha384:179369d74b74847a9fd9b2c395884513b21c2a731468461b0a9289b7a501222a3a279a32df78e41b08070e269cda30c7"
+    },
+    {
+      "name": "long-decimal-negative",
+      "value": {
+        "t": -946696.1927003545
+      },
+      "canonical": "{\"t\":-946696.1927003545}",
+      "sha384": "sha384:ded6ac6b81041255e97878eb5c43ef42cc4578b9757cc40626e39c23993655e867b62f55f757d6313591db5a024d5443"
+    },
+    {
+      "name": "long-decimal-large",
+      "value": {
+        "t": 4435404841756971.5
+      },
+      "canonical": "{\"t\":4435404841756971.5}",
+      "sha384": "sha384:ca5571f7639a1246b63beb10f027a8580693b03a91d2b6c53dafcc2269621dfbeee91998d5fdfa3a0c244c6c399d7708"
+    },
+    {
+      "name": "astral-key-order",
+      "value": {
+        "😀": 1,
+        "￿": 2
+      },
+      "canonical": "{\"￿\":2,\"😀\":1}",
+      "sha384": "sha384:f24bd9de36723a37613db8d0d87bae7f14cd5849fd426b98f391dbb1b019fcb2798ddcab047cf079496fcb07fedbb735"
+    },
+    {
+      "name": "astral-string-value",
+      "value": {
+        "s": "grüß 😀 🚀"
+      },
+      "canonical": "{\"s\":\"grüß 😀 🚀\"}",
+      "sha384": "sha384:59260a6c2ba2d286d96f7cf84a88a2ef455754ef79a7a76c349ea25f3d564e3c0233dbe101d2a058b0571fc1020fece3"
     }
   ],
   "invalid": [

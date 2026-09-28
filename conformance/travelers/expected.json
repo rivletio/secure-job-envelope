@@ -3,6 +3,10 @@
     "traveler_hash": "sha384:2bb2f98f2956a51ead879ae39bd947b67e7d50019ee988f2afbf2381867be558c2e3bd5909aa824f3e3678832469c5a3",
     "level": "L0"
   },
+  "l0-longfloat.json": {
+    "traveler_hash": "sha384:c21a80bd12b488b982bd514d16a42d5d60bc77c64e727f1688b08263eb38ff1b7e09a0c33c494593d56ac92012b7014f",
+    "level": "L0"
+  },
   "l0-empty-arrays.json": {
     "traveler_hash": "sha384:b9d263b4aa0e8379f121603bb333f9e590388d723d94e30b0d90ef82d3f9e19ae81e46e72cb7366106ee3411e93d3585",
     "level": "L0"
