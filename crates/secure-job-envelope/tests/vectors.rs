@@ -251,6 +251,34 @@ fn expired_entry_directory_enforces_window_cross_language() {
 }
 
 #[test]
+fn prekey_bundle_vector_verifies_cross_language() {
+    use secure_job_envelope::sign::verify_prekey_bundle;
+    let raw = fs::read_to_string(conformance_dir().join("signatures/prekey-bundle.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let at = v["at_ms"].as_i64().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    let bundle_json = serde_json::to_string(&v["bundle"]).unwrap();
+    assert!(
+        verify_prekey_bundle(&bundle_json, &dir_json, root_pk, at),
+        "prekey bundle must verify against the directory"
+    );
+    // tampering a prekey breaks the org's signature over the bundle
+    let mut tampered = v["bundle"].clone();
+    tampered["prekeys"][0]["public_key"] = serde_json::json!("00");
+    assert!(!verify_prekey_bundle(&serde_json::to_string(&tampered).unwrap(), &dir_json, root_pk, at));
+    // the bundle's own window is enforced: 2028 is past its 2027 valid_until,
+    // though the directory (to 2030) is still valid
+    const AT_MS_2028: i64 = 1_830_297_600_000;
+    assert!(
+        !verify_prekey_bundle(&bundle_json, &dir_json, root_pk, AT_MS_2028),
+        "an out-of-window bundle must fail even while the directory is valid"
+    );
+    // wrong root key
+    assert!(!verify_prekey_bundle(&bundle_json, &dir_json, &"00".repeat(2592), at));
+}
+
+#[test]
 fn reject_vectors_are_refused_at_parse() {
     let dir = conformance_dir().join("travelers/reject");
     let mut count = 0;

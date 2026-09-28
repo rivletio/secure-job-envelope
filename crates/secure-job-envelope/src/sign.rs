@@ -17,6 +17,7 @@ pub const SIG_ALG: &str = "ML-DSA-87";
 pub const DOMAIN_TRAVELER: &str = "sje-sig/traveler/0.1.0";
 pub const DOMAIN_QUOTE: &str = "sje-sig/quote/0.1.0";
 pub const DOMAIN_DIRECTORY: &str = "sje-sig/directory/0.1.0";
+pub const DOMAIN_PREKEYS: &str = "sje-sig/prekeys/0.1.0";
 
 /// Bytes actually signed: the domain tag, a NUL, then the canonical body.
 fn signed_message(domain: &str, canonical_body: &str) -> Vec<u8> {
@@ -63,6 +64,7 @@ pub fn verify_body(domain: &str, canonical_body: &str, sig_hex: &str, pk_hex: &s
 }
 
 pub const DIRECTORY_SPEC: &str = "sje-directory/0.1.0";
+pub const PREKEY_BUNDLE_SPEC: &str = "sje-prekeys/0.1.0";
 
 /// Verify a signed key directory (JSON) against the trust-root public key (hex),
 /// and that `at_ms` falls within the directory's own freshness window
@@ -288,6 +290,60 @@ pub fn itar_attestation_blocker(
         return Some("ITAR traveler: seller is not attested for ITAR in the directory".into());
     }
     None
+}
+
+/// Verify a signed one-time prekey bundle (JSON) against the signed directory at
+/// `at_ms`: the directory verifies against the root, the bundle's signing kid
+/// resolves (active, in-window) to an entry whose org equals the bundle's org_id,
+/// the bundle's own [issued_at, valid_until) covers at_ms, and the ML-DSA
+/// signature over the canonical body (bundle minus its own sig) checks out. False
+/// on any failure. Mirrors the TypeScript verifyPrekeyBundle.
+pub fn verify_prekey_bundle(bundle_json: &str, dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
+    let Ok(mut v) = serde_json::from_str::<Value>(bundle_json) else {
+        return false;
+    };
+    let Some(obj) = v.as_object_mut() else {
+        return false;
+    };
+    if obj.get("spec").and_then(Value::as_str) != Some(PREKEY_BUNDLE_SPEC) {
+        return false;
+    }
+    if obj.get("enc_alg").and_then(Value::as_str) != Some("ML-KEM-1024") {
+        return false;
+    }
+    if !verify_directory(dir_json, root_pk_hex, at_ms) {
+        return false;
+    }
+    let issued = obj
+        .get("issued_at")
+        .and_then(Value::as_str)
+        .and_then(crate::rfc3339_millis);
+    let until = obj
+        .get("valid_until")
+        .and_then(Value::as_str)
+        .and_then(crate::rfc3339_millis);
+    let (Some(issued), Some(until)) = (issued, until) else {
+        return false;
+    };
+    if !(issued <= at_ms && at_ms < until) {
+        return false;
+    }
+    let Some(org_id) = obj.get("org_id").and_then(Value::as_str).map(str::to_string) else {
+        return false;
+    };
+    let Some(kid) = obj.get("kid").and_then(Value::as_str).map(str::to_string) else {
+        return false;
+    };
+    let Some(sig) = obj.remove("sig").and_then(|s| s.as_str().map(str::to_string)) else {
+        return false;
+    };
+    let Ok(canonical) = canonical_json(&v) else {
+        return false;
+    };
+    match directory_entry_by_kid(dir_json, &kid, at_ms) {
+        Some((entry_org, pk)) => entry_org == org_id && verify_body(DOMAIN_PREKEYS, &canonical, &sig, &pk),
+        None => false,
+    }
 }
 
 #[cfg(test)]

@@ -13,6 +13,7 @@ import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signa
 import { bytesToHex, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signTraveler, signQuote } from "../src/lib/traveler/authenticity.ts";
+import { PREKEY_BUNDLE_SPEC, signPrekeyBundle, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
 import {
   kemKeypairFromSeed,
   sealEnvelopeDeterministic,
@@ -410,3 +411,45 @@ writeFileSync(
   JSON.stringify(signedQuoteVector, null, 2) + "\n",
 );
 console.log("signed quote vector written");
+
+/* ---------- signed one-time prekey bundle vector (forward secrecy) ---------- */
+// A recipient org (org_northline) publishes one-time ML-KEM-1024 prekeys, the
+// whole bundle signed by its ML-DSA identity key (kid northline-2026). Both
+// implementations verify the bundle against the directory: kid -> org_northline,
+// the bundle's own window covers at_ms, and the ML-DSA signature over the
+// canonical body checks out. These prekeys are reused by the FS envelope vector.
+const prekeySeeds = [new Uint8Array(64).fill(0x61), new Uint8Array(64).fill(0x62)];
+const prekeyKps = prekeySeeds.map((s) => kemKeypairFromSeed(s));
+const prekeyBundle: PrekeyBundle = {
+  spec: PREKEY_BUNDLE_SPEC,
+  org_id: "org_northline",
+  kid: "northline-2026",
+  enc_alg: "ML-KEM-1024",
+  issued_at: "2026-01-01T00:00:00.000Z",
+  valid_until: "2027-01-01T00:00:00.000Z",
+  prekeys: prekeyKps.map((kp, i) => ({
+    prekey_id: `northline-ot-${i + 1}`,
+    public_key: bytesToHex(kp.publicKey),
+  })),
+};
+prekeyBundle.sig = signPrekeyBundle(prekeyBundle, northlineKp.secretKey);
+const prekeyBundleVector = {
+  note:
+    "Signed one-time prekey bundle. Verify the directory against root_public_key_hex, resolve " +
+    "the bundle's kid to a directory entry whose org_id equals the bundle's org_id, check the " +
+    "bundle's own window covers at_ms, then verify the ML-DSA signature over the canonical bundle " +
+    "body (bundle minus its own sig). prekey_seeds regenerate each one-time ML-KEM keypair.",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  at_ms: Date.parse("2026-06-01T00:00:00.000Z"),
+  directory: directoryVector.directory,
+  bundle: prekeyBundle,
+  prekey_seeds: prekeyKps.map((_, i) => ({
+    prekey_id: `northline-ot-${i + 1}`,
+    seed_hex: bytesToHex(prekeySeeds[i]!),
+  })),
+};
+writeFileSync(
+  `${here}/signatures/prekey-bundle.json`,
+  JSON.stringify(prekeyBundleVector, null, 2) + "\n",
+);
+console.log("prekey bundle vector written");
