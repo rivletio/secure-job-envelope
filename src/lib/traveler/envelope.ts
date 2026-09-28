@@ -24,6 +24,7 @@ import { gcm } from "@noble/ciphers/aes.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
 import { entryByOrg, type Directory } from "./directory.ts";
+import { verifyPrekeyBundle, prekeyById, type PrekeyBundle } from "./prekeys.ts";
 
 export const ENVELOPE_SPEC = "sje-envelope/0.1.0" as const;
 export const ENC_ALG = "ML-KEM-1024+HKDF-SHA-384+AES-256-GCM" as const;
@@ -169,4 +170,172 @@ export function openEnvelope(env: Envelope, kid: string, secretKey: Uint8Array):
     hexToBytes(r.wrapped_cek),
   );
   return gcm(cek, hexToBytes(env.payload_nonce), aadPayload(kids)).decrypt(hexToBytes(env.payload));
+}
+
+/* ---------------------------------------------------------------------------
+ * Forward-secret envelope (sje-envelope/0.2.0) — single-use prekeys, PQXDH-style.
+ *
+ * The 0.1 envelope above encapsulates only to a recipient's long-lived (static)
+ * ML-KEM key, so a later compromise of that key exposes every stored envelope.
+ * This variant additionally encapsulates to a *one-time* prekey from the
+ * recipient's signed bundle (prekeys.ts) and binds BOTH shared secrets into the
+ * KEK. After the recipient decrypts and deletes the one-time secret, a later
+ * compromise of the static key can no longer recover the message — forward
+ * secrecy. Conversely, if a one-time prekey is ever reused or mishandled, the
+ * static half still keeps the payload confidential (graceful degradation).
+ *
+ * Realizing forward secrecy requires the recipient to delete the consumed
+ * one-time secret; the format enables it, key management completes it.
+ * ------------------------------------------------------------------------- */
+
+export const FS_ENVELOPE_SPEC = "sje-envelope/0.2.0" as const;
+export const FS_ENC_ALG = "ML-KEM-1024x2+HKDF-SHA-384+AES-256-GCM" as const;
+
+function aadPayloadFs(recipients: { kid: string; prekey_id: string }[]): Uint8Array {
+  return utf8ToBytes(canonicalJson({ spec: FS_ENVELOPE_SPEC, enc_alg: FS_ENC_ALG, recipients }));
+}
+function aadRecipientFs(kid: string, prekeyId: string): Uint8Array {
+  return utf8ToBytes(`${FS_ENVELOPE_SPEC}\u0000${FS_ENC_ALG}\u0000${kid}\u0000${prekeyId}`);
+}
+/** KEK derived from BOTH shared secrets (one-time ‖ static). Order is fixed and
+ *  must match the Rust implementation. */
+function fsKek(ssOnetime: Uint8Array, ssStatic: Uint8Array, kid: string, prekeyId: string): Uint8Array {
+  const ikm = new Uint8Array(ssOnetime.length + ssStatic.length);
+  ikm.set(ssOnetime, 0);
+  ikm.set(ssStatic, ssOnetime.length);
+  return hkdf(sha384, ikm, KEK_SALT, aadRecipientFs(kid, prekeyId), 32);
+}
+
+export type FsEnvelopeRecipient = {
+  kid: string; // enc_kid of the recipient's STATIC identity key (as in 0.1)
+  prekey_id: string; // which one-time prekey was used
+  kem_ct_onetime: string; // hex ML-KEM ct to the one-time prekey
+  kem_ct_static: string; // hex ML-KEM ct to the static identity key
+  wrap_nonce: string;
+  wrapped_cek: string;
+};
+export type FsEnvelope = {
+  spec: typeof FS_ENVELOPE_SPEC;
+  enc_alg: typeof FS_ENC_ALG;
+  payload_nonce: string;
+  payload: string;
+  recipients: FsEnvelopeRecipient[];
+};
+
+export type FsSealRecipient = {
+  kid: string; // static enc_kid
+  static_public_key: string; // hex ML-KEM identity ek
+  prekey_id: string;
+  onetime_public_key: string; // hex ML-KEM one-time ek
+};
+export type FsSealDeterminism = {
+  cek: Uint8Array; // 32
+  payload_nonce: Uint8Array; // 12
+  coins_onetime: Uint8Array[]; // 32 per recipient
+  coins_static: Uint8Array[]; // 32 per recipient
+  wrap_nonces: Uint8Array[]; // 12 per recipient
+};
+
+/** Resolve a forward-secret recipient: the static ML-KEM key from the signed
+ *  directory (recipientByOrg) plus one verified one-time prekey from the org's
+ *  signed bundle. Returns undefined unless the org has an attested static key AND
+ *  the bundle verifies (against the same root) AND carries `prekeyId`. Prefer this
+ *  over hand-assembling a recipient from raw bytes. */
+export function fsRecipientFromBundle(
+  dir: Directory,
+  bundle: PrekeyBundle,
+  orgId: string,
+  prekeyId: string,
+  rootPublicKeyHex: string,
+  at?: Date,
+): FsSealRecipient | undefined {
+  const staticR = recipientByOrg(dir, orgId, at);
+  if (!staticR) return undefined;
+  const vetted = verifyPrekeyBundle(bundle, dir, rootPublicKeyHex, at);
+  if (!vetted || vetted.org_id !== orgId) return undefined;
+  const pk = prekeyById(vetted, prekeyId);
+  if (!pk) return undefined;
+  return {
+    kid: staticR.kid,
+    static_public_key: staticR.public_key,
+    prekey_id: prekeyId,
+    onetime_public_key: pk.public_key,
+  };
+}
+
+function sealFs(
+  plaintext: Uint8Array,
+  recipients: FsSealRecipient[],
+  det?: Partial<FsSealDeterminism>,
+): FsEnvelope {
+  if (recipients.length === 0) throw new Error("at least one recipient is required");
+  const rset = recipients.map((r) => ({ kid: r.kid, prekey_id: r.prekey_id }));
+  const cek = det?.cek ?? randomBytes(32);
+  const payloadNonce = det?.payload_nonce ?? randomBytes(12);
+  const payload = gcm(cek, payloadNonce, aadPayloadFs(rset)).encrypt(plaintext);
+  const recips = recipients.map((r, i) => {
+    const coinsOt = det?.coins_onetime?.[i] ?? randomBytes(32);
+    const coinsId = det?.coins_static?.[i] ?? randomBytes(32);
+    const wrapNonce = det?.wrap_nonces?.[i] ?? randomBytes(12);
+    const ot = ml_kem1024.encapsulate(hexToBytes(r.onetime_public_key), coinsOt);
+    const id = ml_kem1024.encapsulate(hexToBytes(r.static_public_key), coinsId);
+    const kek = fsKek(ot.sharedSecret, id.sharedSecret, r.kid, r.prekey_id);
+    const wrapped = gcm(kek, wrapNonce, aadRecipientFs(r.kid, r.prekey_id)).encrypt(cek);
+    return {
+      kid: r.kid,
+      prekey_id: r.prekey_id,
+      kem_ct_onetime: bytesToHex(ot.cipherText),
+      kem_ct_static: bytesToHex(id.cipherText),
+      wrap_nonce: bytesToHex(wrapNonce),
+      wrapped_cek: bytesToHex(wrapped),
+    };
+  });
+  return {
+    spec: FS_ENVELOPE_SPEC,
+    enc_alg: FS_ENC_ALG,
+    payload_nonce: bytesToHex(payloadNonce),
+    payload: bytesToHex(payload),
+    recipients: recips,
+  };
+}
+
+/** Seal a forward-secret envelope. All randomness is drawn from a CSPRNG. Each
+ *  recipient's one-time prekey should be used at most once and its secret deleted
+ *  after the recipient opens it. */
+export function sealFsEnvelope(plaintext: Uint8Array, recipients: FsSealRecipient[]): FsEnvelope {
+  return sealFs(plaintext, recipients);
+}
+
+/** Test/vector-only deterministic forward-secret seal. */
+export function sealFsEnvelopeDeterministic(
+  plaintext: Uint8Array,
+  recipients: FsSealRecipient[],
+  det: FsSealDeterminism,
+): FsEnvelope {
+  return sealFs(plaintext, recipients, det);
+}
+
+/** Open a forward-secret envelope. Requires BOTH the recipient's static identity
+ *  secret key and the one-time prekey secret named by the recipient entry — the
+ *  one-time secret is what the recipient deletes to realize forward secrecy.
+ *  Throws on any failure (unknown kid, tag mismatch, tampered recipient set). */
+export function openFsEnvelope(
+  env: FsEnvelope,
+  kid: string,
+  staticSecretKey: Uint8Array,
+  onetimeSecretKey: Uint8Array,
+): Uint8Array {
+  if (env.spec !== FS_ENVELOPE_SPEC || env.enc_alg !== FS_ENC_ALG) {
+    throw new Error("unsupported envelope spec/alg");
+  }
+  const r = env.recipients.find((x) => x.kid === kid);
+  if (!r) throw new Error("no recipient entry for this kid");
+  const rset = env.recipients.map((x) => ({ kid: x.kid, prekey_id: x.prekey_id }));
+  const ssOt = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_onetime), onetimeSecretKey);
+  const ssId = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_static), staticSecretKey);
+  const kek = fsKek(ssOt, ssId, kid, r.prekey_id);
+  const cek = gcm(kek, hexToBytes(r.wrap_nonce), aadRecipientFs(kid, r.prekey_id)).decrypt(
+    hexToBytes(r.wrapped_cek),
+  );
+  return gcm(cek, hexToBytes(env.payload_nonce), aadPayloadFs(rset)).decrypt(hexToBytes(env.payload));
 }
