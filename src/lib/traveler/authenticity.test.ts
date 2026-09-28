@@ -9,6 +9,7 @@ import {
   signQuote,
   verifyQuoteSignature,
   itarAttestationBlocker,
+  type SigCheck,
 } from "./authenticity.ts";
 import { keypairFromSeed } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
@@ -107,6 +108,32 @@ describe("traveler authenticity (end to end)", () => {
     const check = verifyQuoteSignature(quote, dir, rootPk, at);
     assert.equal(check?.ok, true);
     assert.equal(check?.org_id, "org_huron");
+  });
+
+  it("fails closed (never throws) on a non-canonicalizable body (D3)", () => {
+    // A quote's assumptions/capacity are opaque blobs and may hold arbitrary
+    // numbers; a hostile value (> 2^53) makes the signature body uncanonicalizable.
+    // Verification must return ok:false, not throw an uncaught exception.
+    const quote = quoteFor("org_huron");
+    quote.assumptions = { hostile: 1e308 };
+    quote.sig = { alg: "ML-DSA-87", kid: "huron-2026", sig: "ab" };
+    let check: SigCheck | undefined;
+    assert.doesNotThrow(() => {
+      check = verifyQuoteSignature(quote, dir, rootPk, at);
+    });
+    assert.equal(check?.ok, false);
+
+    // Same for a traveler body built with an out-of-range number (bypassing parse).
+    const badTraveler = {
+      ...parseTraveler(vec.traveler),
+      part: { ...parseTraveler(vec.traveler).part, material: { spec: "6061-T6", thickness_mm: 1e308 } },
+      signatures: [{ alg: "ML-DSA-87", kid: "northline-2026", sig: "ab" }],
+    } as Traveler;
+    let checks: SigCheck[] | undefined;
+    assert.doesNotThrow(() => {
+      checks = verifyTravelerSignatures(badTraveler, dir, rootPk, at);
+    });
+    assert.equal(checks![0]!.ok, false);
   });
 });
 

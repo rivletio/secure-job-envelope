@@ -76,7 +76,19 @@ export function verifyTravelerSignatures(
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
     return [{ kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" }];
   }
-  const body = travelerSignatureBody(t);
+  // Fail closed if the body cannot be canonicalized (a non-canonical number in an
+  // opaque field, say): a body that cannot be produced cannot have been signed, so
+  // every signature over it is unverifiable — never an uncaught throw on hostile input.
+  let body: string;
+  try {
+    body = travelerSignatureBody(t);
+  } catch {
+    return (t.signatures ?? []).map((s) => ({
+      kid: s.kid,
+      ok: false,
+      reason: "traveler body is not canonicalizable",
+    }));
+  }
   return (t.signatures ?? []).map((s) => checkSig(SIG_DOMAIN.traveler, body, s, t.buyer.org_id, dir, when));
 }
 
@@ -102,7 +114,16 @@ export function verifyQuoteSignature(
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
     return { kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" };
   }
-  return checkSig(SIG_DOMAIN.quote, quoteSignatureBody(q), q.sig, q.seller.org_id, dir, when);
+  // Fail closed if the quote body cannot be canonicalized. A quote's opaque
+  // assumptions / capacity blobs allow arbitrary values, so a hostile number
+  // (1e308, below 1e-5, > 2^53) would otherwise throw out of canonicalJson here.
+  let body: string;
+  try {
+    body = quoteSignatureBody(q);
+  } catch {
+    return { kid: q.sig.kid, ok: false, reason: "quote body is not canonicalizable" };
+  }
+  return checkSig(SIG_DOMAIN.quote, body, q.sig, q.seller.org_id, dir, when);
 }
 
 /** ITAR gate elevated to directory attestation (caveat 3): an ITAR traveler's
