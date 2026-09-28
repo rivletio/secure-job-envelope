@@ -15,7 +15,10 @@
     "format": "prettier --write .",
     "test": "node --experimental-strip-types --test src/lib/traveler/traveler.test.ts src/lib/traveler/vectors.test.ts src/lib/traveler/datetime.test.ts src/lib/traveler/store.test.ts src/lib/traveler/disclosure.test.ts src/lib/traveler/schema-contract.test.ts src/lib/traveler/signature.test.ts src/lib/traveler/directory.test.ts src/lib/traveler/authenticity.test.ts src/lib/traveler/envelope.test.ts src/lib/traveler/prekeys.test.ts mcp/mcp.test.ts",
     "mcp": "node --experimental-strip-types mcp/server.ts",
-    "demo": "node --experimental-strip-types mcp/demo.ts"
+    "demo": "node --experimental-strip-types mcp/demo.ts",
+    "soak": "node --experimental-strip-types sim/soak.ts",
+    "differential": "node --experimental-strip-types sim/differential.ts",
+    "corpus": "node --experimental-strip-types sim/corpus.ts"
   },
   "dependencies": {
     "@noble/ciphers": "^2.4.0",

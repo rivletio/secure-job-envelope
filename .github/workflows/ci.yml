@@ -36,6 +36,33 @@ jobs:
       - run: cargo test
       - run: cargo build --release
 
+  # Cross-implementation hardening: soak the lifecycle for invariant breaks, then
+  # run the TS<->Rust differential fuzzer (same random documents to both cores,
+  # comparing parse/hash/level/bound) and confirm the committed fuzz corpus is
+  # still what the generator produces. Needs both toolchains in one job.
+  crossimpl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - name: build the Rust CLI (the differential's other half)
+        working-directory: crates/secure-job-envelope
+        run: cargo build --release
+      - name: soak the lifecycle + adversarial battery
+        run: npm run soak -- --jobs 500
+      - name: TS<->Rust differential fuzz
+        run: npm run differential -- --seeds 6000 --quiet
+      - name: committed fuzz corpus is up to date with the generator
+        run: |
+          npm run corpus
+          git diff --exit-code conformance/fuzz/ \
+            || { echo "conformance/fuzz is stale — run 'npm run corpus' and commit"; exit 1; }
+
   audit:
     # Advisory coverage for the Rust crate (RUSTSEC). Non-blocking: it surfaces
     # advisories in the log without gating merges on a transitive-dependency

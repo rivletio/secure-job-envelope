@@ -16,5 +16,5 @@
     },
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "mcp"]
+  "include": ["src", "mcp", "sim"]
 }

@@ -694,6 +694,31 @@ pub fn level(traveler: &Traveler) -> Level {
     }
 }
 
+/// The four decisions the cross-implementation differential and fuzz corpus
+/// compare against the TypeScript reference: does this document parse, what does
+/// it hash to, what level is it, and which quotes bind. Emitted as one compact
+/// JSON object so a single call captures the whole verdict. Error wording is never
+/// included — only the decisions are compared across implementations.
+pub fn check_verdict(json: &str) -> String {
+    let traveler = match parse_traveler(json) {
+        Ok(t) => t,
+        Err(_) => return r#"{"accept":false,"hash":null,"level":null,"bound":null}"#.into(),
+    };
+    let hash = traveler_hash(&traveler).ok();
+    let mut ids: Vec<&str> = bound_quotes(&traveler)
+        .iter()
+        .map(|q| q.quote_id.as_str())
+        .collect();
+    ids.sort_unstable();
+    serde_json::json!({
+        "accept": true,
+        "hash": hash,
+        "level": level(&traveler).code,
+        "bound": ids,
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
