@@ -9,7 +9,8 @@
  *  ITAR (caveat 3) become attested facts rather than free-text claims.
  */
 import { canonicalJson } from "./canonical.ts";
-import { SIG_DOMAIN, SIG_ALG, signBody, verifyBody, hexToBytes } from "./signature.ts";
+import { SIG_DOMAIN, SIG_ALG, signBody, verifyBody } from "./signature.ts";
+import { hexToBytes } from "./bytes.ts";
 
 export const DIRECTORY_SPEC = "sje-directory/0.1.0" as const;
 
@@ -17,11 +18,13 @@ export type DirectoryEntry = {
   org_id: string;
   kid: string;
   alg: string;
-  public_key: string; // lowercase hex ML-DSA-87 public key
+  public_key: string; // lowercase hex ML-DSA-87 signing (verify) key
   valid_from: string;
   valid_until: string;
   status: "active" | "revoked";
   capabilities?: { itar?: boolean };
+  enc_alg?: string; // e.g. "ML-KEM-1024" — the attested encryption-key algorithm
+  enc_public_key?: string; // lowercase hex ML-KEM public key, if the org accepts sealed envelopes
 };
 
 export type Directory = {
@@ -44,10 +47,33 @@ export function signDirectory(dir: Directory, rootSecretKey: Uint8Array): string
   return signBody(SIG_DOMAIN.directory, directoryBody(dir), rootSecretKey);
 }
 
-/** Verify the directory's own signature against the trust-root public key (hex). */
-export function verifyDirectory(dir: Directory, rootPublicKeyHex: string): boolean {
+/** Verify the directory's own signature against the trust-root public key (hex),
+ *  and that `at` falls within the directory's own freshness window
+ *  [issued_at, valid_until). The window is part of the signed body, so it cannot
+ *  be widened without breaking the root signature; enforcing it here additionally
+ *  bounds how long a stale (but validly-signed) directory can be replayed — the
+ *  in-band limit on revocation rollback. Fails closed on malformed input. */
+export function verifyDirectory(
+  dir: Directory,
+  rootPublicKeyHex: string,
+  at: Date = new Date(),
+): boolean {
   if (dir.spec !== DIRECTORY_SPEC || !dir.sig) return false;
-  return verifyBody(SIG_DOMAIN.directory, directoryBody(dir), dir.sig, hexToBytes(rootPublicKeyHex));
+  const t = at.getTime();
+  const issued = Date.parse(dir.issued_at);
+  const until = Date.parse(dir.valid_until);
+  if (!Number.isFinite(issued) || !Number.isFinite(until)) return false;
+  if (!(issued <= t && t < until)) return false;
+  try {
+    return verifyBody(
+      SIG_DOMAIN.directory,
+      directoryBody(dir),
+      dir.sig,
+      hexToBytes(rootPublicKeyHex),
+    );
+  } catch {
+    return false;
+  }
 }
 
 function inWindow(e: DirectoryEntry, t: number): boolean {

@@ -9,7 +9,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { canonicalJson } from "./canonical.ts";
 import { travelerHash } from "./hash.ts";
 import { levelOf, parseTraveler } from "./conformance.ts";
-import { sha384 } from "js-sha512";
+import { sha384 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "./bytes.ts";
 
 const root = new URL("../../../conformance/", import.meta.url).pathname;
 
@@ -25,7 +26,7 @@ describe("conformance vectors", () => {
     for (const v of vec.valid) {
       const c = canonicalJson(v.value);
       assert.equal(c, v.canonical, `canonical bytes: ${v.name}`);
-      assert.equal(`sha384:${sha384(c)}`, v.sha384, `hash: ${v.name}`);
+      assert.equal(`sha384:${bytesToHex(sha384(utf8ToBytes(c)))}`, v.sha384, `hash: ${v.name}`);
     }
   });
 

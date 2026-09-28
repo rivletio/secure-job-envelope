@@ -20,7 +20,7 @@ This format is open source. [Claanker](https://github.com/rivletio/claanker) use
 Buyer composes traveler  ──►  L0 Quoteable   (can price without guessing)
 Sellers attach quotes  ──►  L1 Awardable   (quotes bound to traveler_hash)
 Buyer awards + ops     ──►  L2 Executable  (locked; traveler + ship-to)
-                            L3 As-built    (reserved in 0.0.1)
+                            L3 As-built    (reserved in 0.1)
 ```
 
 This repo contains:
@@ -30,7 +30,7 @@ This repo contains:
 | `docs/PLAN.md` | Project plan: goals, milestones, current state (shalt manages the live copy in `.shalt/plan.md`) |
 | `docs/CLAANKER.md` | How Claanker carries a sealed envelope and does not open it |
 | `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |
-| `docs/SPEC.md` | The 0.0.1 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
+| `docs/SPEC.md` | The 0.1.0 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
 | `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |
 | `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`envelope hash|level`) |
@@ -43,9 +43,8 @@ This repo contains:
 | `TRUST.md` | Honest SOC 2 TSC mapping: what this gives you, what it does not |
 | `SECURITY.md` | Threat model and how to report issues |
 
-Hashing is **SHA-384** — chosen for post-quantum collision margins (see
-`SECURITY.md`), locked in before anything shipped so no deployed hash ever
-has to migrate.
+Hashing is **SHA-384** — selected for post-quantum collision margins (see
+`SECURITY.md`), chosen before first release to avoid a later hash migration.
 
 The TypeScript and Rust implementations are deliberately independent — no
 shared code, no wasm bridge — and are held together by a **golden test
@@ -101,14 +100,14 @@ the suites above. Run the implementation's Rust tests from inside
 
 ## What 0.1 resolves — and the edges that remain
 
-0.1 closes the five caveats 0.0.1 flagged, each proven by dual-language golden
+0.1 addresses the five caveats 0.0.1 flagged, each proven by dual-language golden
 vectors (see `docs/CLAIMS.md`):
 
 - **Party authentication — post-quantum signatures.** ML-DSA-87 (FIPS 204)
   authorship signatures over the canonical body, verified against a signed key
-  directory: a signature whose key's org ≠ the body's `org_id` is refused, so a
-  quote can no longer claim a shop it does not control. (The hash itself is
-  still integrity, not a signature; authorship is the separate signature.)
+  directory: a signature whose key's org does not match the body's `org_id`
+  fails verification. (The hash itself is still integrity, not a signature;
+  authorship is the separate signature.)
 - **Identity via the directory.** `org_id` is bound to a key in the signed
   directory. There is still no multi-tenant access-control layer — that sits
   above the format.
@@ -146,3 +145,7 @@ anyone can implement, validate, and run jobs against the same vectors.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Disclaimer
+
+SJE is provided under the MIT License, "as is" and without warranty of any kind (see [LICENSE](LICENSE)). Nothing here — the spec, the implementations, the desk, or the security docs — is a warranty, guarantee, or assurance of security, correctness, or fitness for any purpose. Its security is best-effort and has not been independently audited. Selecting NIST/CNSA 2.0 algorithms is an engineering choice, not a certification: SJE is not SOC 2, FIPS, CNSA 2.0, ITAR, DFARS, or NIST 800-171 compliant, and using it does not make your system compliant. It is not legal or export-control advice — meeting your ITAR/EAR and CUI (DFARS 252.204-7012 / NIST 800-171) obligations is your responsibility, and controlled technical data does not belong on a shared browser desk. To the fullest extent permitted by law, Rivlet, Inc. accepts no liability arising from use of this software.

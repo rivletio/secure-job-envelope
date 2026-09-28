@@ -64,10 +64,15 @@ pub fn verify_body(domain: &str, canonical_body: &str, sig_hex: &str, pk_hex: &s
 
 pub const DIRECTORY_SPEC: &str = "sje-directory/0.1.0";
 
-/// Verify a signed key directory (JSON) against the trust-root public key (hex).
-/// The signed body is the directory with its own `sig` field removed, then
-/// canonicalized — identical bytes to the TypeScript `directoryBody`.
-pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
+/// Verify a signed key directory (JSON) against the trust-root public key (hex),
+/// and that `at_ms` falls within the directory's own freshness window
+/// `[issued_at, valid_until)`. The window is part of the signed body, so it
+/// cannot be widened without breaking the root signature; enforcing it here
+/// additionally bounds how long a stale (but validly-signed) directory can be
+/// replayed — the in-band limit on revocation rollback. False on any malformed
+/// or out-of-window input. The signed body is the directory with its own `sig`
+/// removed, then canonicalized — identical bytes to the TypeScript `directoryBody`.
+pub fn verify_directory(dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
     let Ok(mut v) = serde_json::from_str::<Value>(dir_json) else {
         return false;
     };
@@ -75,6 +80,20 @@ pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
         return false;
     };
     if obj.get("spec").and_then(Value::as_str) != Some(DIRECTORY_SPEC) {
+        return false;
+    }
+    let issued = obj
+        .get("issued_at")
+        .and_then(Value::as_str)
+        .and_then(crate::rfc3339_millis);
+    let until = obj
+        .get("valid_until")
+        .and_then(Value::as_str)
+        .and_then(crate::rfc3339_millis);
+    let (Some(issued), Some(until)) = (issued, until) else {
+        return false;
+    };
+    if !(issued <= at_ms && at_ms < until) {
         return false;
     }
     let Some(sig) = obj.remove("sig").and_then(|s| s.as_str().map(str::to_string)) else {
@@ -86,27 +105,55 @@ pub fn verify_directory(dir_json: &str, root_pk_hex: &str) -> bool {
     verify_body(DOMAIN_DIRECTORY, &canonical, &sig, root_pk_hex)
 }
 
-/// Look up an active directory entry by kid, returning (org_id, public_key_hex).
-pub fn directory_entry_by_kid(dir_json: &str, kid: &str) -> Option<(String, String)> {
-    let v: Value = serde_json::from_str(dir_json).ok()?;
-    for e in v.get("entries")?.as_array()? {
-        if e.get("kid").and_then(Value::as_str) == Some(kid)
-            && e.get("status").and_then(Value::as_str) == Some("active")
-        {
-            let org = e.get("org_id")?.as_str()?.to_string();
-            let pk = e.get("public_key")?.as_str()?.to_string();
-            return Some((org, pk));
+/// Single source of truth for "is this entry usable at `at_ms`": active status,
+/// the expected algorithm, and inside `[valid_from, valid_until)`. Shared by the
+/// kid and org lookups so they can never diverge on what counts as valid (the
+/// TypeScript side shares one `inWindow` the same way). Malformed entries → false.
+fn entry_active_in_window(e: &Value, at_ms: i64) -> bool {
+    (|| -> Option<bool> {
+        if e.get("status").and_then(Value::as_str)? != "active" {
+            return None;
         }
-    }
-    None
+        if e.get("alg").and_then(Value::as_str)? != SIG_ALG {
+            return None;
+        }
+        let from = crate::rfc3339_millis(e.get("valid_from")?.as_str()?)?;
+        let until = crate::rfc3339_millis(e.get("valid_until")?.as_str()?)?;
+        Some(from <= at_ms && at_ms < until)
+    })()
+    .unwrap_or(false)
 }
 
-/// Verify a traveler's buyer-authorship signature against a signed directory.
-/// True iff the directory verifies against `root_pk_hex`, and at least one of the
-/// traveler's signatures resolves to a directory entry whose org matches the
-/// buyer's org_id and whose ML-DSA-87 key verifies the canonical quoteable body.
-pub fn verify_traveler_authorship(traveler_json: &str, dir_json: &str, root_pk_hex: &str) -> bool {
-    if !verify_directory(dir_json, root_pk_hex) {
+/// Look up a directory entry by kid that is active, of the expected algorithm,
+/// and in its validity window at `at_ms`, returning (org_id, public_key_hex).
+/// Mirrors the TypeScript `entryByKid` / `inWindow`, so an expired, not-yet-valid,
+/// revoked, or wrong-algorithm entry never authenticates. Malformed entries are
+/// skipped rather than aborting the search.
+pub fn directory_entry_by_kid(dir_json: &str, kid: &str, at_ms: i64) -> Option<(String, String)> {
+    let v: Value = serde_json::from_str(dir_json).ok()?;
+    v.get("entries")?.as_array()?.iter().find_map(|e| {
+        if e.get("kid").and_then(Value::as_str) != Some(kid) || !entry_active_in_window(e, at_ms) {
+            return None;
+        }
+        Some((
+            e.get("org_id")?.as_str()?.to_string(),
+            e.get("public_key")?.as_str()?.to_string(),
+        ))
+    })
+}
+
+/// Verify a traveler's buyer-authorship signature against a signed directory at
+/// `at_ms`. True iff the directory verifies (and is in-window) against
+/// `root_pk_hex`, the buyer names an org_id, and at least one of the traveler's
+/// signatures resolves to an active, in-window directory entry whose org matches
+/// `buyer.org_id` and whose ML-DSA-87 key verifies the canonical quoteable body.
+pub fn verify_traveler_authorship(
+    traveler_json: &str,
+    dir_json: &str,
+    root_pk_hex: &str,
+    at_ms: i64,
+) -> bool {
+    if !verify_directory(dir_json, root_pk_hex, at_ms) {
         return false;
     }
     let Ok(t) = crate::parse_traveler(traveler_json) else {
@@ -125,13 +172,122 @@ pub fn verify_traveler_authorship(traveler_json: &str, dir_json: &str, root_pk_h
         if s.alg != SIG_ALG {
             continue;
         }
-        if let Some((org, pk)) = directory_entry_by_kid(dir_json, &s.kid) {
+        if let Some((org, pk)) = directory_entry_by_kid(dir_json, &s.kid, at_ms) {
             if org == buyer_org && verify_body(DOMAIN_TRAVELER, &canonical, &s.sig, &pk) {
                 return true;
             }
         }
     }
     false
+}
+
+/// Whether an org is attested — by an active, in-window entry — to hold the ITAR
+/// capability. This is the directory-attested elevation of the self-declared
+/// `seller.itar` flag (caveat 3). Mirrors the TypeScript `orgHasCapability`.
+fn org_has_itar(dir_json: &str, org_id: &str, at_ms: i64) -> bool {
+    let Ok(v) = serde_json::from_str::<Value>(dir_json) else {
+        return false;
+    };
+    let Some(entries) = v.get("entries").and_then(Value::as_array) else {
+        return false;
+    };
+    entries.iter().any(|e| {
+        e.get("org_id").and_then(Value::as_str) == Some(org_id)
+            && entry_active_in_window(e, at_ms)
+            && e.get("capabilities")
+                .and_then(|c| c.get("itar"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+    })
+}
+
+/// Verify a seller's quote signature against the signed directory at `at_ms`.
+/// True iff the quote carries an ML-DSA-87 signature, the directory verifies (and
+/// is in-window) against `root_pk_hex`, and the signature resolves to an active,
+/// in-window entry whose org matches `seller.org_id` and whose key verifies the
+/// canonical quote body (the quote with its own `sig` removed). Mirrors the
+/// TypeScript `verifyQuoteSignature`; the canonical body is built from the raw
+/// JSON field set, so it matches the bytes the TS reference signed.
+pub fn verify_quote_signature(
+    quote_json: &str,
+    dir_json: &str,
+    root_pk_hex: &str,
+    at_ms: i64,
+) -> bool {
+    if !verify_directory(dir_json, root_pk_hex, at_ms) {
+        return false;
+    }
+    let Ok(mut v) = serde_json::from_str::<Value>(quote_json) else {
+        return false;
+    };
+    let Some(obj) = v.as_object_mut() else {
+        return false;
+    };
+    let Some(sig) = obj.get("sig").and_then(Value::as_object).cloned() else {
+        return false;
+    };
+    if sig.get("alg").and_then(Value::as_str) != Some(SIG_ALG) {
+        return false;
+    }
+    let (Some(kid), Some(sig_hex)) = (
+        sig.get("kid").and_then(Value::as_str).map(str::to_string),
+        sig.get("sig").and_then(Value::as_str).map(str::to_string),
+    ) else {
+        return false;
+    };
+    let Some(seller_org) = obj
+        .get("seller")
+        .and_then(|s| s.get("org_id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
+        return false;
+    };
+    obj.remove("sig");
+    let Ok(canonical) = canonical_json(&v) else {
+        return false;
+    };
+    match directory_entry_by_kid(dir_json, &kid, at_ms) {
+        Some((org, pk)) => org == seller_org && verify_body(DOMAIN_QUOTE, &canonical, &sig_hex, &pk),
+        None => false,
+    }
+}
+
+/// ITAR gate elevated to directory attestation (caveat 3). None if the quote is
+/// allowed; Some(reason) if refused. An ITAR traveler's seller must hold the ITAR
+/// capability in a directory that itself verifies against the trust root — not
+/// merely self-declare `seller.itar`. Fails closed (Some) on any malformed input.
+/// Mirrors the TypeScript `itarAttestationBlocker`.
+pub fn itar_attestation_blocker(
+    traveler_json: &str,
+    quote_json: &str,
+    dir_json: &str,
+    root_pk_hex: &str,
+    at_ms: i64,
+) -> Option<String> {
+    let Ok(t) = serde_json::from_str::<Value>(traveler_json) else {
+        return Some("ITAR gate: traveler does not parse".into());
+    };
+    if !t.get("itar").and_then(Value::as_bool).unwrap_or(false) {
+        return None; // a non-ITAR traveler imposes no gate
+    }
+    if !verify_directory(dir_json, root_pk_hex, at_ms) {
+        return Some("ITAR traveler: key directory does not verify against the trust root".into());
+    }
+    let Ok(q) = serde_json::from_str::<Value>(quote_json) else {
+        return Some("ITAR gate: quote does not parse".into());
+    };
+    let Some(seller_org) = q
+        .get("seller")
+        .and_then(|s| s.get("org_id"))
+        .and_then(Value::as_str)
+    else {
+        return Some("ITAR traveler: seller has no org_id to attest against the directory".into());
+    };
+    if !org_has_itar(dir_json, seller_org, at_ms) {
+        return Some("ITAR traveler: seller is not attested for ITAR in the directory".into());
+    }
+    None
 }
 
 #[cfg(test)]

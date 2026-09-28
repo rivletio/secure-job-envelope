@@ -29,7 +29,7 @@ fn main() {
             }
         }
         _ => {
-            eprintln!("envelope (SJE) 0.0.1");
+            eprintln!("envelope (SJE) 0.1.0");
             eprintln!("  envelope hash [traveler.json]");
             eprintln!("  envelope level [traveler.json]");
             eprintln!("stdin is used when no file is given.");

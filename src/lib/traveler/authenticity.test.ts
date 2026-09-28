@@ -5,11 +5,13 @@ import { parseTraveler } from "./conformance.ts";
 import {
   verifyTravelerSignatures,
   travelerIsAuthentic,
+  signTraveler,
   signQuote,
   verifyQuoteSignature,
   itarAttestationBlocker,
 } from "./authenticity.ts";
-import { keypairFromSeed, hexToBytes } from "./signature.ts";
+import { keypairFromSeed } from "./signature.ts";
+import { hexToBytes } from "./bytes.ts";
 import type { Directory } from "./directory.ts";
 import type { Traveler, Quote } from "./types.ts";
 
@@ -54,16 +56,47 @@ describe("traveler authenticity (end to end)", () => {
       false,
     );
     assert.equal(travelerIsAuthentic(t, dir, "00".repeat(2592), at), false);
+    // malformed root key hex fails closed (returns false), never throws (L1)
+    assert.equal(travelerIsAuthentic(t, dir, "not-hex", at), false);
+  });
+
+  it("refuses an author that names no org_id even with a valid signature (H2)", () => {
+    // seed 0x22.. is org_huron's key (kid huron-2026) in the vector directory.
+    const kp = keypairFromSeed(hexToBytes("22".repeat(32)));
+    const base = parseTraveler(vec.traveler);
+    // Same key signs both; the ONLY difference is whether the body names an org.
+    const unbound: Traveler = { ...structuredClone(base), buyer: { name: base.buyer.name } };
+    unbound.signatures = [signTraveler(unbound, "huron-2026", kp.secretKey)];
+    const bound: Traveler = {
+      ...structuredClone(base),
+      buyer: { name: base.buyer.name, org_id: "org_huron" },
+    };
+    bound.signatures = [signTraveler(bound, "huron-2026", kp.secretKey)];
+    // A cryptographically valid signature is NOT enough: authorship must bind to org_id.
+    assert.equal(travelerIsAuthentic(unbound, dir, rootPk, at), false);
+    assert.equal(travelerIsAuthentic(bound, dir, rootPk, at), true);
   });
 
   it("gates ITAR on the directory-attested capability, not seller self-declaration", () => {
     const base = parseTraveler(vec.traveler);
     const itarT: Traveler = { ...base, itar: true };
     // org_huron is ITAR-attested; org_summitfab is not
-    assert.equal(itarAttestationBlocker(itarT, quoteFor("org_huron"), dir, at), null);
-    assert.ok(itarAttestationBlocker(itarT, quoteFor("org_summitfab"), dir, at));
+    assert.equal(itarAttestationBlocker(itarT, quoteFor("org_huron"), dir, rootPk, at), null);
+    assert.ok(itarAttestationBlocker(itarT, quoteFor("org_summitfab"), dir, rootPk, at));
     // a non-ITAR traveler imposes no gate
-    assert.equal(itarAttestationBlocker({ ...base, itar: false }, quoteFor("org_summitfab"), dir, at), null);
+    assert.equal(
+      itarAttestationBlocker({ ...base, itar: false }, quoteFor("org_summitfab"), dir, rootPk, at),
+      null,
+    );
+  });
+
+  it("refuses ITAR attestation from a directory that does not verify against the root (M1)", () => {
+    const itarT: Traveler = { ...parseTraveler(vec.traveler), itar: true };
+    // Flip summitfab's ITAR capability without re-signing: the directory no longer
+    // verifies against the root, so the gate must refuse rather than trust it.
+    const forged: Directory = structuredClone(dir);
+    forged.entries.find((e) => e.org_id === "org_summitfab")!.capabilities = { itar: true };
+    assert.ok(itarAttestationBlocker(itarT, quoteFor("org_summitfab"), forged, rootPk, at));
   });
 
   it("signs and verifies a seller quote signature against the directory", () => {
@@ -74,5 +107,70 @@ describe("traveler authenticity (end to end)", () => {
     const check = verifyQuoteSignature(quote, dir, rootPk, at);
     assert.equal(check?.ok, true);
     assert.equal(check?.org_id, "org_huron");
+  });
+});
+
+describe("directory validity windows (entry level)", () => {
+  const ev = JSON.parse(
+    readFileSync(
+      new URL("../../../conformance/signatures/directory-expired-entry.json", import.meta.url),
+      "utf8",
+    ),
+  ) as {
+    root_public_key_hex: string;
+    valid_at_ms: number;
+    expired_at_ms: number;
+    directory: Directory;
+    traveler: Traveler;
+  };
+
+  it("accepts authorship while the signer entry is in window, refuses it once expired (H1)", () => {
+    const t = parseTraveler(ev.traveler);
+    // The directory itself is valid at both instants; only the entry's window moves.
+    assert.equal(
+      travelerIsAuthentic(t, ev.directory, ev.root_public_key_hex, new Date(ev.valid_at_ms)),
+      true,
+    );
+    assert.equal(
+      travelerIsAuthentic(t, ev.directory, ev.root_public_key_hex, new Date(ev.expired_at_ms)),
+      false,
+    );
+  });
+});
+
+describe("seller quote authorship (signed-quote vector)", () => {
+  const qv = JSON.parse(
+    readFileSync(
+      new URL("../../../conformance/signatures/signed-quote.json", import.meta.url),
+      "utf8",
+    ),
+  ) as { root_public_key_hex: string; at_ms: number; directory: Directory; quote: Quote };
+  const when = new Date(qv.at_ms);
+
+  it("verifies the seller quote signature against the directory", () => {
+    const check = verifyQuoteSignature(qv.quote, qv.directory, qv.root_public_key_hex, when);
+    assert.equal(check?.ok, true);
+    assert.equal(check?.org_id, "org_huron");
+    // tampering the quote body breaks the signature
+    const tampered: Quote = { ...structuredClone(qv.quote), lead_time_days: 999 };
+    assert.equal(
+      verifyQuoteSignature(tampered, qv.directory, qv.root_public_key_hex, when)?.ok,
+      false,
+    );
+  });
+
+  it("gates ITAR on directory attestation of the seller org", () => {
+    const itarT: Traveler = { ...parseTraveler(vec.traveler), itar: true };
+    // org_huron IS attested -> allowed
+    assert.equal(
+      itarAttestationBlocker(itarT, qv.quote, qv.directory, qv.root_public_key_hex, when),
+      null,
+    );
+    // same quote re-addressed to a non-attested org -> blocked
+    const summit: Quote = {
+      ...structuredClone(qv.quote),
+      seller: { ...qv.quote.seller, org_id: "org_summitfab" },
+    };
+    assert.ok(itarAttestationBlocker(itarT, summit, qv.directory, qv.root_public_key_hex, when));
   });
 });

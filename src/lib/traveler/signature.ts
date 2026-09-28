@@ -12,6 +12,7 @@
  *  golden vectors that the Rust implementation verifies independently.
  */
 import { ml_dsa87 } from "@noble/post-quantum/ml-dsa.js";
+import { bytesToHex, hexToBytes, utf8ToBytes } from "./bytes.ts";
 
 export const SIG_ALG = "ML-DSA-87" as const;
 
@@ -24,26 +25,9 @@ export const SIG_DOMAIN = {
   directory: "sje-sig/directory/0.1.0",
 } as const;
 
-function utf8(s: string): Uint8Array {
-  return new TextEncoder().encode(s);
-}
-
-export function bytesToHex(b: Uint8Array): string {
-  let out = "";
-  for (const x of b) out += x.toString(16).padStart(2, "0");
-  return out;
-}
-
-export function hexToBytes(h: string): Uint8Array {
-  if (h.length % 2 !== 0 || /[^0-9a-f]/i.test(h)) throw new Error("invalid hex");
-  const out = new Uint8Array(h.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
-
 /** Bytes actually signed: the domain tag, a NUL, then the canonical body. */
 function signedMessage(domain: string, canonicalBody: string): Uint8Array {
-  return utf8(`${domain}\u0000${canonicalBody}`);
+  return utf8ToBytes(`${domain}\u0000${canonicalBody}`);
 }
 
 export type Keypair = { publicKey: Uint8Array; secretKey: Uint8Array };

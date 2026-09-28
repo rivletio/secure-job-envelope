@@ -327,7 +327,7 @@ async function handle(name: string, args: Args) {
 
 export function buildServer(): Server {
   const server = new Server(
-    { name: `sje-desk (${COMPANY})`, version: "0.0.1" },
+    { name: `sje-desk (${COMPANY})`, version: "0.1.0" },
     { capabilities: { tools: {} } },
   );
   server.setRequestHandler(ListToolsRequestSchema, () => ({

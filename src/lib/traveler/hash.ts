@@ -1,4 +1,5 @@
-import { sha384 } from "js-sha512";
+import { sha384 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
 import type { Org, Traveler, Part, QuoteableBody } from "./types.ts";
 import { TRAVELER_SPEC } from "./types.ts";
@@ -62,19 +63,15 @@ export function travelerHash(traveler: Traveler): string {
 }
 
 export function hashQuoteable(body: QuoteableBody): string {
-  return `sha384:${sha384(canonicalJson(body))}`;
+  return `sha384:${bytesToHex(sha384(utf8ToBytes(canonicalJson(body))))}`;
 }
 
 export function sha384Hex(bytes: string): string {
-  return `sha384:${sha384(bytes)}`;
+  return `sha384:${bytesToHex(sha384(utf8ToBytes(bytes)))}`;
 }
 
 export function shortHash(hash: string): string {
   const hex = hash.startsWith("sha384:") ? hash.slice(7) : hash;
   if (hex.length < 12) return hash;
   return `sha384:${hex.slice(0, 8)}…${hex.slice(-6)}`;
-}
-
-export function isBoundQuote(traveler: Traveler, quote: { traveler_hash_quoted: string }): boolean {
-  return quote.traveler_hash_quoted === travelerHash(traveler);
 }

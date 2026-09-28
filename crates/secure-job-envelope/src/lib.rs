@@ -1,10 +1,12 @@
-//! SJE 0.0.1
+//! SJE 0.1.0
 //!
 //! Content-addressed envelope for one part family moving between two manufacturers.
 //! Quotes bind to `sha384:` + hex of canonical JSON of the quoteable body.
 //!
-//! The hash is integrity of the buyer-authored body, not a signature. 0.0.1 does
-//! not authenticate parties, implement ITAR/EAR access control, or form a contract.
+//! The traveler hash is integrity of the buyer-authored body, not a signature;
+//! authorship is a separate ML-DSA-87 signature (see sign.rs), verified against a
+//! signed key directory. Access control and contract formation remain out of scope
+//! of this crate.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -387,7 +389,7 @@ fn write_canonical(out: &mut String, value: &Value, depth: usize) -> Result<(), 
     Ok(())
 }
 
-/// Numbers must land byte-identical across implementations, so 0.0.1 only
+/// Numbers must land byte-identical across implementations, so the format only
 /// admits values whose shortest JSON rendering is plain fixed notation.
 /// JS `Number::toString` and Rust's ryu disagree on exponent formatting
 /// (`1e+21` vs `1e21`), so any value that would render with an exponent is
@@ -513,17 +515,13 @@ fn quote_ok(q: &Quote, traveler: &Traveler) -> bool {
 }
 
 pub fn quote_expired(q: &Quote, now_ms: i64) -> bool {
-    match chrono_millis(&q.valid_until) {
+    match rfc3339_millis(&q.valid_until) {
         Some(until) => now_ms > until,
         None => true,
     }
 }
 
-fn chrono_millis(iso: &str) -> Option<i64> {
-    rfc3339_millis(iso)
-}
-
-fn rfc3339_millis(iso: &str) -> Option<i64> {
+pub(crate) fn rfc3339_millis(iso: &str) -> Option<i64> {
     // 2026-09-30T00:00:00.000Z or 2026-09-30T00:00:00Z
     let body = iso.strip_suffix('Z')?;
     let (date, time) = body.split_once('T')?;

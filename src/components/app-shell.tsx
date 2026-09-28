@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 rivlet<span className="text-accent">.io</span>
               </span>
               <span className="block font-mono text-xs tracking-widest text-faint uppercase">
-                Traveler 0.0.1
+                Traveler 0.1
               </span>
             </span>
           </Link>

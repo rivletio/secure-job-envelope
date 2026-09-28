@@ -13,14 +13,32 @@ use hkdf::Hkdf;
 use ml_kem::kem::Decapsulate;
 use ml_kem::{Ciphertext, DecapsulationKey, MlKem1024, Seed, B32};
 use serde_json::Value;
-use sha2::Sha384;
+use sha2::{Digest, Sha384};
 
 pub const ENVELOPE_SPEC: &str = "sje-envelope/0.1.0";
 pub const ENC_ALG: &str = "ML-KEM-1024+HKDF-SHA-384+AES-256-GCM";
 const KEK_SALT: &[u8] = b"sje-kek/0.1.0";
 
-fn aad_payload() -> Vec<u8> {
-    format!("{ENVELOPE_SPEC}\0{ENC_ALG}").into_bytes()
+/// Payload AAD binds the algorithm identifiers AND the ordered recipient set
+/// (as canonical JSON), so a downgraded alg or a dropped/reordered/duplicated
+/// recipient breaks the payload tag. Mirrors the TypeScript aadPayload.
+fn aad_payload(recipient_kids: &[&str]) -> Vec<u8> {
+    let v = serde_json::json!({
+        "spec": ENVELOPE_SPEC,
+        "enc_alg": ENC_ALG,
+        "recipients": recipient_kids,
+    });
+    crate::canonical_json(&v)
+        .expect("canonical payload aad")
+        .into_bytes()
+}
+
+/// Opaque recipient id derived from an ML-KEM public key (hex): the first 16 hex
+/// chars of its SHA-384. Mirrors the TypeScript `encKid`. None on bad hex.
+pub fn enc_kid(enc_public_key_hex: &str) -> Option<String> {
+    let bytes = hex::decode(enc_public_key_hex).ok()?;
+    let digest = Sha384::digest(&bytes);
+    Some(hex::encode(digest)[..16].to_string())
 }
 fn aad_recipient(kid: &str) -> Vec<u8> {
     format!("{ENVELOPE_SPEC}\0{ENC_ALG}\0{kid}").into_bytes()
@@ -57,7 +75,7 @@ pub fn seal_deterministic_fields(
 ) -> (String, String, String) {
     let dk = DecapsulationKey::<MlKem1024>::from_seed(Seed::from(*recipient_seed));
     let (ct, ss) = dk.encapsulation_key().encapsulate_deterministic(&B32::from(*coins));
-    let payload = gcm_encrypt(cek, payload_nonce, &aad_payload(), plaintext);
+    let payload = gcm_encrypt(cek, payload_nonce, &aad_payload(&[kid]), plaintext);
     let wrapped = gcm_encrypt(&kek(ss.as_slice(), kid), wrap_nonce, &aad_recipient(kid), cek);
     (
         hex::encode(ct.as_slice()),
@@ -76,9 +94,12 @@ pub fn open(envelope_json: &str, kid: &str, recipient_seed: &[u8; 64]) -> Option
     {
         return None;
     }
-    let r = v
-        .get("recipients")?
-        .as_array()?
+    let recipients = v.get("recipients")?.as_array()?;
+    let kids: Vec<&str> = recipients
+        .iter()
+        .filter_map(|x| x.get("kid").and_then(Value::as_str))
+        .collect();
+    let r = recipients
         .iter()
         .find(|x| x.get("kid").and_then(Value::as_str) == Some(kid))?;
     let kem_ct = hex::decode(r.get("kem_ct")?.as_str()?).ok()?;
@@ -92,5 +113,5 @@ pub fn open(envelope_json: &str, kid: &str, recipient_seed: &[u8; 64]) -> Option
     let ss = dk.decapsulate(&ct);
     let cek_vec = gcm_decrypt(&kek(ss.as_slice(), kid), &wrap_nonce, &aad_recipient(kid), &wrapped_cek)?;
     let cek: [u8; 32] = cek_vec.try_into().ok()?;
-    gcm_decrypt(&cek, &payload_nonce, &aad_payload(), &payload)
+    gcm_decrypt(&cek, &payload_nonce, &aad_payload(&kids), &payload)
 }

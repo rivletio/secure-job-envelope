@@ -11,8 +11,8 @@ implementation's own schema, guards, hash binding, and defensive zip
 import. Two properties worth naming:
 
 - **Binding is earned, not asserted.** `sje_quote` computes
-  `traveler_hash_quoted` from the traveler the seller's desk actually
-  holds — an agent cannot claim a binding it doesn't have.
+  `traveler_hash_quoted` server-side from the traveler in hand, so it cannot be
+  asserted through the tool input (test M2).
 - **Stateless by design.** The traveler file is the state. No database,
   no session: the protocol's thesis, enforced by the tool surface.
 
@@ -57,5 +57,6 @@ standard.
 ```
 
 Then ask the model to compose, quote, evaluate, or award — the guards
-hold no matter what the model asks for. Tests: `mcp/mcp.test.ts` (runs in
-`npm test`); claims mapping: `docs/CLAIMS.md` §MCP surface.
+apply to every tool call regardless of the prompt (tests M1–M3). Tests:
+`mcp/mcp.test.ts` (runs in `npm test`); claims mapping: `docs/CLAIMS.md`
+§MCP surface.

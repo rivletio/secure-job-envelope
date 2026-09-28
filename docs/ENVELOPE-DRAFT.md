@@ -1,6 +1,6 @@
 # Encrypted envelope — draft for 0.1
 
-**Status: IMPLEMENTED in 0.1 as the pure CNSA 2.0 Category 5 profile —
+**Status: IMPLEMENTED in 0.1 as a profile whose algorithms are selected from the CNSA 2.0 Category 5 suite —
 ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM (this draft's earlier ML-KEM-768
 default was promoted to 1024). Proven by dual-language golden vectors; see
 `docs/CLAIMS.md` PQ4 and `src/lib/traveler/envelope.ts` /
