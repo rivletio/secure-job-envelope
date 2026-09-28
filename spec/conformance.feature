@@ -42,7 +42,7 @@ Feature: Traveler conformance levels
     When the conformance level is computed
     Then the level code is "L2"
     And the level name is "Executable"
-    And missing includes "as_built (reserved in 0.0.1)"
+    And missing includes "as_built (record L3 as-built data to advance)"
 
   @rid:S-a3ab4c9d
   Scenario: Bound quotes must match the current traveler hash

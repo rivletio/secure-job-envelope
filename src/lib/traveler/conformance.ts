@@ -107,7 +107,7 @@ export function levelOf(traveler: Traveler): LevelInfo {
     level: 2,
     name: "Executable",
     code: "L2",
-    missing: ["as_built (reserved in 0.0.1)"],
+    missing: ["as_built (record L3 as-built data to advance)"],
   };
 }
 
