@@ -29,7 +29,8 @@ What the format defends, by design:
 - **Confidentiality (0.1).** The encrypted envelope (ML-KEM-1024 +
   HKDF-SHA-384 + AES-256-GCM) is designed to keep payloads confidential in
   transit and at rest against a harvest-now-decrypt-later adversary, subject to
-  the key-management limits below (no forward secrecy in 0.1). AEAD binds
+  the key-management limits below (the base 0.1 envelope has no forward secrecy;
+  the 0.2 envelope adds it — see below). AEAD binds
   `{spec, enc_alg, recipients}` to the payload and `{spec, enc_alg, kid}` to
   each wrap, so a stripped, swapped, or reordered field/recipient fails the tag;
   recipient keys are resolved through the signed directory.
@@ -40,10 +41,13 @@ future versions:
 - **No multi-tenant access control.** The signed directory establishes
   *identity* (org_id → key with attested capabilities), but there is no
   per-tenant authorization layer; the desk's Buyer/Seller toggle is a view.
-- **No forward secrecy.** The envelope encapsulates to a recipient's static
-  ML-KEM key — bound to the org through the signed directory, but long-lived —
-  so a future compromise of that key exposes past envelopes sent to it.
-  Single-use prekeys (PQXDH-style) are the next envelope milestone.
+- **Forward secrecy is opt-in (the 0.2 envelope), not automatic.** The base 0.1
+  envelope encapsulates only to a recipient's long-lived static ML-KEM key, so a
+  future compromise of that key exposes past envelopes sent to it. The 0.2
+  envelope (`sje-envelope/0.2.0`) adds forward secrecy with single-use prekeys
+  and a two-KEM combine (one-time prekey + static, both shared secrets bound) —
+  but realizing it depends on the recipient deleting the consumed one-time secret
+  after opening: the format enables forward secrecy, key management completes it.
 - **Quotes are outside the hash** (deliberately, so travelers can climb
   levels without invalidating prices) — a quote's content is covered by its
   own seller signature and the archive's META.json digests, not by
@@ -79,7 +83,13 @@ in [docs/CLAIMS.md](docs/CLAIMS.md); the shared vector corpus lives in
   binding {spec, enc_alg, recipients} (payload) / {spec, enc_alg, kid} (wraps) —
   the threat model is harvest-now-decrypt-later at industrial-base scale. Both
   the signatures and the envelope ship with dual-language golden vectors.
-  Forward secrecy (single-use prekeys) is the next milestone.
+- **Forward secrecy (0.2): implemented.** The `sje-envelope/0.2.0` mode
+  encapsulates to a single-use prekey (from a signed bundle) **and** the static
+  identity key, binding both shared secrets into the KEK (PQ8–PQ9). After the
+  recipient opens and deletes the consumed one-time secret, a later compromise of
+  the static key cannot recover that message. The base 0.1 static envelope has no
+  forward secrecy, and realizing FS depends on the recipient deleting the
+  one-time secret.
 
 ## Handling of sensitive data
 

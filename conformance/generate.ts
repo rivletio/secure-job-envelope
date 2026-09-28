@@ -13,10 +13,13 @@ import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signa
 import { bytesToHex, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signTraveler, signQuote } from "../src/lib/traveler/authenticity.ts";
+import { PREKEY_BUNDLE_SPEC, signPrekeyBundle, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
 import {
   kemKeypairFromSeed,
   sealEnvelopeDeterministic,
   recipientByOrg,
+  sealFsEnvelopeDeterministic,
+  fsRecipientFromBundle,
 } from "../src/lib/traveler/envelope.ts";
 import { sha384 } from "@noble/hashes/sha2.js";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
@@ -410,3 +413,103 @@ writeFileSync(
   JSON.stringify(signedQuoteVector, null, 2) + "\n",
 );
 console.log("signed quote vector written");
+
+/* ---------- signed one-time prekey bundle vector (forward secrecy) ---------- */
+// A recipient org (org_northline) publishes one-time ML-KEM-1024 prekeys, the
+// whole bundle signed by its ML-DSA identity key (kid northline-2026). Both
+// implementations verify the bundle against the directory: kid -> org_northline,
+// the bundle's own window covers at_ms, and the ML-DSA signature over the
+// canonical body checks out. These prekeys are reused by the FS envelope vector.
+const prekeySeeds = [new Uint8Array(64).fill(0x61), new Uint8Array(64).fill(0x62)];
+const prekeyKps = prekeySeeds.map((s) => kemKeypairFromSeed(s));
+const prekeyBundle: PrekeyBundle = {
+  spec: PREKEY_BUNDLE_SPEC,
+  org_id: "org_northline",
+  kid: "northline-2026",
+  enc_alg: "ML-KEM-1024",
+  issued_at: "2026-01-01T00:00:00.000Z",
+  valid_until: "2027-01-01T00:00:00.000Z",
+  prekeys: prekeyKps.map((kp, i) => ({
+    prekey_id: `northline-ot-${i + 1}`,
+    public_key: bytesToHex(kp.publicKey),
+  })),
+};
+prekeyBundle.sig = signPrekeyBundle(prekeyBundle, northlineKp.secretKey);
+const prekeyBundleVector = {
+  note:
+    "Signed one-time prekey bundle. Verify the directory against root_public_key_hex, resolve " +
+    "the bundle's kid to a directory entry whose org_id equals the bundle's org_id, check the " +
+    "bundle's own window covers at_ms, then verify the ML-DSA signature over the canonical bundle " +
+    "body (bundle minus its own sig). prekey_seeds regenerate each one-time ML-KEM keypair.",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  at_ms: Date.parse("2026-06-01T00:00:00.000Z"),
+  directory: directoryVector.directory,
+  bundle: prekeyBundle,
+  prekey_seeds: prekeyKps.map((_, i) => ({
+    prekey_id: `northline-ot-${i + 1}`,
+    seed_hex: bytesToHex(prekeySeeds[i]!),
+  })),
+};
+writeFileSync(
+  `${here}/signatures/prekey-bundle.json`,
+  JSON.stringify(prekeyBundleVector, null, 2) + "\n",
+);
+console.log("prekey bundle vector written");
+
+/* ---------- forward-secret envelope vector (two-KEM: one-time prekey + static) ---------- */
+// Seals to org_northline using one verified one-time prekey (northline-ot-1) plus
+// northline's static identity ML-KEM key from the directory. The KEK binds both
+// shared secrets (one-time || static). Both implementations re-seal byte-for-byte
+// and open with BOTH the static and one-time secret keys.
+const fsRecipient = fsRecipientFromBundle(
+  directoryVector.directory,
+  prekeyBundle,
+  "org_northline",
+  "northline-ot-1",
+  bytesToHex(rootKp.publicKey),
+  new Date("2026-06-01T00:00:00.000Z"),
+)!;
+const fsDet = {
+  cek: new Uint8Array(32).fill(0x3a),
+  payload_nonce: new Uint8Array(12).fill(0x03),
+  coins_onetime: [new Uint8Array(32).fill(0x0a)],
+  coins_static: [new Uint8Array(32).fill(0x0b)],
+  wrap_nonces: [new Uint8Array(12).fill(0x04)],
+};
+const fsPlaintext = canonicalJson(golden);
+const fsEnvelope = sealFsEnvelopeDeterministic(
+  new TextEncoder().encode(fsPlaintext),
+  [fsRecipient],
+  fsDet,
+);
+const fsEnvelopeVector = {
+  note:
+    "Forward-secret envelope (sje-envelope/0.2.0). Encapsulates to a one-time prekey AND the " +
+    "static identity key; the KEK binds both shared secrets (one-time || static). Implementations " +
+    "re-seal plaintext_utf8 with the fixed determinism values and MUST reproduce envelope " +
+    "byte-for-byte, and MUST decrypt it with BOTH the static and one-time seeds. Deleting the " +
+    "one-time secret after opening is what gives forward secrecy.",
+  recipient: {
+    kid: fsRecipient.kid,
+    org_id: "org_northline",
+    prekey_id: "northline-ot-1",
+    static_seed_hex: bytesToHex(northlineKemSeed),
+    onetime_seed_hex: bytesToHex(prekeySeeds[0]!),
+    static_public_key_hex: fsRecipient.static_public_key,
+    onetime_public_key_hex: fsRecipient.onetime_public_key,
+  },
+  determinism: {
+    cek_hex: bytesToHex(fsDet.cek),
+    payload_nonce_hex: bytesToHex(fsDet.payload_nonce),
+    coins_onetime_hex: bytesToHex(fsDet.coins_onetime[0]!),
+    coins_static_hex: bytesToHex(fsDet.coins_static[0]!),
+    wrap_nonce_hex: bytesToHex(fsDet.wrap_nonces[0]!),
+  },
+  plaintext_utf8: fsPlaintext,
+  envelope: fsEnvelope,
+};
+writeFileSync(
+  `${here}/signatures/fs-envelope.json`,
+  JSON.stringify(fsEnvelopeVector, null, 2) + "\n",
+);
+console.log("fs envelope vector written");

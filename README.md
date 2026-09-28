@@ -119,9 +119,11 @@ vectors (see `docs/CLAIMS.md`):
 - **An award can carry commercial terms** (governing law, warranty, payment) —
   closer to a purchase order, though still not a contract by itself.
 
-Remaining honest edges: the encrypted envelope uses static recipient keys, so it
-has no forward secrecy yet (single-use prekeys are the next milestone); the
-browser desk verifies signatures but never holds signing keys. See `SECURITY.md`.
+Remaining honest edges: forward secrecy is opt-in — the 0.2 envelope
+(`sje-envelope/0.2.0`) adds it via single-use prekeys and a two-KEM combine, but
+the base 0.1 envelope has none, and realizing forward secrecy depends on the
+recipient deleting the consumed one-time secret after opening; the browser desk
+verifies signatures but never holds signing keys. See `SECURITY.md`.
 
 ## Why a file format
 

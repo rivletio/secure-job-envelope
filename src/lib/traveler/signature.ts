@@ -23,6 +23,7 @@ export const SIG_DOMAIN = {
   traveler: "sje-sig/traveler/0.1.0",
   quote: "sje-sig/quote/0.1.0",
   directory: "sje-sig/directory/0.1.0",
+  prekeys: "sje-sig/prekeys/0.1.0",
 } as const;
 
 /** Bytes actually signed: the domain tag, a NUL, then the canonical body. */
