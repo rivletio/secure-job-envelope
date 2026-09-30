@@ -38,13 +38,13 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 | L2 | Awarded (L2) travelers lock: further amendment is refused (SPEC, TRUST CC8) | `store.test.ts` "locks the traveler at L2" | ✅ |
 | L3 | A stale quote cannot be awarded; expiry and priced-line-at-target are enforced at award (SPEC) | `store.test.ts` stale-award refusal; `traveler.test.ts` expiry + price-line guards | ✅ |
 | L4 | An ITAR traveler cannot take a quote from a seller without `itar: true` (SPEC §Export control) | `traveler.test.ts` ITAR guard; `lib.rs::itar_traveler_rejects_non_itar_seller`; reject vector `itar-mismatch.json` both sides | ✅ |
-| L5 | Every compose/quote/amend/award/import/export is appended to the audit log with a timestamp (TRUST CC7) | `store.test.ts` "audits every state change in order" | ✅ |
+| L5 | Every compose/quote/amend/award/import is appended to the store's audit log with a timestamp; export is audited from the traveler route (UI). (TRUST CC7) | `store.test.ts` "audits every state change in order" (compose/quote/amend) and "audits award and import" (award/import); export audit is in `src/routes/t.$travelerId.tsx` (not unit-tested) | ✅ |
 
 ## Archive handling
 
 | # | Claim | Proof | Status |
 |---|---|---|---|
-| A1 | Zip import allowlists members (`traveler.json`, `META.json`, `quoteable.canonical.json`), requires `META.json`, and refuses path traversal, non-allowlisted members (e.g. `NOTES.txt`), oversized entries, CRC mismatches, META id/digest mismatches, and a tampered `quoteable.canonical.json` (SPEC §Archive, SECURITY) | `traveler.test.ts` zip round-trip + path-trick + META-mismatch + canonical-member-mismatch negative cases | ✅ |
+| A1 | Zip import allowlists members (`traveler.json`, `META.json`, `quoteable.canonical.json`), requires `META.json`, and refuses path traversal, non-allowlisted members (e.g. `NOTES.txt`), oversized/zip-bomb entries, META id/digest mismatches, and a tampered `quoteable.canonical.json`. Integrity rests on SHA-384 cross-checks, not CRC32 (CRC is deliberately skipped to avoid inflating a hostile archive before the guards run). (SPEC §Archive, SECURITY) | `traveler.test.ts` zip round-trip + path-trick + zip-bomb + META-mismatch + canonical-member-mismatch negative cases | ✅ |
 
 ## MCP surface
 
@@ -82,7 +82,7 @@ the content-hash vectors above.
 
 | # | Statement | Where | Status |
 |---|---|---|---|
-| G1 | Party authentication. 0.0.1 had none — the hash is integrity, not a signature, so any party could claim any `org_id`. 0.1 implements ML-DSA-87 authorship signatures bound to a signed key directory. | README, SPEC, SECURITY, TRUST | ✅ **resolved in 0.1** (PQ1–PQ6); the browser desk verifies only and never holds signing keys |
+| G1 | Party authentication. 0.0.1 had none — the hash is integrity, not a signature, so any party could claim any `org_id`. 0.1 implements ML-DSA-87 authorship signatures bound to a signed key directory. | README, SPEC, SECURITY, TRUST | ✅ **resolved in 0.1** (PQ1–PQ6). Signature/directory verification lives in the reference library (exercised by the conformance vectors, unit tests, and the soak) — it is **not** wired into the browser desk UI, which never holds signing keys and never signs |
 | G2 | Encrypted envelope (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM, algorithms from the CNSA 2.0 Cat 5 suite). 0.0.1 had no confidentiality. | PQ4, PQ7; `docs/ENVELOPE-DRAFT.md` | ✅ **resolved in 0.1** with the dual-language golden vectors the draft itself demanded |
 | G3 | TS parse (zod) and the Rust structural parse now accept and reject the same documents. The former acceptance gap — Rust accepting documents zod refused (looser numeric ceilings, missing string/count bounds, unknown keys, lenient datetimes) — is closed by a full structural validator in the Rust core. | this file (C12–C14); `crates/secure-job-envelope/src/validate.rs`; the differential + committed corpus (C15) | ✅ **resolved in this pass** — a seeded TS↔Rust differential over thousands of documents finds zero accept/reject divergence, pinned by shared reject vectors and the committed corpus |
 | G6 | The 512 KiB size limit is enforced on the raw input length in Rust vs the re-serialized (compact, UTF-16) length in zod, so a document padded with whitespace to just under the limit could differ at the exact boundary. A negligible edge (both cap ≈512 KiB; the differential feeds compact JSON), stated rather than hidden. | this file; `lib.rs::parse_traveler`; `schema.ts` superRefine | ⚠️ documented edge |

@@ -27,7 +27,7 @@ import. Two properties worth naming:
 | `sje_evaluate` | buyer | Bound/stale/expired analysis, unit price at target, award blockers |
 | `sje_award` | buyer | Award a bound, unexpired quote + ops + ship-to → **L2, locked** |
 | `sje_seal` | any | `{traveler_id}.traveler.zip` with META digests + canonical body, base64 |
-| `sje_open` | any | Defensive import: allowlist, size caps, CRC, digest cross-checks — tampered archives refused |
+| `sje_open` | any | Defensive import: allowlist, size caps, SHA-384 digest cross-checks — tampered archives refused |
 
 ## The demo
 

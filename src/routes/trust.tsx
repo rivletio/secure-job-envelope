@@ -59,7 +59,7 @@ function TrustPage() {
           </li>
           <li>
             Import of <code className="font-mono text-foreground">.traveler.zip</code> requires
-            META.json, allowlisted members, CRC32, size caps, and a matching hash.
+            META.json, allowlisted members, size caps, and SHA-384 hash cross-checks.
           </li>
           <li>
             ITAR is a directory-attested capability in 0.1; the desk’s local bit is a consistency

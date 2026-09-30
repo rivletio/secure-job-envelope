@@ -118,7 +118,7 @@ function Desk() {
             <LevelRow code="L0" name="Quoteable" hint="Material and qty are known" n={counts.L0} />
             <LevelRow code="L1" name="Awardable" hint="A quote bound to this hash" n={counts.L1} />
             <LevelRow code="L2" name="Executable" hint="Awarded, ops, ship-to" n={counts.L2} />
-            <LevelRow code="L3" name="As-built" hint="Reserved in 0.1" n={0} />
+            <LevelRow code="L3" name="As-built" hint="As-built (grouped under Executable)" n={0} />
           </ul>
         </aside>
       </section>

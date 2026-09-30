@@ -3,9 +3,9 @@
  *   - it accepts every traveler this repo ships (example, conformance vectors,
  *     seed fixtures), so the published schema never rejects our own data; and
  *   - it enforces the canonical numeric range the SPEC claims it enforces —
- *     integers within 2^53-1, and the fixed-notation money rule (an integer or
- *     a non-integer of magnitude >= 1e-5, <= 1e12). See docs/SPEC.md §Canonical
- *     JSON and docs/CLAIMS.md.
+ *     integers within 2^53-1, integer minor-unit money (0..1e12), and the
+ *     fixed-notation rule for the one non-integer field, thickness_mm (>= 1e-4).
+ *     See docs/SPEC.md §Canonical JSON and docs/CLAIMS.md.
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";

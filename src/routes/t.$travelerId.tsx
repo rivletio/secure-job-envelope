@@ -318,13 +318,13 @@ function Checklist({ infoCode, missing }: { infoCode: string; missing: string[] 
     { code: "L0", label: "Material + qty" },
     { code: "L1", label: "Bound quote" },
     { code: "L2", label: "Award, ops, ship-to" },
-    { code: "L3", label: "As-built (reserved)" },
+    { code: "L3", label: "As-built" },
   ];
   const here = ["D", "L0", "L1", "L2", "L3"].indexOf(infoCode);
   return (
     <ul className="grid gap-2 text-sm">
       {rows.map((r, i) => {
-        const done = here > i || (infoCode === r.code && r.code !== "L3");
+        const done = here > i || infoCode === r.code;
         return (
           <li key={r.code} className="flex items-center gap-2">
             <span className={cn("size-2 rounded-full", done ? "bg-accent" : "bg-line")} />

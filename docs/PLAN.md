@@ -12,7 +12,7 @@ A **traveler** is the job object — one part family moving between a buyer and 
 Buyer composes traveler  ──►  L0 Quoteable
 Sellers attach quotes  ──►  L1 Awardable
 Buyer awards + ops     ──►  L2 Executable
-                            L3 As-built (reserved)
+                            L3 As-built (as-built recorded)
 ```
 
 ## Goals
@@ -27,10 +27,10 @@ Buyer awards + ops     ──►  L2 Executable
 
 | Id | Slice | Spec coverage |
 |---|---|---|
-| `m-format` | 0.0.1 format locked | hash, schema, conformance |
+| `m-format` | 0.1.0 format locked | hash, schema, conformance |
 | `m-flow` | Desk flow L0→L2 green | compose, quote, award, lifecycle, archive, ITAR |
 | `m-desk` | Desk product | desk list, traveler view, shell, role, spec page, trust audit |
-| `m-envelope` | 0.1 encrypted envelope | draft only — [`ENVELOPE-DRAFT.md`](ENVELOPE-DRAFT.md) |
+| `m-envelope` | 0.1 encrypted envelope | implemented (base 0.1 + forward-secret 0.2) — [`ENVELOPE-DRAFT.md`](ENVELOPE-DRAFT.md) |
 
 ## Diagrams
 

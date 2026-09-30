@@ -120,8 +120,9 @@ mode fixes that with **single-use prekeys** and a **two-KEM combine**:
 **Honest boundary:** the format *enables* forward secrecy (single-use keys and a
 combine that binds both secrets); actually realizing it depends on the recipient
 deleting the consumed one-time secret. When no unused prekey is available,
-seal falls back to the 0.1 static envelope — confidential, but not
-forward-secret.
+`fsRecipientFromBundle` returns nothing and a caller must instead use the 0.1
+static envelope (confidential, but not forward-secret) — there is no automatic
+fallback.
 
 ## Keys
 
@@ -133,8 +134,9 @@ forward-secret.
   private keys must be retained for as long as archived (non-forward-secret)
   envelopes matter — or archives should be re-encrypted on rotation. One-time
   prekeys are the opposite: use once, then delete.
-- The browser desk **verifies only** and never holds ML-KEM or ML-DSA secret
-  keys.
+- The browser desk never holds ML-KEM or ML-DSA secret keys and never signs or
+  seals. Envelope and signature verification are implemented in the reference
+  library (and available to CLI / MCP consumers), not wired into the desk UI.
 
 ## Explicit non-goals
 

@@ -919,6 +919,7 @@ mod tests {
         assert!(rfc3339_millis("2026-05-01T12:00:00.000+00:00").is_none()); // trailing offset, not Z
         assert!(rfc3339_millis("2026-5-1T12:00:00Z").is_none()); // single-digit fields
         assert!(rfc3339_millis("2026-05-01T12:00:60.000Z").is_none()); // second 60
+        assert!(rfc3339_millis("2026-05-01T24:00:00.000Z").is_none()); // hour 24
         assert!(rfc3339_millis("2026-02-31T12:00:00.000Z").is_none()); // impossible calendar day
         assert!(rfc3339_millis("2026-01-01T12:00:00.0000000000Z").is_none()); // > 9 fractional digits
         // Leap-year awareness.

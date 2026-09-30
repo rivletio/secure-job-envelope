@@ -17,15 +17,27 @@ What the format defends, by design:
   hashed (see `docs/SPEC.md` § Canonical JSON).
 - **Quote binding.** A quote binds to the exact buyer revision it priced
   via `traveler_hash_quoted`; amending the body stale-marks every quote.
+- **Cross-implementation parity.** The two implementations accept and reject
+  the same documents and agree on hash, level, and binding. A Rust validator
+  mirrors the TypeScript schema field for field (numeric ceilings, UTF-16
+  string bounds, unknown-key rejection, strict leap-aware datetimes, and
+  rejection of untrimmed strings and lone surrogates). A seeded TS↔Rust
+  differential fuzzer, a committed fuzz corpus, and a lifecycle soak enforce
+  this in CI (see `docs/CLAIMS.md` C12–C15).
 - **Hostile archives.** `.traveler.zip` import allowlists members (max 3),
-  refuses path traversal, caps compressed and uncompressed sizes, verifies
-  CRC32, and cross-checks META.json digests.
+  refuses path traversal, caps compressed and uncompressed sizes, and verifies
+  integrity with SHA-384 cross-checks (`traveler_hash`, the `traveler.json`
+  digest, and the canonical-body member) rather than CRC32 — CRC verification is
+  deliberately skipped so a hostile archive is never fully inflated before the
+  guards run.
 - **ID generation** uses `crypto.getRandomValues` with rejection sampling
   (no modulo bias); there is no non-cryptographic fallback.
 - **Party authentication (0.1).** ML-DSA-87 (FIPS 204) authorship signatures
   bind a traveler/quote to a key in a signed directory; a signature whose
   key's `org_id` differs from the body's — or that names no org at all — is
-  refused. The desk verifies signatures only and never holds signing keys.
+  refused. Signature verification lives in the reference library (and is
+  available to CLI / MCP consumers); it is not wired into the browser desk UI,
+  which never holds signing keys and never signs.
 - **Confidentiality (0.1).** The encrypted envelope (ML-KEM-1024 +
   HKDF-SHA-384 + AES-256-GCM) is designed to keep payloads confidential in
   transit and at rest against a harvest-now-decrypt-later adversary, subject to

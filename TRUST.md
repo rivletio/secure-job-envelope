@@ -19,11 +19,13 @@ Plain statements first:
   signature. 0.1 adds ML-DSA-87 authorship signatures verified against the
   signed directory; a quote that is unsigned or fails directory verification
   does not establish the seller's identity.
-- **Archive import is defensive**: allowlisted members, size caps, CRC32,
-  path-traversal refusal, and META.json digest cross-checks.
-- **ITAR is a directory-attested capability in 0.1**; the desk's local bit is
-  a consistency check, not a Technology Control Plan, DDTC registration, or
-  deemed-export screen.
+- **Archive import is defensive**: allowlisted members, size caps,
+  path-traversal refusal, and SHA-384 META.json digest cross-checks (CRC32 is
+  deliberately skipped so a hostile archive is not fully inflated first).
+- **ITAR**: 0.1 defines a directory-attested capability (reference library /
+  CLI); the desk itself enforces only the self-declared `seller.itar` bit.
+  Neither is a Technology Control Plan, DDTC registration, or deemed-export
+  screen.
 
 ## SOC 2 TSC mapping (desk, 0.1)
 
@@ -32,7 +34,7 @@ Plain statements first:
 | CC6 Access | Local role switch. No identity, session, or MFA. | SSO / IdP, RBAC, joiner-mover-leaver, session timeout. |
 | CC6.7 Restrict data | Origin-isolated localStorage. No encryption at rest. | CUI boundary, encryption at rest, DLP, media control. |
 | CC7 Monitoring | Append-only local audit of compose/quote/award/import/export, capped at 100 events, no PII in the log. | Central immutable log, alerting, retention, clock sync. |
-| CC8 Change | Hash-bound quotes; 0.1 adds ML-DSA-87 authorship signatures, verified against the signed directory (the desk verifies only). Amend bumps revision and stale-marks quotes. L2 travelers lock. | Change tickets, dual control on award, and the signing/key custody the desk does not hold. |
+| CC8 Change | Hash-bound quotes; 0.1 adds ML-DSA-87 authorship signatures, verified against the signed directory in the reference library / CLI (not wired into the desk UI). Amend bumps revision and stale-marks quotes. L2 travelers lock. | Change tickets, dual control on award, signature verification in the desk, and the signing/key custody the desk does not hold. |
 | A1 Availability | This browser tab. | HA, backup, RTO/RPO, incident response. |
 | C1 Confidentiality | TLS in transit if the host serves HTTPS. Traveler JSON is readable. | Classification, encryption, NDAs, vendor review. |
 | P1 Privacy | Ship-to is stored with the traveler when awarded. Audit log omits addresses. | Minimization, retention, DSAR, subprocessors. |

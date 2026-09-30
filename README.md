@@ -20,7 +20,7 @@ This format is open source. [Claanker](https://github.com/rivletio/claanker) use
 Buyer composes traveler  ──►  L0 Quoteable   (can price without guessing)
 Sellers attach quotes  ──►  L1 Awardable   (quotes bound to traveler_hash)
 Buyer awards + ops     ──►  L2 Executable  (locked; traveler + ship-to)
-                            L3 As-built    (reserved in 0.1)
+                            L3 As-built    (as-built data recorded)
 ```
 
 This repo contains:
@@ -84,12 +84,16 @@ cargo run -- level ../../examples/bracket.traveler.json
 ## What is tested, and where
 
 CI (`.github/workflows/ci.yml`) runs every enforced suite: the TypeScript
-tests (`npm test` — the traveler suite, the shared conformance vectors, the
-published-schema contract, and the MCP surface), the two-desk MCP demo
-(`npm run demo`), and the Rust crate (`cargo test` inside
-`crates/secure-job-envelope`). The TypeScript and Rust implementations must
-reproduce the shared conformance vectors byte for byte, and every statement in
-[`docs/CLAIMS.md`](docs/CLAIMS.md) maps to one of these.
+tests (`npm test` — the traveler suite, the shared conformance vectors, strict
+datetimes, the published-schema contract, and the MCP surface), the two-desk MCP
+demo (`npm run demo`), the Rust crate (`cargo test` inside
+`crates/secure-job-envelope`, including the fuzz-corpus replay), and a
+cross-implementation job (`crossimpl`) that runs the lifecycle soak
+(`npm run soak`), the TypeScript↔Rust differential fuzzer (`npm run differential`),
+and a check that the committed fuzz corpus is still what the generator produces.
+The TypeScript and Rust implementations must reproduce the shared conformance
+vectors byte for byte and agree on every document the differential feeds them,
+and every statement in [`docs/CLAIMS.md`](docs/CLAIMS.md) maps to one of these.
 
 The `spec/*.feature` files are the **BDD design spec** — 88 Gherkin scenarios
 of intended desk behavior, managed by the `shalt` workflow. They document
@@ -100,8 +104,10 @@ the suites above. Run the implementation's Rust tests from inside
 
 ## What 0.1 resolves — and the edges that remain
 
-0.1 addresses the five caveats 0.0.1 flagged, each proven by dual-language golden
-vectors (see `docs/CLAIMS.md`):
+0.1 addresses the five caveats 0.0.1 flagged, each proven across both
+implementations — golden vectors for the crypto, and shared structural parity
+plus the TypeScript↔Rust differential for integer money and award terms (see
+`docs/CLAIMS.md`):
 
 - **Party authentication — post-quantum signatures.** ML-DSA-87 (FIPS 204)
   authorship signatures over the canonical body, verified against a signed key

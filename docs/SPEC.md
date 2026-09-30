@@ -46,17 +46,19 @@ canonical body, verified against a signed key directory (see SECURITY.md).
 
 RFC 8785-inspired, restricted for cross-language byte equality:
 
-1. Object keys sorted **lexicographically by code unit**; compact output
+1. Object keys sorted **lexicographically by Unicode code point** (equivalently,
+   by UTF-8 byte order); compact output
    (no whitespace). Implementations must emit in that order explicitly —
    in particular, JavaScript implementations must not serialize a rebuilt
    object, because JS enumerates integer-like keys ("2", "10") in numeric
    order regardless of insertion order. Conformance vector
    `key-order-digits` pins this.
 2. `undefined` / absent members are omitted entirely.
-3. Strings escape per standard JSON. **Field names are ASCII**;
-   implementations must not rely on non-ASCII key ordering (JS sorts by
-   UTF-16 code units, most other languages by Unicode scalar / UTF-8 bytes
-   — these diverge above the BMP).
+3. Strings escape per standard JSON. **Field names are ASCII** by convention.
+   Non-ASCII keys are sorted by Unicode code point on both implementations
+   (the TypeScript reference sorts by code point explicitly, not by UTF-16 code
+   unit, matching the Rust core's UTF-8 byte order), so astral-plane keys order
+   identically across languages. Conformance vector `astral-key-order` pins this.
 4. **Numbers are restricted to a range where every language renders the
    same bytes and round-trips exactly.** A number is canonical iff it is
    finite, `|x| <= 9007199254740991` (2^53−1), and — when not an integer —
@@ -74,10 +76,11 @@ RFC 8785-inspired, restricted for cross-language byte equality:
    (`1e-6`) while JavaScript stays fixed (`0.000001`), so the renderings
    diverge. Non-finite numbers are refused outright. The published JSON
    Schemas bound every numeric field inside this range — integer fields
-   within 2^53−1, and the `money` / `priceDelta` `$defs` in
-   `quote-0.1.0.json` encode the fixed-notation rule directly (an integer,
-   or a non-integer of magnitude ≥ 1e-5, ≤ 1e12). The canonicalizer is the
-   final gate and refuses anything outside the range regardless.
+   within 2^53−1, the `money` / `priceDelta` `$defs` in `quote-0.1.0.json`
+   as integer minor units (`0 … 1e12` / `±1e12`), and the sole non-integer
+   field, `thickness_mm`, bounded `≥ 1e-4` so it always renders in canonical
+   fixed notation. The canonicalizer is the final gate and refuses anything
+   outside the range regardless.
 
 The hash is `"sha384:" + lowercase-hex(SHA-384(canonical_json_bytes))`.
 
@@ -98,7 +101,7 @@ Both reference implementations must reproduce the golden vector
 | L0 | Quoteable | A seller can price without guessing material or qty |
 | L1 | Awardable | ≥ 1 structured quote bound to the current buyer revision |
 | L2 | Executable | Awarded, ops listed, ship-to present; traveler locks |
-| L3 | As-built | **Reserved.** `as_built` may be null in 0.0.1 |
+| L3 | As-built | A non-empty `as_built` object recorded on the executed traveler. Both implementations compute L3; the object's contents are not specified or covered by conformance vectors in 0.1 |
 
 ## Quotes
 
@@ -106,7 +109,7 @@ Both reference implementations must reproduce the golden vector
 required: quote_id, seller, traveler_hash_quoted, created_at,
           valid_until, lead_time_days, pricing
 pricing.required: currency, lines[]
-lines[]: { qty >= 1, unit >= 0 finite }
+lines[]: { qty >= 1, unit: integer minor units, 0 .. 1e12 }
 ```
 
 A quote is **bound** when `traveler_hash_quoted` equals the current traveler
@@ -131,7 +134,9 @@ export_control }`. Any other member — including `NOTES.txt` — is refused.
 
 Import rules: refuse any member outside the allowlist; refuse paths
 containing `/`, `\`, `..`, a leading `/`, or a NUL; cap compressed and
-uncompressed sizes; verify CRC32. `META.json` is **required** — its
+uncompressed sizes. Integrity is verified with SHA-384 cross-checks, not
+CRC32 (CRC is deliberately skipped so a hostile archive is not fully
+inflated before the guards run). `META.json` is **required** — its
 `traveler_id` and `traveler_hash` must match the received `traveler.json`,
 and its `spec` and `traveler_json_sha384` are cross-checked when present.
 When `quoteable.canonical.json` is present it must equal your canonical
@@ -156,7 +161,7 @@ yourself — treat the archive as the document.
   contract by itself.
 - Incoterms 2020 `FOB` is for sea/inland waterway with a named port; US
   domestic shops usually mean UCC F.O.B. origin/destination. The field is a
-  string in 0.0.1.
+  free-form string in 0.1.
 - Money is an integer count of the currency's minor unit (e.g. cents) in 0.1 —
   exact, no IEEE-754.
 

@@ -34,7 +34,7 @@ function SpecPage() {
                 meaning="At least one structured quote bound to buyer revision"
               />
               <Row code="L2" name="Executable" meaning="Awarded, ops listed, ship-to present" />
-              <Row code="L3" name="As-built" meaning="Reserved. as_built may be null in 0.1" />
+              <Row code="L3" name="As-built" meaning="As-built data recorded on the executed traveler" />
             </tbody>
           </table>
         </div>
@@ -55,8 +55,9 @@ function SpecPage() {
         <article className="on-paper traveler-shadow rounded-sm p-5">
           <h2 className="text-lg font-medium">Rust core</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Protocol crate <code className="font-mono text-foreground">sje</code>{" "}
-            hashes, validates quotes, and reports level. Same golden vector as this desk.
+            Protocol crate <code className="font-mono text-foreground">secure-job-envelope</code>{" "}
+            (binary <code className="font-mono text-foreground">envelope</code>) hashes, validates
+            quotes, and reports level. Same golden vector as this desk.
             Language-agnostic on the wire; Rust for the verifier.
           </p>
           <pre className="mt-3 overflow-x-auto rounded-md bg-wash p-3 font-mono text-xs text-foreground">
@@ -83,7 +84,7 @@ envelope level traveler.json`}
           {`required: quote_id, seller, traveler_hash_quoted, created_at,
           valid_until, lead_time_days, pricing
 pricing.required: currency, lines[]
-lines[]: { qty >= 1, unit >= 0 finite }
+lines[]: { qty >= 1, unit: integer minor units, 0..1e12 }
 traveler_hash_quoted: ^sha384:[0-9a-f]{96}$
 traveler_id / quote_id: ^[a-z]{3}_[a-z0-9]{6,24}$
 currency: ^[A-Z]{3}$`}

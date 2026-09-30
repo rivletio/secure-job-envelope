@@ -15,7 +15,7 @@ function validQuote(over: Partial<Quote> & { traveler_hash_quoted: string }): Qu
     quote_id: "qot_testquote01",
     seller: { name: "Huron Precision", org_id: "org_huron", itar: true },
     created_at: "2026-09-09T00:00:00.000Z",
-    valid_until: "2026-09-30T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
     lead_time_days: 12,
     pricing: { currency: "USD", lines: [{ qty: 50, unit: 29 }] },
     ...over,
@@ -132,11 +132,18 @@ describe("rivlet traveler 0.0.1", () => {
     const expired: Quote = { ...quote, valid_until: "2026-09-01T00:00:00.000Z" };
     assert.equal(isQuoteExpired(expired, new Date("2026-09-14T00:00:00.000Z")), true);
     assert.match(cannotAward(bracket, expired, new Date("2026-09-14T00:00:00.000Z")) ?? "", /expired/);
+    // Far-future validity + a fixed evaluation instant so this asserts the
+    // price-line path specifically, not expiry (which is checked first) — and so
+    // the test never depends on the wall clock.
     const noLine: Quote = {
       ...quote,
+      valid_until: "2099-01-01T00:00:00.000Z",
       pricing: { ...quote.pricing, lines: [{ qty: 7, unit: 99 }] },
     };
-    assert.match(cannotAward(bracket, noLine) ?? "", /no unit price/);
+    assert.match(
+      cannotAward(bracket, noLine, new Date("2026-09-14T00:00:00.000Z")) ?? "",
+      /no unit price/,
+    );
   });
 
   it("round-trips a zip and rejects path tricks and META mismatch", async () => {
