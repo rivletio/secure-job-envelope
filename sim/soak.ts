@@ -22,7 +22,7 @@ import { Rng } from "./rng.ts";
 import { SHOPS, genId, genTraveler } from "./generate.ts";
 import { buildTrust } from "./directory.ts";
 import { useTravelerStore } from "../src/lib/traveler/store.ts";
-import { boundQuotes, levelOf, parseTraveler, staleQuotes } from "../src/lib/traveler/conformance.ts";
+import { awardedQuote, boundQuotes, levelOf, parseTraveler, staleQuotes } from "../src/lib/traveler/conformance.ts";
 import { travelerHash } from "../src/lib/traveler/hash.ts";
 import { locked } from "../src/lib/traveler/guards.ts";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
@@ -141,6 +141,56 @@ function amendInvalidation(seed: number) {
   store.remove(id);
 }
 
+// ---------------------- phase 1c: multi-quote award selection ----------------------
+function multiQuoteLifecycle(seed: number) {
+  const rng = new Rng(seed ^ 0x1234abcd);
+  const store = useTravelerStore.getState();
+  const l0 = genTraveler(rng, { level: "L0", itar: false });
+  const id = l0.traveler_id;
+  store.upsert(l0);
+  const hash = travelerHash(l0);
+  // Two quotes from DIFFERENT sellers (a same-seller duplicate is refused by cannotQuote).
+  const quotes = [
+    goodQuote(rng, hash, { org_id: "org_redriver", name: "Red River", itar: false }, l0.part.qty.target),
+    goodQuote(rng, hash, { org_id: "org_cascade", name: "Cascade", itar: false }, l0.part.qty.target),
+  ];
+  for (const q of quotes) store.addQuote(id, q);
+  ok(boundQuotes(store.get(id)!).length === 2, `#${seed} both quotes bind`);
+  const chosen = rng.pick(quotes);
+  const shipTo = { name: "Dock", line1: "1 A St", city: "Reno", region: "NV", postal: "89502", country: "US" };
+  store.award(id, { quote_id: chosen.quote_id, awarded_at: "2026-03-01T00:00:00.000Z", qty: l0.part.qty.target }, shipTo, [{ seq: 1, code: "laser" }]);
+  const awarded = store.get(id)!;
+  ok(levelOf(awarded).code === "L2", `#${seed} L2 after awarding one of two bound quotes`);
+  ok(awardedQuote(awarded)?.quote_id === chosen.quote_id, `#${seed} the awarded quote is the chosen one`);
+  store.remove(id);
+}
+
+// ---------------------- phase 1d: re-award after amend (rebind flow) ----------------------
+function reawardAfterAmend(seed: number) {
+  const rng = new Rng(seed ^ 0x77777777);
+  const store = useTravelerStore.getState();
+  const l0 = genTraveler(rng, { level: "L0", itar: false });
+  const id = l0.traveler_id;
+  store.upsert(l0);
+  const q1 = goodQuote(rng, travelerHash(l0), { org_id: "org_redriver", name: "Red River", itar: false }, l0.part.qty.target);
+  store.addQuote(id, q1);
+  ok(boundQuotes(store.get(id)!).length === 1, `#${seed} first quote bound`);
+
+  store.amend(id, { incoterms: "FOB" }); // revision++ -> hash changes -> q1 goes stale
+  const amended = store.get(id)!;
+  ok(boundQuotes(amended).length === 0, `#${seed} old quote unbound after amend`);
+  ok(staleQuotes(amended).some((q) => q.quote_id === q1.quote_id), `#${seed} old quote is stale`);
+
+  // Re-quote against the NEW hash (different seller — q1 still sits in quotes[]) and award.
+  const q2 = goodQuote(rng, travelerHash(amended), { org_id: "org_cascade", name: "Cascade", itar: false }, amended.part.qty.target);
+  store.addQuote(id, q2);
+  ok(boundQuotes(store.get(id)!).some((q) => q.quote_id === q2.quote_id), `#${seed} new quote binds to amended hash`);
+  const shipTo = { name: "Dock", line1: "1 A St", city: "Reno", region: "NV", postal: "89502", country: "US" };
+  store.award(id, { quote_id: q2.quote_id, awarded_at: "2026-04-01T00:00:00.000Z", qty: amended.part.qty.target }, shipTo, [{ seq: 1, code: "laser" }]);
+  ok(levelOf(store.get(id)!).code === "L2", `#${seed} re-award reaches L2`);
+  store.remove(id);
+}
+
 // ------------------------------- phase 2: adversarial -------------------------------
 function adversarial() {
   const store = useTravelerStore.getState();
@@ -212,6 +262,16 @@ function crypto(seed: number, trust: ReturnType<typeof buildTrust>) {
   const tamperedEnv = { ...env, payload: (env.payload.startsWith("00") ? "11" : "00") + env.payload.slice(2) };
   mustThrow(() => openEnvelope(tamperedEnv, rcpt.kid, seller.kem.secretKey), `#${seed} tampered static envelope fails to open`);
 
+  // Multi-recipient static envelope: seal to two orgs, each opens with its OWN key;
+  // a third org (not in the recipient set) cannot open it.
+  const summit = orgs.get("org_summitfab")!;
+  const redriver = orgs.get("org_redriver")!;
+  const rcptSummit = recipientByOrg(directory, "org_summitfab", at)!;
+  const multiEnv = sealEnvelope(plaintext, [rcpt, rcptSummit]);
+  ok(new TextDecoder().decode(openEnvelope(multiEnv, rcpt.kid, seller.kem.secretKey)) === canonicalJson(t), `#${seed} multi-recipient opens for recipient A`);
+  ok(new TextDecoder().decode(openEnvelope(multiEnv, rcptSummit.kid, summit.kem.secretKey)) === canonicalJson(t), `#${seed} multi-recipient opens for recipient B`);
+  mustThrow(() => openEnvelope(multiEnv, rcpt.kid, redriver.kem.secretKey), `#${seed} a non-recipient key cannot open the multi-recipient envelope`);
+
   // Forward-secret envelope: seal with a one-time prekey + static key, open, tamper.
   const prekeyId = prekeyBundle.prekeys[0]!.prekey_id;
   const fsR = fsRecipientFromBundle(directory, prekeyBundle, prekeyOrg, prekeyId, rootPublicKeyHex, at);
@@ -241,6 +301,8 @@ function main() {
   for (let seed = start; seed < start + jobs; seed++) {
     lifecycle(seed);
     amendInvalidation(seed);
+    multiQuoteLifecycle(seed);
+    reawardAfterAmend(seed);
   }
   adversarial();
   const trust = buildTrust(new Rng(0xc0ffee));

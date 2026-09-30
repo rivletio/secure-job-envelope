@@ -107,4 +107,74 @@ export const MUTATIONS: Mutation[] = [
       if (q) q.exceptions = Array.from({ length: 20 }, (_, i) => ({ code: `c${i}`, proposal: "x" }));
     },
   },
+  {
+    name: "quote-price-delta-over",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.exceptions = [{ code: "c", proposal: "x", price_delta: 1_000_000_000_001 }];
+    },
+  },
+  {
+    name: "quote-freight-over",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.freight_estimate = 1_000_000_000_001;
+    },
+  },
+  {
+    name: "quote-nre-negative",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.nre = -1;
+    },
+  },
+  {
+    name: "quote-currency-4letter",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.currency = "USDX";
+    },
+  },
+  {
+    name: "seller-org-id-bad-start",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.seller.org_id = "1abc";
+    },
+  },
+  // ---- boundary values that must still be ACCEPTED (both sides) ----
+  { name: "revision-max-ok", apply: (d) => (d.revision = 10_000) },
+  { name: "qty-target-max-ok", apply: (d) => (d.part.qty.target = 1_000_000) },
+  { name: "thickness-max-ok", apply: (d) => (d.part.material.thickness_mm = 1_000_000) },
+  { name: "thickness-min-ok", apply: (d) => (d.part.material.thickness_mm = 0.0001) },
+  { name: "lead-time-max-ok", apply: (d) => firstQuote(d) && (firstQuote(d)!.lead_time_days = 3650) },
+  { name: "name-max-ok", apply: (d) => (d.buyer.name = "x".repeat(128)) },
+  { name: "processes-empty-ok", apply: (d) => (d.part.processes = []) },
+  { name: "breaks-empty-ok", apply: (d) => (d.part.qty.breaks = []) },
+  // ---- traveler optional fields ----
+  { name: "need-by-day-ok", apply: (d) => (d.need_by = "2027-03-15") },
+  { name: "need-by-day-bad", apply: (d) => (d.need_by = "2027-02-30") },
+  { name: "need-by-datetime-ok", apply: (d) => (d.need_by = "2027-03-15T09:00:00.000Z") },
+  { name: "need-by-null-ok", apply: (d) => (d.need_by = null) },
+  { name: "incoterms-ok", apply: (d) => (d.incoterms = "FOB") },
+  { name: "incoterms-too-long", apply: (d) => (d.incoterms = "x".repeat(65)) },
+  { name: "drawing-rev-too-long", apply: (d) => (d.part.drawing_rev = "x".repeat(33)) },
+  { name: "finish-too-long", apply: (d) => (d.part.finish = "x".repeat(2001)) },
+  { name: "notes-empty", apply: (d) => (d.part.notes = "") },
+  { name: "breaks-count-over", apply: (d) => (d.part.qty.breaks = Array.from({ length: 17 }, (_, i) => i + 1)) },
+  { name: "certs-count-over", apply: (d) => (d.buyer.certs = Array.from({ length: 17 }, (_, i) => `c${i}`)) },
+  { name: "cert-too-long", apply: (d) => (d.buyer.certs = ["x".repeat(65)]) },
+  { name: "processes-count-over", apply: (d) => (d.part.processes = Array.from({ length: 33 }, () => "cnc_mill")) },
+  // ---- signatures ----
+  { name: "signatures-count-over", apply: (d) => (d.signatures = Array.from({ length: 9 }, (_, i) => ({ alg: "ML-DSA-87", kid: `k${i}`, sig: "ab" }))) },
+  { name: "signature-bad-alg", apply: (d) => (d.signatures = [{ alg: "RSA-2048", kid: "k", sig: "ab" }]) },
+  { name: "signature-sig-nonhex", apply: (d) => (d.signatures = [{ alg: "ML-DSA-87", kid: "k", sig: "XYZ" }]) },
+  // ---- ops / award / ship (bite when present via L1..L3 plans) ----
+  { name: "ops-seq-over", apply: (d) => d.ops?.[0] && (d.ops[0].seq = 1001) },
+  { name: "ops-code-too-long", apply: (d) => d.ops?.[0] && (d.ops[0].code = "x".repeat(33)) },
+  { name: "ops-count-over", apply: (d) => d.ops && (d.ops = Array.from({ length: 65 }, (_, i) => ({ seq: i + 1, code: "op" }))) },
+  { name: "award-qty-over", apply: (d) => d.award && (d.award.qty = 1_000_001) },
+  { name: "ship-country-lower", apply: (d) => d.ship_to && (d.ship_to.country = "us") },
+  { name: "ship-postal-too-long", apply: (d) => d.ship_to && (d.ship_to.postal = "x".repeat(17)) },
+  { name: "ship-name-untrimmed", apply: (d) => d.ship_to && (d.ship_to.name = " Dock 4 ") },
 ];

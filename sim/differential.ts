@@ -54,13 +54,14 @@ function main() {
     const traveler = genTraveler(rng, genPlan(rng));
     const doc = structuredClone(traveler) as Doc;
 
-    // ~55% of docs get exactly one mutation; the rest stay valid (they still
-    // exercise hash/level/bound parity on well-formed input, where D1/D4/D5 lived).
+    // ~60% of docs get 1–3 stacked mutations (interactions shake out bugs a single
+    // mutation hides); the rest stay valid, exercising hash/level/bound parity on
+    // well-formed input (where D1/D4/D5 lived).
     let mutation = "none";
-    if (rng.bool(0.55)) {
-      const m = rng.pick(MUTATIONS);
-      mutation = m.name;
-      m.apply(doc);
+    if (rng.bool(0.6)) {
+      const chosen = rng.sample(MUTATIONS, rng.int(1, 3));
+      mutation = chosen.map((m) => m.name).join("+");
+      for (const m of chosen) m.apply(doc);
     }
 
     const json = JSON.stringify(doc);
