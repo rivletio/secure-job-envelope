@@ -128,8 +128,8 @@ META.json                    integrity manifest (required, root only)
 quoteable.canonical.json     canonical quoteable-body bytes (optional)
 ```
 
-`META.json` carries at least `{ traveler_id, traveler_hash }` and normally
-also `{ spec, traveler_json_sha384, media_type, archive, itar,
+`META.json` carries at least `{ traveler_id, traveler_hash,
+traveler_json_sha384 }` and normally also `{ spec, media_type, archive, itar,
 export_control }`. Any other member — including `NOTES.txt` — is refused.
 
 Import rules: refuse any member outside the allowlist; refuse paths
@@ -138,10 +138,23 @@ uncompressed sizes. Integrity is verified with SHA-384 cross-checks, not
 CRC32 (CRC is deliberately skipped so a hostile archive is not fully
 inflated before the guards run). `META.json` is **required** — its
 `traveler_id` and `traveler_hash` must match the received `traveler.json`,
-and its `spec` and `traveler_json_sha384` are cross-checked when present.
-When `quoteable.canonical.json` is present it must equal your canonical
-rendering of the quoteable body. Re-canonicalize and check `traveler_hash`
-yourself — treat the archive as the document.
+and `traveler_json_sha384` (a digest over the whole `traveler.json`) is
+**required** and must match. Because `traveler_hash` covers only the quoteable
+body, this full-bytes digest is what binds the non-quoteable lifecycle fields
+(award, ship_to, ops, quotes, as_built); without it those could be altered
+under an unchanged `traveler_hash`. When `quoteable.canonical.json` is present
+it must equal your canonical rendering of the quoteable body. Re-canonicalize
+and check `traveler_hash` yourself — treat the archive as the document.
+
+These digests are **unkeyed** integrity: they detect corruption and naive
+tampering, and guarantee the archive is internally consistent, but a party that
+re-seals an archive recomputes them. Adversarial *authenticity* is the separate
+ML-DSA authorship signature, which in 0.1 signs the quoteable body — the
+lifecycle fields (award, ship_to, ops) are mutable workflow state and are not
+covered by the authorship signature. A duplicate member name resolves to the
+**last** entry (which is then digest-checked); an external tool that resolves
+duplicates as "first" may disagree, so treat a duplicate-membered archive as
+suspect.
 
 ## Export control & commercial reality
 

@@ -9,6 +9,7 @@
  *  ITAR (caveat 3) become attested facts rather than free-text claims.
  */
 import { canonicalJson } from "./canonical.ts";
+import { isoDateTimeMs } from "./datetime.ts";
 import { SIG_DOMAIN, SIG_ALG, signBody, verifyBody } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
 
@@ -60,9 +61,14 @@ export function verifyDirectory(
 ): boolean {
   if (dir.spec !== DIRECTORY_SPEC || !dir.sig) return false;
   const t = at.getTime();
-  const issued = Date.parse(dir.issued_at);
-  const until = Date.parse(dir.valid_until);
-  if (!Number.isFinite(issued) || !Number.isFinite(until)) return false;
+  // Strict, shared datetime parse (isoDateTimeMs === Rust rfc3339_millis) so the
+  // two implementations agree on the freshness window byte for byte. A lenient
+  // Date.parse would accept timestamps (trailing offset, date-only, RFC2822) the
+  // Rust verifier refuses — and offset forms shift the instant — producing
+  // opposite verify verdicts across implementations.
+  const issued = isoDateTimeMs(dir.issued_at);
+  const until = isoDateTimeMs(dir.valid_until);
+  if (issued === null || until === null) return false;
   if (!(issued <= t && t < until)) return false;
   try {
     return verifyBody(
@@ -77,11 +83,16 @@ export function verifyDirectory(
 }
 
 function inWindow(e: DirectoryEntry, t: number): boolean {
+  // Strict datetime parse, matching the Rust verifier (see verifyDirectory).
+  const from = isoDateTimeMs(e.valid_from);
+  const until = isoDateTimeMs(e.valid_until);
   return (
     e.status === "active" &&
     e.alg === SIG_ALG &&
-    Date.parse(e.valid_from) <= t &&
-    t < Date.parse(e.valid_until)
+    from !== null &&
+    until !== null &&
+    from <= t &&
+    t < until
   );
 }
 
@@ -97,12 +108,20 @@ export function entryByOrg(dir: Directory, orgId: string, at: Date = new Date())
   return dir.entries.find((e) => e.org_id === orgId && inWindow(e, t));
 }
 
-/** Whether an org is attested (by the directory) to hold a capability, e.g. ITAR. */
+/** Whether an org is attested (by the directory) to hold a capability, e.g. ITAR.
+ *  Scans EVERY active, in-window entry for the org — an org may legitimately have
+ *  several entries (overlapping key rotation) — so the answer does not depend on
+ *  entry ordering. This matches the Rust verifier's `.any()` (sign.rs
+ *  `org_has_itar`); checking only the first entry (as an earlier version did) let
+ *  the two implementations reach opposite export-control decisions. */
 export function orgHasCapability(
   dir: Directory,
   orgId: string,
   cap: "itar",
-  at?: Date,
+  at: Date = new Date(),
 ): boolean {
-  return Boolean(entryByOrg(dir, orgId, at)?.capabilities?.[cap]);
+  const t = at.getTime();
+  return dir.entries.some(
+    (e) => e.org_id === orgId && inWindow(e, t) && Boolean(e.capabilities?.[cap]),
+  );
 }

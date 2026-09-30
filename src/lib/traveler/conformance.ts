@@ -8,19 +8,25 @@ import type { ConformanceLevel, Traveler, Quote } from "./types.ts";
  *  whole document at parse; without this check TypeScript would accept a document
  *  Rust rejects (a cross-implementation accept/reject divergence), and the
  *  offending string would also be unhashable. Mirrors serde's parse-time refusal. */
-function assertUtf8Safe(v: unknown): void {
+// Depth-bounded like the canonicalizer (MAX_CANONICAL_DEPTH): this runs before the
+// schema/size checks, so a hand-built deeply-nested document must be refused
+// cleanly rather than blowing the stack with an uncaught RangeError.
+const MAX_UTF8_DEPTH = 128;
+
+function assertUtf8Safe(v: unknown, depth = 0): void {
+  if (depth > MAX_UTF8_DEPTH) throw new Error("JSON nesting exceeds the maximum depth");
   if (typeof v === "string") {
     if (LONE_SURROGATE.test(v)) throw new Error("string contains a lone surrogate (no UTF-8 encoding)");
     return;
   }
   if (Array.isArray(v)) {
-    for (const x of v) assertUtf8Safe(x);
+    for (const x of v) assertUtf8Safe(x, depth + 1);
     return;
   }
   if (v && typeof v === "object") {
     for (const [k, val] of Object.entries(v)) {
       if (LONE_SURROGATE.test(k)) throw new Error("object key contains a lone surrogate (no UTF-8 encoding)");
-      assertUtf8Safe(val);
+      assertUtf8Safe(val, depth + 1);
     }
   }
 }

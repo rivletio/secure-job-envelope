@@ -164,7 +164,10 @@ export function openEnvelope(env: Envelope, kid: string, secretKey: Uint8Array):
   }
   const r = env.recipients.find((x) => x.kid === kid);
   if (!r) throw new Error("no recipient entry for this kid");
-  const kids = env.recipients.map((x) => x.kid);
+  // Filter to string kids so the AAD matches the Rust verifier's filter_map
+  // byte for byte on a malformed envelope (a recipient with no kid). A legitimate
+  // envelope's recipients all carry string kids, so this is a no-op there.
+  const kids = env.recipients.map((x) => x.kid).filter((k): k is string => typeof k === "string");
   const sharedSecret = ml_kem1024.decapsulate(hexToBytes(r.kem_ct), secretKey);
   const cek = gcm(kek(sharedSecret, kid), hexToBytes(r.wrap_nonce), aadRecipient(kid)).decrypt(
     hexToBytes(r.wrapped_cek),
@@ -330,7 +333,11 @@ export function openFsEnvelope(
   }
   const r = env.recipients.find((x) => x.kid === kid);
   if (!r) throw new Error("no recipient entry for this kid");
-  const rset = env.recipients.map((x) => ({ kid: x.kid, prekey_id: x.prekey_id }));
+  // Filter to string kids to match the Rust verifier's filter_map on a malformed
+  // envelope (no-op for a well-formed one — every recipient carries a string kid).
+  const rset = env.recipients
+    .filter((x) => typeof x.kid === "string")
+    .map((x) => ({ kid: x.kid, prekey_id: x.prekey_id }));
   const ssOt = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_onetime), onetimeSecretKey);
   const ssId = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_static), staticSecretKey);
   const kek = fsKek(ssOt, ssId, kid, r.prekey_id);

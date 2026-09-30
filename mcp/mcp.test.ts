@@ -6,7 +6,10 @@ import { describe, it, before, after } from "node:test";
 import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import JSZip from "jszip";
 import { buildServer } from "./server.ts";
+import { parseTraveler } from "../src/lib/traveler/conformance.ts";
+import { travelerHash } from "../src/lib/traveler/hash.ts";
 
 type ToolResult = { isError?: boolean; content: Array<{ type: string; text: string }> };
 const payload = (r: ToolResult) => JSON.parse(r.content[0]!.text) as Record<string, unknown>;
@@ -168,6 +171,27 @@ describe("sje mcp surface", () => {
     bytes[Math.floor(bytes.length / 2)] ^= 0xff;
     const tampered = await call("sje_open", { zip_base64: bytes.toString("base64") });
     assert.ok(tampered.isError, "tampered archive must be refused");
+  });
+
+  it("sje_open refuses a re-sealed archive whose non-quoteable fields were tampered (F3)", async () => {
+    // Inject an award (a NON-quoteable field, so traveler_hash is unchanged) and
+    // build a well-formed archive whose META omits the full-bytes digest. Because
+    // traveler_json_sha384 is now required, the import must refuse it — otherwise a
+    // party could rewrite the awarded qty/seller or ship-to under an intact hash.
+    const traveler = parseTraveler(EXAMPLE);
+    const tampered = {
+      ...traveler,
+      award: { quote_id: "qot_injected1", awarded_at: "2027-01-01T00:00:00.000Z", qty: 1 },
+    };
+    const zip = new JSZip();
+    zip.file("traveler.json", JSON.stringify(tampered, null, 2));
+    zip.file(
+      "META.json",
+      JSON.stringify({ traveler_id: traveler.traveler_id, traveler_hash: travelerHash(traveler) }),
+    );
+    const b64 = await zip.generateAsync({ type: "base64" });
+    const res = await call("sje_open", { zip_base64: b64 });
+    assert.ok(res.isError, "an archive missing the required full-bytes digest must be refused");
   });
 
   it("binding cannot be asserted: traveler_hash_quoted always comes from the traveler in hand", async () => {

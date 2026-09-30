@@ -26,10 +26,14 @@ What the format defends, by design:
   this in CI (see `docs/CLAIMS.md` C12–C15).
 - **Hostile archives.** `.traveler.zip` import allowlists members (max 3),
   refuses path traversal, caps compressed and uncompressed sizes, and verifies
-  integrity with SHA-384 cross-checks (`traveler_hash`, the `traveler.json`
-  digest, and the canonical-body member) rather than CRC32 — CRC verification is
-  deliberately skipped so a hostile archive is never fully inflated before the
-  guards run.
+  integrity with SHA-384 cross-checks rather than CRC32 — CRC is deliberately
+  skipped so a hostile archive is never fully inflated before the guards run. The
+  full-bytes `traveler_json_sha384` digest is **required** (not optional): since
+  `traveler_hash` covers only the quoteable body, this digest is what detects
+  tampering of the non-quoteable lifecycle fields (award, ship_to, ops). These
+  digests are *unkeyed* integrity (they catch corruption and naive tampering);
+  adversarial authenticity is the ML-DSA authorship signature, which in 0.1 signs
+  the quoteable body but not the lifecycle fields — see `docs/CLAIMS.md` G7.
 - **ID generation** uses `crypto.getRandomValues` with rejection sampling
   (no modulo bias); there is no non-cryptographic fallback.
 - **Party authentication (0.1).** ML-DSA-87 (FIPS 204) authorship signatures
