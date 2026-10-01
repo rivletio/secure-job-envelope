@@ -58,8 +58,17 @@ function TrustPage() {
             quoteable body. It is integrity, not a signature and not non-repudiation.
           </li>
           <li>
-            Import of <code className="font-mono text-foreground">.traveler.zip</code> requires
-            META.json, allowlisted members, size caps, and SHA-384 hash cross-checks.
+            Import accepts a plaintext <code className="font-mono text-foreground">.traveler.zip</code>
+            /JSON or an encrypted <code className="font-mono text-foreground">.sje</code> (decrypted
+            with your unlocked keystore); either way the archive requires META.json, allowlisted
+            members, size caps, and SHA-384 hash cross-checks.
+          </li>
+          <li>
+            The desk holds its ML-KEM <strong className="text-foreground">decryption</strong> key only
+            in a passphrase-encrypted keystore (encrypted at rest; in memory only while unlocked) and
+            sends an encrypted <code className="font-mono text-foreground">.sje</code> — never
+            plaintext. It never holds <strong className="text-foreground">signing</strong> keys. An XSS
+            on an unlocked desk can read the in-memory secret.
           </li>
           <li>
             ITAR is a directory-attested capability in 0.1; the desk’s local bit is a consistency
@@ -87,8 +96,8 @@ function TrustPage() {
               />
               <Row
                 tsc="CC6.7 Restrict data"
-                here="Origin-isolated localStorage. No encryption at rest."
-                owed="CUI boundary, encryption at rest, DLP, media control."
+                here="Origin-isolated localStorage. Secret keys encrypted at rest (scrypt + AES-256-GCM keystore, unlocked in memory only); working traveler state is plaintext."
+                owed="CUI boundary, at-rest encryption for working data, DLP, media control."
               />
               <Row
                 tsc="CC7 Monitoring"
@@ -107,8 +116,8 @@ function TrustPage() {
               />
               <Row
                 tsc="C1 Confidentiality"
-                here="TLS in transit if the host serves HTTPS. Traveler JSON is readable."
-                owed="Classification, encryption, NDAs, vendor review."
+                here="The sent artifact is an encrypted .sje (ML-KEM-1024 + AES-256-GCM); local working-state JSON is readable, and TLS applies to the page."
+                owed="Classification, NDAs, vendor review, confidentiality of working data at rest."
               />
               <Row
                 tsc="P1 Privacy"

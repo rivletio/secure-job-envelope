@@ -43,6 +43,10 @@ quote's `traveler_hash_quoted` mean the same thing to both parties.
    the new hash.
 3. **Award (buyer):** award a bound, unexpired quote, list the ops
    traveler, confirm ship-to — **L2 Executable**, and the traveler locks.
-4. **Exchange:** export `{traveler_id}.traveler.zip` and send it over whatever
-   channel you already use. The recipient's import verifies structure,
-   size caps, and META.json digests, then re-checks the hash locally.
+4. **Exchange:** on the Keys page load a trust anchor and (to receive) create an
+   identity, then **Seal & send** the traveler to a directory-attested recipient —
+   the downloaded artifact is an encrypted `.sje` (random filename), the only thing
+   meant to leave the desk. The recipient opens it with their unlocked keystore,
+   which decrypts and then verifies structure, size caps, and META.json digests and
+   re-checks the hash locally. (The plaintext `{traveler_id}.traveler.zip` export
+   remains, relabeled a local copy — not for sending.)

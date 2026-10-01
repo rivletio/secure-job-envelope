@@ -120,6 +120,11 @@ quote an `itar: true` traveler — a consistency check, not compliance).
 
 ## Archive (`{traveler_id}.traveler.zip`)
 
+> When sent between parties, this archive is the **payload of an encrypted `.sje`
+> envelope** (ML-KEM-1024 + AES-256-GCM; see [ENVELOPE-DRAFT.md](ENVELOPE-DRAFT.md)),
+> not transmitted in the clear. On the desk it is also available as a plaintext
+> local copy, labeled not-for-sending.
+
 Allowlisted members only (max 3):
 
 ```

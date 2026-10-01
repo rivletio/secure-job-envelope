@@ -49,7 +49,19 @@ What the format defends, by design:
   the 0.2 envelope adds it — see below). AEAD binds
   `{spec, enc_alg, recipients}` to the payload and `{spec, enc_alg, kid}` to
   each wrap, so a stripped, swapped, or reordered field/recipient fails the tag;
-  recipient keys are resolved through the signed directory.
+  recipient keys are resolved through the signed directory. The transport layer
+  (`src/lib/traveler/transport.ts`) now seals travelers into this envelope **by
+  default** and opens them with the keystore below, so what is *sent* — over the
+  MCP tools and from the browser desk — is ciphertext, under a random `.sje`
+  filename that does not leak the traveler id.
+- **Key custody at rest.** The ML-KEM *decryption* secret needed to OPEN
+  envelopes is held only in a passphrase-encrypted keystore
+  (`src/lib/traveler/keystore.ts`): scrypt (N=2¹⁶) + AES-256-GCM, storing seeds
+  not expanded keys, the clear header bound as AAD, and a substitution check on
+  unlock (a tampered header cannot point the vault at another identity). A wrong
+  passphrase and a tampered blob both fail with one **uniform** error — no oracle.
+  Sealing needs only public keys, so it never touches a secret; one-time prekeys
+  are consume-once, the deletion persisted before the secret is used.
 
 What the format does **not** defend — known, stated, and the roadmap for
 future versions:
@@ -57,6 +69,14 @@ future versions:
 - **No multi-tenant access control.** The signed directory establishes
   *identity* (org_id → key with attested capabilities), but there is no
   per-tenant authorization layer; the desk's Buyer/Seller toggle is a view.
+- **Script in the origin (XSS).** The keystore protects a stolen blob (disk /
+  localStorage) *without* the passphrase — at-rest safety is passphrase entropy ×
+  scrypt cost, so a weak passphrase plus a stolen blob is crackable offline. It
+  does **not** protect against script running on an **unlocked** desk: an XSS can
+  read the in-memory ML-KEM secret (ML-KEM runs in JS; the key is extractable
+  during decapsulation). Lock promptly; keep the unlocked lifetime short. The desk
+  still never holds **signing** keys. Working traveler state remains plaintext in
+  localStorage (the user's own data at rest).
 - **Forward secrecy is opt-in (the 0.2 envelope), not automatic.** The base 0.1
   envelope encapsulates only to a recipient's long-lived static ML-KEM key, so a
   future compromise of that key exposes past envelopes sent to it. The 0.2
@@ -64,6 +84,10 @@ future versions:
   and a two-KEM combine (one-time prekey + static, both shared secrets bound) —
   but realizing it depends on the recipient deleting the consumed one-time secret
   after opening: the format enables forward secrecy, key management completes it.
+  The transport prefers 0.2 when a verifying prekey bundle is supplied and
+  **reports** the choice (the `forwardSecret` flag); the fallback to 0.1 is
+  explicit, never silent, and `requireForwardSecret` refuses to send rather than
+  downgrade.
 - **Quotes are outside the hash** (deliberately, so travelers can climb
   levels without invalidating prices) — a quote's content is covered by its
   own seller signature and the archive's META.json digests, not by

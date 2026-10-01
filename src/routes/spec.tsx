@@ -10,7 +10,10 @@ function SpecPage() {
       <h1 className="mt-3 text-4xl tracking-tight text-paper">SJE 0.1.0</h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-soft">
         Implementable draft. A traveler is the job object — not the shop OS and not a
-        marketplace. Archive name is {"{traveler_id}.traveler.zip"}. Quotes bind to{" "}
+        marketplace. The local archive is {"{traveler_id}.traveler.zip"}; the artifact{" "}
+        <strong className="text-foreground">sent</strong> between parties is an encrypted{" "}
+        <code className="font-mono text-foreground">.sje</code> (post-quantum envelope, random
+        filename). Quotes bind to{" "}
         <code className="font-mono text-foreground">traveler_hash_quoted</code>, a SHA-384
         of the canonical quoteable body.
       </p>

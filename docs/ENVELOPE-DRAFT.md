@@ -11,6 +11,12 @@ dual-language golden vectors — see `docs/CLAIMS.md` PQ4 / PQ7–PQ9,
 Selecting NIST / CNSA 2.0 algorithms is an engineering choice, not a
 certification (see the README Disclaimer).
 
+The envelope is now the **default transport**, not just a library primitive:
+`src/lib/traveler/transport.ts` seals a traveler into it and opens it with a
+passphrase-encrypted keystore (`keystore.ts`), and both the MCP tools and the
+browser desk send the `.sje` rather than a plaintext zip (see `docs/CLAIMS.md`
+KS1 / T1–T5).
+
 File extension `.sje`. Goal: a traveler exchanged between two shops is
 confidential against an adversary who records everything today and owns a
 cryptographically relevant quantum computer later.
@@ -119,10 +125,16 @@ mode fixes that with **single-use prekeys** and a **two-KEM combine**:
 
 **Honest boundary:** the format *enables* forward secrecy (single-use keys and a
 combine that binds both secrets); actually realizing it depends on the recipient
-deleting the consumed one-time secret. When no unused prekey is available,
-`fsRecipientFromBundle` returns nothing and a caller must instead use the 0.1
-static envelope (confidential, but not forward-secret) — there is no automatic
-fallback.
+deleting the consumed one-time secret — `openTraveler` deletes it and **persists the
+deletion before using the secret** (`src/lib/traveler/transport.ts`), so a crash
+cannot resurrect a spent prekey. When no verifying bundle with an unused prekey is
+available, `fsRecipientFromBundle` returns nothing; the transport layer then falls
+back to the 0.1 static envelope (confidential, but not forward-secret) **explicitly
+and reports it** via the `forwardSecret` flag — never silently — and
+`requireForwardSecret` turns that fallback into an error so a sender can refuse to
+send without forward secrecy. A downgrade forced by a stripped bundle cannot be
+cryptographically detected by the recipient of a single envelope (inherent); the
+surfaced flag and `requireForwardSecret` are the defense.
 
 ## Keys
 
@@ -134,9 +146,16 @@ fallback.
   private keys must be retained for as long as archived (non-forward-secret)
   envelopes matter — or archives should be re-encrypted on rotation. One-time
   prekeys are the opposite: use once, then delete.
-- The browser desk never holds ML-KEM or ML-DSA secret keys and never signs or
-  seals. Envelope and signature verification are implemented in the reference
-  library (and available to CLI / MCP consumers), not wired into the desk UI.
+- The browser desk now holds its ML-KEM **decryption** secret, but only in a
+  **passphrase-encrypted keystore** (`src/lib/traveler/keystore.ts`): encrypted at
+  rest (scrypt + AES-256-GCM), decrypted in memory only while unlocked. It seals
+  (encrypt-to-recipient needs only public keys, so it works locked) and opens
+  (decrypt needs the unlocked secret) through `transport.ts`. It still never holds
+  **ML-DSA signing** keys and never signs — prekey bundles are assembled and signed
+  off the desk. Caveat: an XSS on an **unlocked** desk can read the in-memory ML-KEM
+  secret (ML-KEM runs in JS); the keystore protects a stolen blob *without* the
+  passphrase, not script in the origin. Signature verification remains a reference-
+  library / CLI / MCP capability.
 
 ## Explicit non-goals
 

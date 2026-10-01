@@ -6,11 +6,12 @@
 A **traveler** is the job object — one part family moving between a buyer and a
 seller: part, material, quantity (with price breaks), need-by, ship-to, the
 quotes it attracted, and the award. It is **not** a shop OS and **not** a
-marketplace. Coordination happens through the *file*: shops exchange
-`{traveler_id}.traveler.zip` archives over whatever channel they already use, and
-every implementation that follows this spec computes the same
-`sha384:…` hash for the same quoteable body — so a quote can bind to
-*exactly* the revision it priced.
+marketplace. Coordination happens through the *file*: shops seal a traveler into
+an **encrypted `.sje` envelope** (post-quantum — ML-KEM-1024 + AES-256-GCM) and
+send that over whatever channel they already use; the plaintext
+`{traveler_id}.traveler.zip` stays a local copy, not the thing on the wire. Every
+implementation that follows this spec computes the same `sha384:…` hash for the
+same quoteable body — so a quote can bind to *exactly* the revision it priced.
 
 What the file shows, and what a courier may say before both sides opt in, is [docs/DISCLOSURE.md](docs/DISCLOSURE.md). That list is tested. The hash does not hide the file. Anyone who holds the traveler can read it.
 
@@ -32,7 +33,7 @@ This repo contains:
 | `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |
 | `docs/SPEC.md` | The 0.1.0 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
-| `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export) |
+| `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export, encrypted transport + passphrase keystore) |
 | `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`envelope hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
 | `examples/` | A worked example traveler and how to verify it with both implementations |
@@ -125,11 +126,15 @@ plus the TypeScript↔Rust differential for integer money and award terms (see
 - **An award can carry commercial terms** (governing law, warranty, payment) —
   closer to a purchase order, though still not a contract by itself.
 
-Remaining honest edges: forward secrecy is opt-in — the 0.2 envelope
-(`sje-envelope/0.2.0`) adds it via single-use prekeys and a two-KEM combine, but
-the base 0.1 envelope has none, and realizing forward secrecy depends on the
-recipient deleting the consumed one-time secret after opening; the browser desk
-verifies signatures but never holds signing keys. See `SECURITY.md`.
+Remaining honest edges: forward secrecy is opt-in — the transport prefers the 0.2
+envelope (`sje-envelope/0.2.0`, single-use prekeys + a two-KEM combine) when a
+verifying prekey bundle is present and **reports** the choice; the fallback to the
+base 0.1 envelope is explicit, never silent (`requireForwardSecret` refuses to
+downgrade), and realizing forward secrecy depends on the recipient deleting the
+consumed one-time secret after opening. Key custody: the browser desk now holds its
+ML-KEM **decryption** secret, but only in a passphrase-encrypted keystore (in memory
+only while unlocked — an XSS on an unlocked desk can read it); it still never holds
+**signing** keys. See `SECURITY.md`.
 
 ## Why a file format
 
