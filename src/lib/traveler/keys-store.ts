@@ -35,6 +35,28 @@ export type TrustAnchor = {
   bundles: Record<string, PrekeyBundle>; // org_id -> verified bundle
 };
 
+/** Rehydrate defensively: keep a persisted trust anchor only if it is well-shaped, so
+ *  a malformed or drifted blob (schema drift across app versions, hand-edited or
+ *  corrupted localStorage) does not crash the routes that read `directory.entries` /
+ *  `bundles` on first render. Mirrors `sanitizeTravelers` in store.ts. `sealTraveler`
+ *  re-verifies the directory against the root before any key is used, so shape — not
+ *  signature — is the crash-safety concern here. */
+export function sanitizeTrust(t: unknown): TrustAnchor | undefined {
+  if (!t || typeof t !== "object") return undefined;
+  const a = t as Partial<TrustAnchor>;
+  const dir = a.directory as Directory | undefined;
+  if (
+    typeof a.rootPublicKeyHex !== "string" ||
+    !dir ||
+    typeof dir !== "object" ||
+    !Array.isArray(dir.entries)
+  ) {
+    return undefined;
+  }
+  const bundles = a.bundles && typeof a.bundles === "object" ? a.bundles : {};
+  return { rootPublicKeyHex: a.rootPublicKeyHex, directory: dir, bundles };
+}
+
 type KeysState = {
   identity?: Keystore; // encrypted blob (persisted)
   trust?: TrustAnchor; // public/signed (persisted)
@@ -133,7 +155,13 @@ export const useKeysStore = create<KeysState>()(
       partialize: (s) => ({ identity: s.identity, trust: s.trust }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<KeysState>;
-        return { ...current, identity: p.identity, trust: p.trust, unlocked: undefined, hydrated: false };
+        return {
+          ...current,
+          identity: p.identity,
+          trust: sanitizeTrust(p.trust),
+          unlocked: undefined,
+          hydrated: false,
+        };
       },
     },
   ),

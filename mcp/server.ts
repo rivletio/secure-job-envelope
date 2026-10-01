@@ -41,9 +41,24 @@ import { MAX_ARCHIVE_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../sr
 import type { Award, Op, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
 import type { Directory } from "../src/lib/traveler/directory.ts";
 import type { PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync } from "node:fs";
 
 const COMPANY = process.env.SJE_COMPANY ?? "unnamed-desk";
+
+/** Write the keystore atomically: a crash or ENOSPC mid-write must never truncate
+ *  the live file (that would brick the desk's identity). Write a temp file, fsync it,
+ *  then rename over the target (atomic within a filesystem). */
+function atomicWriteFile(path: string, data: string): void {
+  const tmp = `${path}.tmp-${process.pid}`;
+  const fd = openSync(tmp, "w");
+  try {
+    writeFileSync(fd, data);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(tmp, path);
+}
 
 /** This desk's decryption identity, loaded lazily from the passphrase-encrypted
  *  keystore file (SJE_KEYSTORE) and unlocked with SJE_KEYSTORE_PASSPHRASE. Only
@@ -61,8 +76,16 @@ function serverKeystore(): Promise<Unlocked> {
     );
   }
   const p = (async () => {
-    const blob = JSON.parse(readFileSync(path, "utf8")) as Keystore;
-    return unlock(blob, passphrase);
+    let blob: Keystore;
+    try {
+      blob = JSON.parse(readFileSync(path, "utf8")) as Keystore;
+    } catch (e) {
+      // Don't surface the on-disk path or parser internals to the tool caller;
+      // log the detail server-side and return a uniform, path-free message.
+      console.error("[sje] keystore read/parse failed:", e);
+      throw new Error("keystore unavailable (could not read SJE_KEYSTORE)");
+    }
+    return unlock(blob, passphrase); // throws the uniform UNLOCK_FAIL (no path leak)
   })();
   p.catch(() => {
     if (cachedKeystore === p) cachedKeystore = undefined;
@@ -74,6 +97,10 @@ function serverKeystore(): Promise<Unlocked> {
 /* ---------------- helpers ---------------- */
 
 function asTraveler(input: unknown): Traveler {
+  // Early-out cap for the string form. Object input (already JSON-parsed by the MCP
+  // SDK) is bounded instead by parseTraveler's per-field schema limits (numeric
+  // ceilings, string/array caps — docs/CLAIMS.md C12), which are the authoritative
+  // bound; there is no unbounded path here.
   if (typeof input === "string" && input.length > MAX_TRAVELER_JSON_BYTES) {
     throw new Error("traveler JSON exceeds 512 KiB");
   }
@@ -419,7 +446,18 @@ async function handle(name: string, args: Args) {
       let t: Traveler;
       try {
         t = await openTraveler(envelope, keystore, {
-          persistKeystore: keystorePath ? (ks) => writeFileSync(keystorePath, JSON.stringify(ks)) : undefined,
+          persistKeystore: keystorePath
+            ? (ks) => {
+                try {
+                  atomicWriteFile(keystorePath, JSON.stringify(ks));
+                } catch (e) {
+                  // Surface the disk fault server-side and fail the open rather than
+                  // silently proceeding with an unpersisted prekey consumption.
+                  console.error("[sje] keystore persist failed:", e);
+                  throw e;
+                }
+              }
+            : undefined,
         });
       } catch {
         // Uniform failure — do not reveal whether it was the wrong recipient, a

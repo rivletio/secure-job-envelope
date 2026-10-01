@@ -319,6 +319,34 @@ describe("sje mcp surface", () => {
     assert.ok(res.isError, "must refuse rather than silently fall back to static");
   });
 
+  it("sje_seal with require_forward_secret AND a bundle succeeds (no downgrade needed)", async () => {
+    const sealed = payload(
+      await call("sje_seal", {
+        traveler: EXAMPLE,
+        directory,
+        root_public_key_hex: rootPublicKeyHex,
+        recipient_org: RECIP_ORG,
+        prekey_bundle: prekeyBundle,
+        require_forward_secret: true,
+      }),
+    );
+    assert.equal(sealed.forward_secret, true);
+    assert.equal(sealed.spec, "sje-envelope/0.2.0");
+  });
+
+  it("sje_open refuses input that is not a recognized envelope", async () => {
+    for (const sje of [
+      {},
+      { spec: "not-an-envelope" },
+      { spec: "sje-envelope/0.1.0", recipients: [], payload: "x", payload_nonce: "y" }, // empty recipients
+      { spec: "sje-envelope/0.1.0", payload: "x", payload_nonce: "y", recipients: [{ kem_ct: "z" }] }, // recipient has no kid
+      "not json at all",
+    ]) {
+      const res = await call("sje_open", { sje });
+      assert.ok(res.isError, `must reject ${JSON.stringify(sje)}`);
+    }
+  });
+
   it("sje_open refuses a decrypted archive whose non-quoteable fields were tampered (F3)", async () => {
     // A well-formed ENVELOPE (AEAD passes on decrypt) whose decrypted payload is a
     // semantically-tampered archive: an award injected (a NON-quoteable field, so

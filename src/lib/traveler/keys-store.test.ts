@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import { readFileSync } from "node:fs";
-import { useKeysStore } from "./keys-store.ts";
+import { useKeysStore, sanitizeTrust } from "./keys-store.ts";
 import { sealTraveler, openTraveler } from "./transport.ts";
 import { keypairFromSeed } from "./signature.ts";
 import { kemKeypairFromSeed } from "./envelope.ts";
@@ -159,5 +159,26 @@ describe("keys store (desk custody)", () => {
     });
     const opened = await openTraveler(envelope, useKeysStore.getState().unlocked!);
     assert.deepEqual(opened, traveler);
+  });
+});
+
+describe("sanitizeTrust (defensive hydration)", () => {
+  it("drops a malformed persisted trust anchor and keeps a well-shaped one", () => {
+    // Malformed blobs (schema drift / corrupted localStorage) must not load — they
+    // would crash the routes that read directory.entries / bundles on render.
+    assert.equal(sanitizeTrust(undefined), undefined);
+    assert.equal(sanitizeTrust(null), undefined);
+    assert.equal(sanitizeTrust("nope"), undefined);
+    assert.equal(sanitizeTrust({}), undefined);
+    assert.equal(sanitizeTrust({ rootPublicKeyHex: "x" }), undefined, "no directory");
+    assert.equal(sanitizeTrust({ rootPublicKeyHex: "x", directory: null }), undefined);
+    assert.equal(sanitizeTrust({ rootPublicKeyHex: "x", directory: {} }), undefined, "entries not an array");
+    assert.equal(sanitizeTrust({ rootPublicKeyHex: 5, directory: { entries: [] } }), undefined, "root not a string");
+
+    const out = sanitizeTrust({ rootPublicKeyHex: "abcd", directory: { entries: [] }, bundles: {} });
+    assert.ok(out && out.rootPublicKeyHex === "abcd" && Array.isArray(out.directory.entries));
+    // A well-shaped anchor missing `bundles` defaults it to an empty map.
+    const out2 = sanitizeTrust({ rootPublicKeyHex: "abcd", directory: { entries: [] } });
+    assert.deepEqual(out2?.bundles, {});
   });
 });

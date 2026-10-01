@@ -154,16 +154,22 @@ export async function openTraveler(
     if (!r) {
       throw new Error("openTraveler: envelope has no recipient entry for this keystore");
     }
-    // Consume the one-time prekey: this deletes it from the in-memory vault and
-    // yields a new blob to persist. Persist the deletion BEFORE using the secret,
-    // so a crash can't resurrect a consumed prekey (forward secrecy needs the delete
-    // to be durable). A spent/unknown prekey yields no secret → refuse.
-    const { keystore: updated, secretKey: onetime } = keystore.consumePrekey(r.prekey_id);
+    // Look up the one-time prekey secret WITHOUT consuming it, and verify+decrypt
+    // FIRST. A prekey_id is public (it travels in the signed bundle), so consuming
+    // before authentication would let anyone burn a victim's prekeys with a forged
+    // envelope — an unauthenticated forward-secrecy DoS. A spent/unknown prekey →
+    // refuse.
+    const onetime = keystore.peekPrekey(r.prekey_id);
     if (!onetime) {
       throw new Error("openTraveler: one-time prekey already consumed or not held by this keystore");
     }
-    if (opts?.persistKeystore) await opts.persistKeystore(updated);
     const zipBytes = openFsEnvelope(envelope, keystore.kid, keystore.staticSecretKey(), onetime);
+    // Authenticated: only now spend the one-time prekey, persisting the deletion
+    // before the plaintext is released, so it can never open a second envelope.
+    // (Accepted trade: a crash between a successful open and the persist resurrects
+    // THIS one prekey — far less harmful than letting an attacker burn the pool.)
+    const { keystore: updated } = keystore.consumePrekey(r.prekey_id);
+    if (opts?.persistKeystore) await opts.persistKeystore(updated);
     return toTraveler(zipBytes);
   }
 
@@ -184,10 +190,22 @@ function toTraveler(zipBytes: Uint8Array): Promise<Traveler> {
 export function parseSjeEnvelope(input: unknown): SjeEnvelope {
   const obj = typeof input === "string" ? (JSON.parse(input) as unknown) : input;
   const e = obj as Partial<Envelope | FsEnvelope>;
-  if (!e || typeof e !== "object" || !Array.isArray(e.recipients) || typeof e.payload !== "string") {
-    throw new Error("not a recognized SJE envelope");
-  }
-  if (e.spec !== ENVELOPE_SPEC && e.spec !== FS_ENVELOPE_SPEC) {
+  // Validate the fields openTraveler relies on, not just the spec — a "recognized"
+  // envelope must have a string payload + payload_nonce and a non-empty recipient
+  // list whose entries each carry a string kid (the rest of each recipient's hex
+  // fields are validated cryptographically downstream, which fails closed).
+  const recipientsOk =
+    Array.isArray(e?.recipients) &&
+    e.recipients.length > 0 &&
+    e.recipients.every((r) => r && typeof r === "object" && typeof (r as { kid?: unknown }).kid === "string");
+  if (
+    !e ||
+    typeof e !== "object" ||
+    (e.spec !== ENVELOPE_SPEC && e.spec !== FS_ENVELOPE_SPEC) ||
+    typeof e.payload !== "string" ||
+    typeof (e as Envelope).payload_nonce !== "string" ||
+    !recipientsOk
+  ) {
     throw new Error("not a recognized SJE envelope");
   }
   return e as SjeEnvelope;

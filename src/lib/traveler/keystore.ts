@@ -177,9 +177,15 @@ export type Unlocked = {
   /** Generate n one-time prekeys; stores their secrets, returns the public list to
    *  publish in a signed bundle, and the new keystore blob to persist. */
   addPrekeys(n: number): { keystore: Keystore; prekeys: PublicPrekey[] };
-  /** Look up a one-time prekey secret and DELETE it (forward secrecy). Returns the
-   *  secret (or undefined if already consumed/unknown) and the new blob to persist
-   *  BEFORE the secret is used, so a crash can't resurrect a consumed prekey. */
+  /** Look up a one-time prekey secret WITHOUT consuming it, so a caller can verify an
+   *  envelope actually opens before committing the single-use deletion — preventing an
+   *  unauthenticated message from burning a prekey. Returns undefined if the id is
+   *  unknown or already consumed. */
+  peekPrekey(prekeyId: string): Uint8Array | undefined;
+  /** Delete a one-time prekey and return the new blob to persist (forward secrecy).
+   *  Call this only AFTER the envelope has been verified to open (see peekPrekey), so
+   *  a forged envelope naming a public prekey_id cannot burn it; persist the returned
+   *  blob before releasing the plaintext. */
   consumePrekey(prekeyId: string): { keystore: Keystore; secretKey: Uint8Array | undefined };
   /** Best-effort wipe of in-memory key material; the keystore becomes unusable. */
   lock(): void;
@@ -211,13 +217,18 @@ export async function unlock(store: Keystore, passphrase: string): Promise<Unloc
     throw new Error(UNLOCK_FAIL);
   }
 
-  // Header carried forward for re-sealing (upgrade N if below the floor).
-  const kdf: Kdf =
-    store.kdf.N < MIN_SCRYPT_N
-      ? { name: "scrypt", N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, salt: store.kdf.salt }
-      : store.kdf;
-  const header: Keystore = { ...store, kdf };
+  // Header carried forward for re-sealing. If the stored cost is below the floor,
+  // upgrade the KDF *and re-derive the key under the new params* (with a fresh salt),
+  // so the resealed blob is encrypted with the key its own header advertises.
+  // (Previously the header was upgraded but the old-N key was reused to reseal, so
+  // the next unlock derived a different key and the keystore was bricked forever.)
+  let kdf: Kdf = store.kdf;
   let activeKey = key;
+  if (store.kdf.N < MIN_SCRYPT_N) {
+    kdf = { name: "scrypt", N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, salt: bytesToHex(randomBytes(SALT_LEN)) };
+    activeKey = await deriveKey(passphrase, kdf);
+  }
+  const header: Keystore = { ...store, kdf };
   let locked = false;
 
   const requireOpen = () => {
@@ -253,10 +264,17 @@ export async function unlock(store: Keystore, passphrase: string): Promise<Unloc
       }
       return { keystore: reseal(), prekeys };
     },
+    peekPrekey(prekeyId: string) {
+      requireOpen();
+      // Own-property lookup only: an attacker-chosen id like "__proto__" or
+      // "toString" must not resolve to an inherited Object.prototype member.
+      const seedHex = Object.hasOwn(vault.prekeys, prekeyId) ? vault.prekeys[prekeyId] : undefined;
+      return typeof seedHex === "string" ? kemKeypairFromSeed(hexToBytes(seedHex)).secretKey : undefined;
+    },
     consumePrekey(prekeyId: string) {
       requireOpen();
-      const seedHex = vault.prekeys[prekeyId];
-      if (!seedHex) return { keystore: reseal(), secretKey: undefined };
+      const seedHex = Object.hasOwn(vault.prekeys, prekeyId) ? vault.prekeys[prekeyId] : undefined;
+      if (typeof seedHex !== "string") return { keystore: reseal(), secretKey: undefined };
       const secretKey = kemKeypairFromSeed(hexToBytes(seedHex)).secretKey;
       delete vault.prekeys[prekeyId];
       return { keystore: reseal(), secretKey };

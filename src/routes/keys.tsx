@@ -113,6 +113,9 @@ function KeysPage() {
 
   function onLoadAnchor() {
     try {
+      // Cap before JSON.parse so a very large paste can't freeze the tab (the .sje
+      // import is already size-capped). A real directory + bundles is well under 1 MiB.
+      if (anchorText.length > 1_000_000) throw new Error("Trust anchor is too large (max ~1 MB).");
       const parsed = JSON.parse(anchorText) as {
         root_public_key_hex?: string;
         rootPublicKeyHex?: string;

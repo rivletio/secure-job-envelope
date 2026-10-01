@@ -1,10 +1,49 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createIdentity, unlock, type Keystore } from "./keystore.ts";
-import { sealEnvelope, openEnvelope } from "./envelope.ts";
-import { utf8ToBytes } from "./bytes.ts";
+import { scryptAsync } from "@noble/hashes/scrypt.js";
+import { gcm } from "@noble/ciphers/aes.js";
+import { createIdentity, unlock, KEYSTORE_SPEC, type Keystore } from "./keystore.ts";
+import { sealEnvelope, openEnvelope, kemKeypairFromSeed, encKid, KEM_ALG } from "./envelope.ts";
+import { canonicalJson } from "./canonical.ts";
+import { bytesToHex, utf8ToBytes } from "./bytes.ts";
 
 const PASS = "correct horse battery staple";
+
+function randomBytes(n: number): Uint8Array {
+  const b = new Uint8Array(n);
+  crypto.getRandomValues(b);
+  return b;
+}
+
+/** Mint a keystore blob at an arbitrary scrypt N — including BELOW the floor — the
+ *  way an older MCP/CLI minter would (importIdentity accepts such blobs). Replicates
+ *  the documented at-rest format so the upgrade-on-unlock path can be exercised. */
+async function forgeKeystore(passphrase: string, N: number): Promise<Keystore> {
+  const seed = randomBytes(64);
+  const enc_public_key = bytesToHex(kemKeypairFromSeed(seed).publicKey);
+  const kid = encKid(enc_public_key);
+  const kdf = { name: "scrypt" as const, N, r: 8, p: 1, salt: bytesToHex(randomBytes(16)) };
+  const aad = utf8ToBytes(canonicalJson({ spec: KEYSTORE_SPEC, kid, enc_alg: KEM_ALG, enc_public_key, kdf }));
+  const key = await scryptAsync(utf8ToBytes(passphrase), new Uint8Array(Buffer.from(kdf.salt, "hex")), {
+    N,
+    r: 8,
+    p: 1,
+    dkLen: 32,
+  });
+  const nonce = randomBytes(12);
+  const vault = { static_seed: bytesToHex(seed), prekeys: {} };
+  const ct = gcm(key, nonce, aad).encrypt(utf8ToBytes(JSON.stringify(vault)));
+  return {
+    spec: KEYSTORE_SPEC,
+    kid,
+    enc_alg: KEM_ALG,
+    enc_public_key,
+    kdf,
+    cipher: "AES-256-GCM",
+    nonce: bytesToHex(nonce),
+    ct: bytesToHex(ct),
+  };
+}
 
 describe("passphrase-encrypted keystore", () => {
   it("creates an identity, unlocks it, and the stored key decrypts a real envelope", async () => {
@@ -78,5 +117,42 @@ describe("passphrase-encrypted keystore", () => {
     const unlocked = await unlock(keystore, PASS);
     unlocked.lock();
     assert.throws(() => unlocked.staticSecretKey(), /locked/);
+  });
+
+  it("re-keys a below-floor keystore on unlock so the resealed blob still unlocks (no brick)", async () => {
+    const belowFloor = await forgeKeystore(PASS, 16384); // < MIN_SCRYPT_N (32768)
+    const u = await unlock(belowFloor, PASS); // unlocks with the stored (low) N
+    assert.equal(u.kid, belowFloor.kid);
+
+    const { keystore: resealed } = u.addPrekeys(1); // reseal → must upgrade the KDF
+    assert.equal(resealed.kdf.N, 65536, "KDF upgraded to the floor");
+    assert.notEqual(resealed.kdf.salt, belowFloor.kdf.salt, "fresh salt on re-key");
+
+    // The regression: before the fix the resealed blob advertised the new N but was
+    // encrypted with the old-N key, so the next unlock derived a different key and the
+    // keystore was bricked. It must now unlock.
+    const u2 = await unlock(resealed, PASS);
+    assert.equal(u2.kid, belowFloor.kid);
+    assert.ok(u2.staticSecretKey() instanceof Uint8Array);
+  });
+
+  it("ignores prototype-chain prekey ids (no inherited-member confusion)", async () => {
+    const { keystore } = await createIdentity({ passphrase: PASS });
+    const u = await unlock(keystore, PASS);
+    for (const id of ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"]) {
+      assert.equal(u.peekPrekey(id), undefined, `peekPrekey(${id}) must be undefined`);
+      assert.equal(u.consumePrekey(id).secretKey, undefined, `consumePrekey(${id}) must be undefined`);
+    }
+  });
+
+  it("peekPrekey returns the secret WITHOUT consuming it", async () => {
+    const { keystore } = await createIdentity({ passphrase: PASS });
+    const u = await unlock(keystore, PASS);
+    const { prekeys } = u.addPrekeys(1);
+    const id = prekeys[0]!.prekey_id;
+    assert.ok(u.peekPrekey(id) instanceof Uint8Array);
+    assert.ok(u.peekPrekey(id) instanceof Uint8Array, "still present after peek (not consumed)");
+    assert.ok(u.consumePrekey(id).secretKey instanceof Uint8Array, "consume after peek works");
+    assert.equal(u.peekPrekey(id), undefined, "gone only after an explicit consume");
   });
 });

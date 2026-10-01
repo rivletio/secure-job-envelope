@@ -5,6 +5,7 @@ import { sealTraveler, openTraveler, parseSjeEnvelope } from "./transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "./keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "./directory.ts";
 import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "./prekeys.ts";
+import type { FsEnvelope } from "./envelope.ts";
 import { keypairFromSeed, type Keypair } from "./signature.ts";
 import { bytesToHex } from "./bytes.ts";
 import { parseTraveler } from "./conformance.ts";
@@ -159,6 +160,23 @@ describe("encrypted transport (forward-secret path)", () => {
     // A different, unspent prekey still opens.
     const other = (await seal(prekeyIds[1]!)).envelope;
     assert.deepEqual(await openTraveler(other, unlocked), sampleTraveler());
+  });
+
+  it("a tampered FS envelope naming a real prekey fails WITHOUT burning it (verify before consume)", async () => {
+    const { directory, rootPublicKeyHex, unlocked, signer } = await setup();
+    const { bundle, prekeyIds } = signedBundle(unlocked, signer, 1);
+    const pid = prekeyIds[0]!;
+    const seal = () =>
+      sealTraveler(sampleTraveler(), { directory, rootPublicKeyHex, recipientOrg: "org_recipient", prekeyBundle: bundle, prekeyId: pid });
+
+    const good = (await seal()).envelope as FsEnvelope;
+    const tampered: FsEnvelope = { ...good, payload: (good.payload[0] === "a" ? "b" : "a") + good.payload.slice(1) };
+    await assert.rejects(() => openTraveler(tampered, unlocked), "a tampered FS envelope must be refused");
+
+    // The prekey must survive the failed open — a fresh, legitimate envelope to the
+    // SAME prekey still opens. (Before the fix, the failed open consumed the prekey,
+    // so this second open failed with "already consumed" — a remote prekey-burn DoS.)
+    assert.deepEqual(await openTraveler((await seal()).envelope, unlocked), sampleTraveler());
   });
 
   it("persists the consumed prekey so a reload cannot reuse it", async () => {
