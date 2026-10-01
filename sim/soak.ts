@@ -1,7 +1,7 @@
 /** Soak + adversarial harness: simulate many jobs, transact them through the full
  *  lifecycle, and try to break the invariants.
  *
- *  Three phases, all deterministic in the seed range:
+ *  Four phases, all deterministic in the seed range:
  *   1. Lifecycle — compose -> quote -> award -> (amend) through the real store
  *      state machine, asserting the invariants that must always hold (hash
  *      stability, binding, level progression, the executable lock).
@@ -12,6 +12,10 @@
  *   3. Authenticity / confidentiality — sign & verify travelers and quotes against
  *      a seeded directory, seal & open static and forward-secret envelopes, and
  *      confirm every tamper is caught.
+ *   4. Encrypted transport — the end-to-end wiring: sealTraveler produces ciphertext
+ *      on the wire (no plaintext field leaks, not a zip), openTraveler decrypts with
+ *      a passphrase-encrypted keystore over directory resolution, and tamper /
+ *      wrong-recipient envelopes are refused.
  *
  *  Exits non-zero if any invariant fails, so CI fails loudly.
  *
@@ -28,6 +32,11 @@ import { locked } from "../src/lib/traveler/guards.ts";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { signTraveler, signQuote, verifyTravelerSignatures, verifyQuoteSignature, itarAttestationBlocker } from "../src/lib/traveler/authenticity.ts";
 import { recipientByOrg, sealEnvelope, openEnvelope, fsRecipientFromBundle, sealFsEnvelope, openFsEnvelope } from "../src/lib/traveler/envelope.ts";
+import { sealTraveler, openTraveler } from "../src/lib/traveler/transport.ts";
+import { createIdentity, unlock, type Unlocked } from "../src/lib/traveler/keystore.ts";
+import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
+import { bytesToHex } from "../src/lib/traveler/bytes.ts";
 import type { Quote, Traveler } from "../src/lib/traveler/types.ts";
 
 // ---- tiny assertion harness (collects failures with context, never throws) ----
@@ -41,6 +50,15 @@ const mustThrow = (fn: () => void, msg: string) => {
   checks++;
   try {
     fn();
+    failures.push(`FAIL expected rejection: ${msg}`);
+  } catch {
+    /* expected */
+  }
+};
+const mustReject = async (fn: () => Promise<unknown>, msg: string) => {
+  checks++;
+  try {
+    await fn();
     failures.push(`FAIL expected rejection: ${msg}`);
   } catch {
     /* expected */
@@ -286,8 +304,88 @@ function crypto(seed: number, trust: ReturnType<typeof buildTrust>) {
   }
 }
 
+// ---------------------- phase 4: encrypted transport (end-to-end) ----------------------
+// Exercises the REAL wiring a party uses: sealTraveler -> ciphertext on the wire ->
+// openTraveler with a passphrase-encrypted keystore, over directory resolution.
+// The keystore + directory are built ONCE (scrypt is deliberately expensive), then
+// reused across jobs; sealing/opening per job is only ML-KEM + AES + zip.
+type TransportTrust = {
+  directory: Directory;
+  rootPublicKeyHex: string;
+  recipientOrg: string;
+  unlocked: Unlocked;
+};
+
+async function buildTransportTrust(): Promise<TransportTrust> {
+  const PASS = "soak-keystore-passphrase";
+  const recipientOrg = "org_recipient";
+  const trustRoot = keypairFromSeed(new Uint8Array(32).fill(21));
+  const signer = keypairFromSeed(new Uint8Array(32).fill(22)); // placeholder org signing key
+  const { keystore, directoryEntry } = await createIdentity({ passphrase: PASS, orgId: recipientOrg });
+  const body: Directory = {
+    spec: DIRECTORY_SPEC,
+    issued_at: "2026-01-01T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
+    root_kid: "root-2026",
+    entries: [
+      {
+        org_id: recipientOrg,
+        kid: "recip-2026",
+        alg: "ML-DSA-87",
+        public_key: bytesToHex(signer.publicKey),
+        valid_from: "2026-01-01T00:00:00.000Z",
+        valid_until: "2030-01-01T00:00:00.000Z",
+        status: "active",
+        enc_alg: "ML-KEM-1024",
+        enc_public_key: directoryEntry.enc_public_key,
+      },
+    ],
+  };
+  const directory: Directory = { ...body, sig: signDirectory(body, trustRoot.secretKey) };
+  return {
+    directory,
+    rootPublicKeyHex: bytesToHex(trustRoot.publicKey),
+    recipientOrg,
+    unlocked: await unlock(keystore, PASS),
+  };
+}
+
+async function transport(seed: number, tt: TransportTrust) {
+  const rng = new Rng(seed ^ 0x2b2b2b2b);
+  const level = rng.pick(["L0", "L1", "L2"] as const);
+  const traveler = genTraveler(rng, { level, itar: rng.bool(0.2) });
+
+  const { envelope, forwardSecret } = await sealTraveler(traveler, {
+    directory: tt.directory,
+    rootPublicKeyHex: tt.rootPublicKeyHex,
+    recipientOrg: tt.recipientOrg,
+  });
+  ok(forwardSecret === false, `#${seed} static transport path (no prekey bundle)`);
+  ok(envelope.spec === "sje-envelope/0.1.0", `#${seed} envelope spec is the static one`);
+
+  // Ciphertext proof: no plaintext field value leaks, and the payload is not a zip.
+  const wire = JSON.stringify(envelope);
+  ok(!wire.includes(traveler.traveler_id), `#${seed} traveler_id does not appear in the clear`);
+  ok(!wire.includes(traveler.buyer.name), `#${seed} buyer name does not appear in the clear`);
+  ok(!wire.includes(traveler.part.part_number), `#${seed} part number does not appear in the clear`);
+  const payloadBytes = Buffer.from(envelope.payload, "hex");
+  ok(!payloadBytes.includes(Buffer.from("PK\x03\x04")), `#${seed} no ZIP local-file header in the ciphertext`);
+
+  // Round-trip equals the input (full-object canonical compare, order-independent).
+  const opened = await openTraveler(envelope, tt.unlocked);
+  ok(canonicalJson(opened) === canonicalJson(traveler), `#${seed} transport round-trips to an equal traveler`);
+
+  // Tamper: a one-byte flip in the payload is refused by AEAD.
+  const tampered = { ...envelope, payload: (envelope.payload.startsWith("00") ? "11" : "00") + envelope.payload.slice(2) };
+  await mustReject(() => openTraveler(tampered, tt.unlocked), `#${seed} tampered transport envelope is refused`);
+
+  // Not addressed to this keystore: the recipient-mismatch guard refuses before decrypt.
+  const foreign = { ...envelope, recipients: envelope.recipients.map((r) => ({ ...r, kid: "ffffffffffffffff" })) };
+  await mustReject(() => openTraveler(foreign, tt.unlocked), `#${seed} envelope not addressed to this keystore is refused`);
+}
+
 // ------------------------------------ main ------------------------------------
-function main() {
+async function main() {
   const argv = process.argv.slice(2);
   const arg = (name: string, def: number) => {
     const i = argv.indexOf(name);
@@ -296,6 +394,7 @@ function main() {
   const jobs = arg("--jobs", 500);
   const start = arg("--start", 1);
   const cryptoJobs = Math.min(jobs, arg("--crypto", 40));
+  const transportJobs = Math.min(jobs, arg("--transport", 40));
 
   const t0 = Date.now();
   for (let seed = start; seed < start + jobs; seed++) {
@@ -307,9 +406,13 @@ function main() {
   adversarial();
   const trust = buildTrust(new Rng(0xc0ffee));
   for (let seed = start; seed < start + cryptoJobs; seed++) crypto(seed, trust);
+  const transportTrust = await buildTransportTrust();
+  for (let seed = start; seed < start + transportJobs; seed++) await transport(seed, transportTrust);
 
   const ms = Date.now() - t0;
-  console.log(`\nsoak: ${checks} invariant checks over ${jobs} jobs (+${cryptoJobs} crypto) in ${ms}ms`);
+  console.log(
+    `\nsoak: ${checks} invariant checks over ${jobs} jobs (+${cryptoJobs} crypto, +${transportJobs} transport) in ${ms}ms`,
+  );
   if (failures.length) {
     console.log(`\n${failures.length} FAILURES:`);
     for (const f of failures.slice(0, 40)) console.log(`  ${f}`);
@@ -318,4 +421,4 @@ function main() {
   console.log("all invariants held — no breakage.");
 }
 
-main();
+await main();
