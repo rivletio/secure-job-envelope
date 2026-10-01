@@ -3,21 +3,70 @@
  */
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import JSZip from "jszip";
 import { buildServer } from "./server.ts";
 import { parseTraveler } from "../src/lib/traveler/conformance.ts";
 import { travelerHash } from "../src/lib/traveler/hash.ts";
+import { createIdentity } from "../src/lib/traveler/keystore.ts";
+import { sealEnvelope } from "../src/lib/traveler/envelope.ts";
+import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
+import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { bytesToHex } from "../src/lib/traveler/bytes.ts";
 
 type ToolResult = { isError?: boolean; content: Array<{ type: string; text: string }> };
 const payload = (r: ToolResult) => JSON.parse(r.content[0]!.text) as Record<string, unknown>;
 
 let client: Client;
 let server: ReturnType<typeof buildServer>;
+let workdir: string;
+let directory: Directory;
+let rootPublicKeyHex: string;
+let recipient: { kid: string; public_key: string };
+const RECIP_ORG = "org_test";
+const KS_PASS = "mcp-test-passphrase";
 
 before(async () => {
+  // This desk's decryption identity, loaded from env exactly like the real server
+  // (serverKeystore reads SJE_KEYSTORE + SJE_KEYSTORE_PASSPHRASE on first open).
+  workdir = mkdtempSync(join(tmpdir(), "sje-mcp-test-"));
+  const ksPath = join(workdir, "desk.keystore.json");
+  const id = await createIdentity({ passphrase: KS_PASS, orgId: RECIP_ORG });
+  writeFileSync(ksPath, JSON.stringify(id.keystore));
+  process.env.SJE_KEYSTORE = ksPath;
+  process.env.SJE_KEYSTORE_PASSPHRASE = KS_PASS;
+  recipient = { kid: id.directoryEntry.kid, public_key: id.directoryEntry.enc_public_key };
+
+  // A signed directory that resolves RECIP_ORG to that encryption key, so sealing
+  // (which verifies the directory against the root first) can address this desk.
+  const root = keypairFromSeed(new Uint8Array(32).fill(5));
+  rootPublicKeyHex = bytesToHex(root.publicKey);
+  const signer = keypairFromSeed(new Uint8Array(32).fill(6));
+  const body: Directory = {
+    spec: DIRECTORY_SPEC,
+    issued_at: "2026-01-01T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
+    root_kid: "root-2026",
+    entries: [
+      {
+        org_id: RECIP_ORG,
+        kid: "desk-2026",
+        alg: "ML-DSA-87",
+        public_key: bytesToHex(signer.publicKey),
+        valid_from: "2026-01-01T00:00:00.000Z",
+        valid_until: "2030-01-01T00:00:00.000Z",
+        status: "active",
+        enc_alg: "ML-KEM-1024",
+        enc_public_key: id.directoryEntry.enc_public_key,
+      },
+    ],
+  };
+  directory = { ...body, sig: signDirectory(body, root.secretKey) };
+
   const [ct, st] = InMemoryTransport.createLinkedPair();
   server = buildServer();
   await server.connect(st);
@@ -28,6 +77,9 @@ before(async () => {
 after(async () => {
   await client.close();
   await server.close();
+  rmSync(workdir, { recursive: true, force: true });
+  delete process.env.SJE_KEYSTORE;
+  delete process.env.SJE_KEYSTORE_PASSPHRASE;
 });
 
 const call = async (name: string, args: Record<string, unknown>) =>
@@ -45,9 +97,9 @@ const QUOTE_ARGS = {
 };
 
 describe("sje mcp surface", () => {
-  it("lists all eight tools", async () => {
+  it("lists all nine tools", async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 8);
+    assert.equal(tools.length, 9);
     assert.ok(tools.every((t) => t.name.startsWith("sje_")));
   });
 
@@ -162,22 +214,67 @@ describe("sje mcp surface", () => {
     assert.ok(res.isError, "non-ITAR seller must be refused");
   });
 
-  it("seal → open round-trips; a tampered archive is refused", async () => {
-    const sealed = payload(await call("sje_seal", { traveler: EXAMPLE }));
-    const openRes = payload(await call("sje_open", { zip_base64: sealed.zip_base64 }));
-    assert.equal(openRes.traveler_hash, sealed.traveler_hash);
-
-    const bytes = Buffer.from(String(sealed.zip_base64), "base64");
-    bytes[Math.floor(bytes.length / 2)] ^= 0xff;
-    const tampered = await call("sje_open", { zip_base64: bytes.toString("base64") });
-    assert.ok(tampered.isError, "tampered archive must be refused");
+  it("sje_identity mints an encrypted keystore and a publishable directory entry", async () => {
+    const res = payload(
+      await call("sje_identity", { passphrase: "another-strong-pass", org_id: "org_minted", prekeys: 2 }),
+    );
+    const ks = res.keystore as Record<string, unknown>;
+    const entry = res.directory_entry as Record<string, unknown>;
+    assert.equal(ks.spec, "sje-keystore/0.1.0");
+    assert.equal(ks.enc_alg, "ML-KEM-1024");
+    assert.equal(entry.kid, ks.kid);
+    assert.equal(entry.org_id, "org_minted");
+    // The secret seed is encrypted into `ct`, never a clear field.
+    assert.ok(!JSON.stringify(ks).includes("static_seed"), "no secret in the clear keystore");
+    assert.equal((res.prekeys as unknown[]).length, 2);
   });
 
-  it("sje_open refuses a re-sealed archive whose non-quoteable fields were tampered (F3)", async () => {
-    // Inject an award (a NON-quoteable field, so traveler_hash is unchanged) and
-    // build a well-formed archive whose META omits the full-bytes digest. Because
-    // traveler_json_sha384 is now required, the import must refuse it — otherwise a
-    // party could rewrite the awarded qty/seller or ship-to under an intact hash.
+  it("seal → open round-trips; a tampered envelope is refused", async () => {
+    const sealed = payload(
+      await call("sje_seal", {
+        traveler: EXAMPLE,
+        directory,
+        root_public_key_hex: rootPublicKeyHex,
+        recipient_org: RECIP_ORG,
+      }),
+    );
+    assert.equal(sealed.spec, "sje-envelope/0.1.0");
+    assert.equal(sealed.forward_secret, false);
+    const openRes = payload(await call("sje_open", { sje: sealed.sje }));
+    assert.equal(openRes.traveler_hash, sealed.traveler_hash);
+
+    const env = sealed.sje as { payload: string };
+    const tamperedEnv = {
+      ...(sealed.sje as object),
+      payload: (env.payload[0] === "a" ? "b" : "a") + env.payload.slice(1),
+    };
+    const tampered = await call("sje_open", { sje: tamperedEnv });
+    assert.ok(tampered.isError, "tampered envelope must be refused");
+  });
+
+  it("the sealed envelope is ciphertext — no plaintext field values, not a zip", async () => {
+    const sealed = payload(
+      await call("sje_seal", {
+        traveler: EXAMPLE,
+        directory,
+        root_public_key_hex: rootPublicKeyHex,
+        recipient_org: RECIP_ORG,
+      }),
+    );
+    const t = parseTraveler(EXAMPLE);
+    const wire = JSON.stringify(sealed.sje);
+    assert.ok(!wire.includes(t.traveler_id), "traveler_id must not travel in the clear");
+    if (t.part.part_number) assert.ok(!wire.includes(t.part.part_number), "part number must not leak");
+    const payloadBytes = Buffer.from((sealed.sje as { payload: string }).payload, "hex");
+    assert.ok(!payloadBytes.includes(Buffer.from("PK\x03\x04")), "no ZIP header in the ciphertext");
+  });
+
+  it("sje_open refuses a decrypted archive whose non-quoteable fields were tampered (F3)", async () => {
+    // A well-formed ENVELOPE (AEAD passes on decrypt) whose decrypted payload is a
+    // semantically-tampered archive: an award injected (a NON-quoteable field, so
+    // traveler_hash is unchanged) and META omitting the required full-bytes digest.
+    // Decryption succeeds, but the inner defensive import must still refuse it —
+    // otherwise a party could rewrite awarded qty/seller/ship-to under an intact hash.
     const traveler = parseTraveler(EXAMPLE);
     const tampered = {
       ...traveler,
@@ -189,8 +286,9 @@ describe("sje mcp surface", () => {
       "META.json",
       JSON.stringify({ traveler_id: traveler.traveler_id, traveler_hash: travelerHash(traveler) }),
     );
-    const b64 = await zip.generateAsync({ type: "base64" });
-    const res = await call("sje_open", { zip_base64: b64 });
+    const zipBytes = await zip.generateAsync({ type: "uint8array" });
+    const env = sealEnvelope(zipBytes, [recipient]);
+    const res = await call("sje_open", { sje: env });
     assert.ok(res.isError, "an archive missing the required full-bytes digest must be refused");
   });
 
@@ -217,11 +315,11 @@ describe("sje mcp surface", () => {
     assert.equal(t.quotes[0]!.traveler_hash_quoted, composed.traveler_hash);
   });
 
-  it("refuses an oversized sealed archive before decoding it", async () => {
-    const huge = "A".repeat(3_000_000); // exceeds the 2 MiB archive budget in base64
-    const res = await call("sje_open", { zip_base64: huge });
-    assert.ok(res.isError, "oversized base64 must be refused");
-    assert.match(String(payload(res).error), /exceeds 2 MB/);
+  it("refuses an oversized sealed envelope before decrypting it", async () => {
+    const huge = "A".repeat(5_000_000); // exceeds 2x the 2 MiB archive budget + slack
+    const res = await call("sje_open", { sje: huge });
+    assert.ok(res.isError, "oversized input must be refused");
+    assert.match(String(payload(res).error), /exceeds size limit/);
   });
 
   it("amend cannot inject ops/ship_to/as_built to escalate the level", async () => {

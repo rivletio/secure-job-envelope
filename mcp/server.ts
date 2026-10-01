@@ -35,11 +35,40 @@ import {
 } from "../src/lib/traveler/conformance.ts";
 import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/traveler/guards.ts";
 import { isoNow, newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
-import { importTravelerFile, travelerToZip } from "../src/lib/traveler/zip.ts";
+import { sealTraveler, openTraveler, parseSjeEnvelope } from "../src/lib/traveler/transport.ts";
+import { createIdentity, unlock, type Keystore, type Unlocked } from "../src/lib/traveler/keystore.ts";
 import { MAX_ARCHIVE_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
 import type { Award, Op, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
+import type { Directory } from "../src/lib/traveler/directory.ts";
+import { readFileSync } from "node:fs";
 
 const COMPANY = process.env.SJE_COMPANY ?? "unnamed-desk";
+
+/** This desk's decryption identity, loaded lazily from the passphrase-encrypted
+ *  keystore file (SJE_KEYSTORE) and unlocked with SJE_KEYSTORE_PASSPHRASE. Only
+ *  `sje_open` needs it — sealing uses the recipient's public key, never a secret.
+ *  Cached for the process; a failed unlock clears the cache so config can be fixed
+ *  and retried. */
+let cachedKeystore: Promise<Unlocked> | undefined;
+function serverKeystore(): Promise<Unlocked> {
+  if (cachedKeystore) return cachedKeystore;
+  const path = process.env.SJE_KEYSTORE;
+  const passphrase = process.env.SJE_KEYSTORE_PASSPHRASE;
+  if (!path || !passphrase) {
+    return Promise.reject(
+      new Error("sje_open needs SJE_KEYSTORE (keystore file path) and SJE_KEYSTORE_PASSPHRASE"),
+    );
+  }
+  const p = (async () => {
+    const blob = JSON.parse(readFileSync(path, "utf8")) as Keystore;
+    return unlock(blob, passphrase);
+  })();
+  p.catch(() => {
+    if (cachedKeystore === p) cachedKeystore = undefined;
+  });
+  cachedKeystore = p;
+  return p;
+}
 
 /* ---------------- helpers ---------------- */
 
@@ -169,16 +198,40 @@ const TOOLS = [
     ),
   },
   {
+    name: "sje_identity",
+    description:
+      "Generate an ML-KEM encryption identity. Returns a passphrase-encrypted keystore blob (save it to the file SJE_KEYSTORE points at) and the public directory-entry fields to publish. Optionally mints N one-time prekeys for forward secrecy. The passphrase is sensitive — it protects the keystore at rest.",
+    inputSchema: obj(
+      {
+        passphrase: { type: "string" },
+        org_id: { type: "string" },
+        prekeys: { type: "number", description: "optional count of one-time prekeys to mint" },
+      },
+      ["passphrase"],
+    ),
+  },
+  {
     name: "sje_seal",
     description:
-      "Seal a traveler into its archive ({traveler_id}.traveler.zip with META.json digests and canonical body) and return it base64-encoded — the artifact one company sends another.",
-    inputSchema: obj({ traveler: TRAVELER_ARG }, ["traveler"]),
+      "Encrypt a traveler to a directory-attested recipient and return the `.sje` envelope — the ONLY artifact sent between companies (ML-KEM-1024 + AES-256-GCM, post-quantum). Needs the signed directory and the trust-root public key (both public) to resolve the recipient's encryption key; no secret key is needed to seal.",
+    inputSchema: obj(
+      {
+        traveler: TRAVELER_ARG,
+        directory: { type: "object", description: "the signed key directory" },
+        root_public_key_hex: { type: "string", description: "the trust-root public key (hex)" },
+        recipient_org: { type: "string", description: "org_id of the recipient" },
+      },
+      ["traveler", "directory", "root_public_key_hex", "recipient_org"],
+    ),
   },
   {
     name: "sje_open",
     description:
-      "Open a received sealed archive (base64). Runs the full defensive import: member allowlist, size caps, path-traversal refusal, META digest cross-checks, canonical-body cross-check, schema validation. Tampered archives are refused.",
-    inputSchema: obj({ zip_base64: { type: "string" } }, ["zip_base64"]),
+      "Decrypt a received `.sje` envelope with this desk's keystore (SJE_KEYSTORE + SJE_KEYSTORE_PASSPHRASE) and run the full defensive import. An envelope not addressed to this desk, tampered, or corrupt is refused.",
+    inputSchema: obj(
+      { sje: { description: "an SJE envelope (object or JSON string)", anyOf: [{ type: "object" }, { type: "string" }] } },
+      ["sje"],
+    ),
   },
 ] as const;
 
@@ -291,30 +344,78 @@ async function handle(name: string, args: Args) {
       return ok({ traveler: next, ...report(next) });
     }
 
+    case "sje_identity": {
+      // Mint an ML-KEM identity. The keystore is encrypted at rest under the
+      // passphrase; only the public directory-entry fields are meant to be
+      // published. Optional one-time prekeys enable forward-secret envelopes.
+      const passphrase = String(args.passphrase ?? "");
+      const orgId =
+        args.org_id === undefined || args.org_id === null ? undefined : String(args.org_id);
+      const created = await createIdentity({ passphrase, ...(orgId ? { orgId } : {}) });
+      const n = Math.floor(Number(args.prekeys ?? 0));
+      if (Number.isFinite(n) && n > 0) {
+        const u = await unlock(created.keystore, passphrase);
+        const { keystore, prekeys } = u.addPrekeys(Math.min(n, 1024));
+        u.lock();
+        return ok({ keystore, directory_entry: created.directoryEntry, prekeys });
+      }
+      return ok({ keystore: created.keystore, directory_entry: created.directoryEntry });
+    }
+
     case "sje_seal": {
+      // Encrypt to a directory-attested recipient. Needs only public inputs (the
+      // signed directory + trust-root public key); no secret key seals. The
+      // returned envelope is the ONLY artifact that crosses company lines.
       const t = asTraveler(args.traveler);
-      const blob = await travelerToZip(t);
-      const bytes = Buffer.from(await blob.arrayBuffer());
+      if (!args.directory || typeof args.directory !== "object") {
+        return fail("sje_seal needs the signed key directory.");
+      }
+      const rootHex = String(args.root_public_key_hex ?? "");
+      const recipientOrg = String(args.recipient_org ?? "");
+      if (!rootHex) return fail("sje_seal needs root_public_key_hex (the trust-root public key).");
+      if (!recipientOrg) return fail("sje_seal needs recipient_org.");
+      const { envelope, forwardSecret } = await sealTraveler(t, {
+        directory: args.directory as Directory,
+        rootPublicKeyHex: rootHex,
+        recipientOrg,
+      });
       return ok({
-        filename: `${t.traveler_id}.traveler.zip`,
-        bytes: bytes.length,
+        sje: envelope,
+        spec: envelope.spec,
+        forward_secret: forwardSecret,
+        recipients: envelope.recipients.length,
         traveler_hash: travelerHash(t),
-        zip_base64: bytes.toString("base64"),
       });
     }
 
     case "sje_open": {
-      const b64 = String(args.zip_base64);
-      // Cap before decoding: base64 inflates ~4/3, so bound the input to the
-      // archive limit up front rather than allocating the decoded buffer first.
-      // This is the one input that crosses the trust boundary (a counterparty's
-      // sealed archive), so it gets the size check the defensive import intends.
-      if (b64.length > Math.ceil((MAX_ARCHIVE_BYTES * 4) / 3) + 1024) {
-        return fail("Sealed archive exceeds 2 MB limit.");
+      // The one input that crosses the trust boundary. Cap the raw size before any
+      // decode/decrypt: the envelope wraps a hex payload (~2x the archive bytes)
+      // plus per-recipient KEM material, so bound to 2x the archive limit + slack.
+      const raw = typeof args.sje === "string" ? args.sje : JSON.stringify(args.sje ?? {});
+      if (raw.length > 2 * MAX_ARCHIVE_BYTES + 64 * 1024) {
+        return fail("Sealed envelope exceeds size limit.");
       }
-      const bytes = Buffer.from(b64, "base64");
-      const file = new File([bytes], "received.traveler.zip", { type: "application/zip" });
-      const t = await importTravelerFile(file);
+      let keystore: Unlocked;
+      try {
+        keystore = await serverKeystore();
+      } catch (e) {
+        return fail(e instanceof Error ? e.message : "keystore unavailable");
+      }
+      let envelope;
+      try {
+        envelope = parseSjeEnvelope(args.sje);
+      } catch {
+        return fail("Input is not a recognized SJE envelope.");
+      }
+      let t: Traveler;
+      try {
+        t = await openTraveler(envelope, keystore);
+      } catch {
+        // Uniform failure — do not reveal whether it was the wrong recipient, a
+        // tampered envelope, or a malformed payload (no decryption oracle).
+        return fail("Could not open envelope (wrong recipient, tampered, or not addressed to this desk).");
+      }
       return ok({ traveler: t, ...report(t) });
     }
 

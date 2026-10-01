@@ -1,21 +1,34 @@
-/** SJE agent-to-agent demo — two companies, two MCP desks, one sealed job.
+/** SJE agent-to-agent demo — two companies, two MCP desks, one ENCRYPTED job.
  *
  *  Northline Equipment (buyer) and Summit Fabrication (seller) each run
  *  their OWN sje MCP server (separate processes, stdio — no shared
  *  database, no shared memory). The only thing that crosses the company
- *  boundary is the sealed archive, exactly as the protocol intends.
+ *  boundary is a sealed `.sje` envelope (ML-KEM-1024 + AES-256-GCM,
+ *  post-quantum), addressed to the recipient's key from a signed directory.
  *
- *  The demo narrates every exchange, proves the hash lineage at each hop,
- *  and shows the integrity check: a corrupted archive is refused on open.
- *  (the desk demo detects corruption, not adversarial forgery — a party who re-seals
- *  after editing re-verifies clean. Authenticity via signatures is the 0.1
- *  headline; until then integrity is not tamper-*resistance*.)
+ *  The demo proves the exchange is confidential and integrity-protected:
+ *  the transit artifact carries none of the traveler's plaintext, and a
+ *  single flipped byte is refused on open by AEAD. Each desk decrypts with
+ *  its own passphrase-encrypted keystore (loaded from an env passphrase),
+ *  then runs the full defensive import and reports the same content hash.
+ *
+ *  Note on scope: the envelope gives the recipient CONFIDENTIALITY and
+ *  INTEGRITY, not proof of SENDER identity — traveler/sender signatures are a
+ *  later milestone. Sealing uses only public keys; opening uses the keystore
+ *  secret, which never leaves the desk.
  *
  *  Run: npm run demo
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createIdentity } from "../src/lib/traveler/keystore.ts";
+import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
+import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { bytesToHex } from "../src/lib/traveler/bytes.ts";
 
 type ToolResult = { isError?: boolean; content: Array<{ type: string; text: string }> };
 
@@ -24,13 +37,20 @@ function payload(res: ToolResult): Record<string, unknown> {
   return JSON.parse(text) as Record<string, unknown>;
 }
 
-async function desk(company: string): Promise<Client> {
+async function desk(company: string, keystorePath: string, passphrase: string): Promise<Client> {
   const client = new Client({ name: `${company}-agent`, version: "0.1.0" });
   await client.connect(
     new StdioClientTransport({
       command: process.execPath,
       args: ["--experimental-strip-types", "mcp/server.ts"],
-      env: { ...process.env, SJE_COMPANY: company },
+      // The desk unlocks its decryption keystore from these two env vars. The
+      // passphrase stays on the desk; the keystore file is encrypted at rest.
+      env: {
+        ...process.env,
+        SJE_COMPANY: company,
+        SJE_KEYSTORE: keystorePath,
+        SJE_KEYSTORE_PASSPHRASE: passphrase,
+      },
       stderr: "ignore",
     }),
   );
@@ -40,11 +60,83 @@ async function desk(company: string): Promise<Client> {
 const step = (n: number, s: string) => console.log(`\n[${n}] ${s}`);
 const note = (s: string) => console.log(`    ${s}`);
 
-const buyer = await desk("northline");
-const seller = await desk("summit-fab");
+/* ---- Trust setup: a root, two keystores, one signed directory ---- */
+// Demo-only passphrase (>= 12 chars). Real desks use a human-entered secret.
+const PASS = "demo-keystore-passphrase";
+const workdir = mkdtempSync(join(tmpdir(), "sje-demo-"));
+const buyerKeystorePath = join(workdir, "northline.keystore.json");
+const sellerKeystorePath = join(workdir, "summit.keystore.json");
+
+const root = keypairFromSeed(new Uint8Array(32).fill(1));
+const rootPublicKeyHex = bytesToHex(root.publicKey);
+
+const buyerId = await createIdentity({ passphrase: PASS, orgId: "org_northline" });
+const sellerId = await createIdentity({ passphrase: PASS, orgId: "org_summitfab" });
+writeFileSync(buyerKeystorePath, JSON.stringify(buyerId.keystore));
+writeFileSync(sellerKeystorePath, JSON.stringify(sellerId.keystore));
+
+// A signed directory carrying both orgs' ENCRYPTION keys. The signing public
+// keys are placeholders — this version seals/opens with ML-KEM and does not yet
+// verify traveler signatures; the directory is used to resolve (and verify,
+// against the root) the recipient's encryption key before sealing.
+const buyerSigner = keypairFromSeed(new Uint8Array(32).fill(2));
+const sellerSigner = keypairFromSeed(new Uint8Array(32).fill(3));
+const dirBody: Directory = {
+  spec: DIRECTORY_SPEC,
+  issued_at: "2026-01-01T00:00:00.000Z",
+  valid_until: "2030-01-01T00:00:00.000Z",
+  root_kid: "root-2026",
+  entries: [
+    {
+      org_id: "org_northline",
+      kid: "northline-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(buyerSigner.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      enc_alg: "ML-KEM-1024",
+      enc_public_key: buyerId.directoryEntry.enc_public_key,
+    },
+    {
+      org_id: "org_summitfab",
+      kid: "summit-2026",
+      alg: "ML-DSA-87",
+      public_key: bytesToHex(sellerSigner.publicKey),
+      valid_from: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      status: "active",
+      enc_alg: "ML-KEM-1024",
+      enc_public_key: sellerId.directoryEntry.enc_public_key,
+    },
+  ],
+};
+const directory: Directory = { ...dirBody, sig: signDirectory(dirBody, root.secretKey) };
+
+/** Seal `traveler` from one desk to a recipient org, asserting the transit
+ *  artifact is genuine ciphertext (no plaintext field values leak). */
+async function sealTo(from: Client, traveler: Record<string, unknown>, recipientOrg: string) {
+  const sealed = payload(
+    (await from.callTool({
+      name: "sje_seal",
+      arguments: { traveler, directory, root_public_key_hex: rootPublicKeyHex, recipient_org: recipientOrg },
+    })) as ToolResult,
+  );
+  const wire = JSON.stringify(sealed.sje);
+  const part = traveler.part as { part_number?: string } | undefined;
+  const buyer = traveler.buyer as { name?: string } | undefined;
+  assert.ok(!wire.includes(String(traveler.traveler_id)), "traveler_id must not travel in the clear");
+  if (part?.part_number) assert.ok(!wire.includes(part.part_number), "part number must not travel in the clear");
+  if (buyer?.name) assert.ok(!wire.includes(buyer.name), "buyer name must not travel in the clear");
+  return sealed;
+}
+
+const buyer = await desk("northline", buyerKeystorePath, PASS);
+const seller = await desk("summit-fab", sellerKeystorePath, PASS);
 
 try {
-  console.log("=== SJE demo: two desks, one sealed job (sje/0.1.0) ===");
+  console.log("=== SJE demo: two desks, one ENCRYPTED job (sje-envelope/0.1.0) ===");
+  note(`trust root: ${rootPublicKeyHex.slice(0, 22)}… (verify this out-of-band)`);
 
   step(1, "BUYER composes a traveler (CNC bracket, 250 pcs)");
   const composed = payload(
@@ -78,32 +170,29 @@ try {
   note(`level ${composed.level} · ${hash0.slice(0, 22)}…`);
   assert.equal(composed.level, "L0");
 
-  step(2, "BUYER seals it — the only artifact that will cross company lines");
-  const sealed1 = payload(
-    (await buyer.callTool({
-      name: "sje_seal",
-      arguments: { traveler: composed.traveler },
-    })) as ToolResult,
+  step(2, "BUYER seals it to the seller — the only artifact that crosses company lines, now ciphertext");
+  const sealed1 = await sealTo(buyer, composed.traveler as Record<string, unknown>, "org_summitfab");
+  note(
+    `${sealed1.spec} · forward_secret=${sealed1.forward_secret} · ${sealed1.recipients} recipient — no plaintext leaks`,
   );
-  note(`${sealed1.filename} (${sealed1.bytes} bytes)`);
+  assert.equal(sealed1.forward_secret, false, "static path in this version (no prekey bundle)");
 
-  step(3, "TRANSIT: a corrupted copy is refused by the seller's desk");
-  const zipB64 = sealed1.zip_base64 as string;
-  const tampered = Buffer.from(zipB64, "base64");
-  tampered[Math.floor(tampered.length / 2)] ^= 0xff;
+  step(3, "TRANSIT: a single flipped byte is refused by the seller's desk (AEAD)");
+  const env1 = sealed1.sje as { payload: string };
+  const tamperedEnv = { ...(sealed1.sje as object), payload: (env1.payload[0] === "a" ? "b" : "a") + env1.payload.slice(1) };
   const tamperedRes = (await seller.callTool({
     name: "sje_open",
-    arguments: { zip_base64: tampered.toString("base64") },
+    arguments: { sje: tamperedEnv },
   })) as ToolResult;
-  assert.ok(tamperedRes.isError, "corrupted archive must be refused");
-  note(`refused: ${String(payload(tamperedRes).error).slice(0, 60)}…`);
+  assert.ok(tamperedRes.isError, "tampered envelope must be refused");
+  note(`refused: ${String(payload(tamperedRes).error).slice(0, 72)}…`);
 
-  step(4, "SELLER opens the genuine archive — full defensive import");
+  step(4, "SELLER decrypts the genuine envelope with its keystore — full defensive import");
   const opened = payload(
-    (await seller.callTool({ name: "sje_open", arguments: { zip_base64: zipB64 } })) as ToolResult,
+    (await seller.callTool({ name: "sje_open", arguments: { sje: sealed1.sje } })) as ToolResult,
   );
-  assert.equal(opened.traveler_hash, hash0, "hash survives the company boundary");
-  note(`verified ${String(opened.traveler_hash).slice(0, 22)}… — same body the buyer sealed`);
+  assert.equal(opened.traveler_hash, hash0, "hash survives the encrypted boundary");
+  note(`decrypted & verified ${String(opened.traveler_hash).slice(0, 22)}… — same body the buyer sealed`);
 
   step(5, "SELLER quotes — binding hash computed from the traveler in hand");
   const quoted = payload(
@@ -135,18 +224,10 @@ try {
   assert.equal(quoted.level, "L1");
   note(`quote ${quoted.quote_id} bound · level ${quoted.level}`);
 
-  step(6, "SELLER seals and returns; BUYER opens and evaluates");
-  const sealed2 = payload(
-    (await seller.callTool({
-      name: "sje_seal",
-      arguments: { traveler: quoted.traveler },
-    })) as ToolResult,
-  );
+  step(6, "SELLER seals and returns (encrypted to the buyer); BUYER decrypts and evaluates");
+  const sealed2 = await sealTo(seller, quoted.traveler as Record<string, unknown>, "org_northline");
   const back = payload(
-    (await buyer.callTool({
-      name: "sje_open",
-      arguments: { zip_base64: sealed2.zip_base64 },
-    })) as ToolResult,
+    (await buyer.callTool({ name: "sje_open", arguments: { sje: sealed2.sje } })) as ToolResult,
   );
   const evald = payload(
     (await buyer.callTool({
@@ -188,18 +269,10 @@ try {
   assert.equal(awarded.locked, true);
   note(`level ${awarded.level} · locked — award bound to quote ${awarded.awarded_quote}`);
 
-  step(8, "BUYER seals the executable traveler; SELLER verifies the final state");
-  const sealed3 = payload(
-    (await buyer.callTool({
-      name: "sje_seal",
-      arguments: { traveler: awarded.traveler },
-    })) as ToolResult,
-  );
+  step(8, "BUYER seals the executable traveler (encrypted); SELLER decrypts the final state");
+  const sealed3 = await sealTo(buyer, awarded.traveler as Record<string, unknown>, "org_summitfab");
   const final = payload(
-    (await seller.callTool({
-      name: "sje_open",
-      arguments: { zip_base64: sealed3.zip_base64 },
-    })) as ToolResult,
+    (await seller.callTool({ name: "sje_open", arguments: { sje: sealed3.sje } })) as ToolResult,
   );
   assert.equal(final.level, "L2");
   assert.equal(final.awarded_quote, quoted.quote_id);
@@ -217,9 +290,10 @@ try {
   note(`refused: ${payload(amendRes).error}`);
 
   console.log(
-    "\n=== DONE — RFQ → quote → award, two agents, two desks, zero shared state; every hop hash-verified; corruption refused; L2 locked. ===",
+    "\n=== DONE — RFQ → quote → award, two agents, two desks, zero shared state; every hop ENCRYPTED (ciphertext on the wire); a flipped byte refused; L2 locked. ===",
   );
 } finally {
   await buyer.close();
   await seller.close();
+  rmSync(workdir, { recursive: true, force: true });
 }
