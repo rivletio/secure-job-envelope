@@ -77,7 +77,7 @@ export function sanitizeTravelers(list: unknown): Traveler[] {
  *  store (private mode, SSR), or a disabled origin degrades to a no-op / null
  *  rather than crashing the desk. The traveler file is the source of truth;
  *  browser persistence is only a convenience. */
-const safeStorage = {
+export const safeStorage = {
   getItem: (name: string): string | null => {
     try {
       return typeof localStorage === "undefined" ? null : localStorage.getItem(name);

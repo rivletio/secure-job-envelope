@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Download, FileJson } from "lucide-react";
+import { Download, FileJson, Lock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { AwardDialog } from "@/components/award-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { SealDialog } from "@/components/seal-dialog";
 import { HashChip } from "@/components/hash-chip";
 import { LevelBadge } from "@/components/level-badge";
 import { QuoteDialog } from "@/components/quote-dialog";
@@ -30,6 +31,7 @@ function TravelerPage() {
   const logAudit = useTravelerStore((s) => s.logAudit);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [awardOpen, setAwardOpen] = useState(false);
+  const [sealOpen, setSealOpen] = useState(false);
   const [pick, setPick] = useState<Quote | null>(null);
   const [itarExport, setItarExport] = useState<"zip" | "json" | null>(null);
 
@@ -95,13 +97,27 @@ function TravelerPage() {
               {alreadyQuoted ? "Quoted" : "Quote this hash"}
             </Button>
           )}
-          <Button type="button" variant="outline" onClick={() => requestExport("zip")}>
-            <Download className="size-4" />
-            .traveler.zip
+          <Button type="button" onClick={() => setSealOpen(true)}>
+            <Lock className="size-4" />
+            Seal &amp; send
           </Button>
-          <Button type="button" variant="ghost" onClick={() => requestExport("json")}>
+          <Button
+            type="button"
+            variant="outline"
+            title="Local copy — not for sending (plaintext)"
+            onClick={() => requestExport("zip")}
+          >
+            <Download className="size-4" />
+            Local .zip
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            title="Local copy — not for sending (plaintext)"
+            onClick={() => requestExport("json")}
+          >
             <FileJson className="size-4" />
-            JSON
+            Local JSON
           </Button>
         </div>
       </div>
@@ -280,6 +296,7 @@ function TravelerPage() {
       </div>
 
       <QuoteDialog traveler={traveler} open={quoteOpen} onOpenChange={setQuoteOpen} />
+      <SealDialog traveler={traveler} open={sealOpen} onOpenChange={setSealOpen} />
       <AwardDialog
         traveler={traveler}
         quote={pick}

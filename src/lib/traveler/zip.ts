@@ -244,3 +244,16 @@ export async function downloadArchive(traveler: Traveler) {
   const blob = await travelerToZip(traveler);
   downloadBlob(blob, archiveName(traveler.traveler_id));
 }
+
+/** Download an encrypted envelope under a RANDOM filename. The name must not embed
+ *  the traveler_id (`{traveler_id}.sje`) — that would leak the id of an otherwise
+ *  confidential artifact through the filename alone. */
+export function downloadEnvelope(envelope: object): void {
+  const rand = new Uint8Array(8);
+  if (typeof crypto === "undefined" || !crypto.getRandomValues) {
+    throw new Error("a secure random source (crypto.getRandomValues) is required");
+  }
+  crypto.getRandomValues(rand);
+  const name = Array.from(rand, (b) => b.toString(16).padStart(2, "0")).join("") + ".sje";
+  downloadBlob(new Blob([JSON.stringify(envelope)], { type: "application/json" }), name);
+}

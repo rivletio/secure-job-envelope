@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as KeysRouteImport } from './routes/keys'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as SpecRouteImport } from './routes/spec'
 import { Route as TrustRouteImport } from './routes/trust'
@@ -18,6 +19,11 @@ import { Route as TTravelerIdRouteImport } from './routes/t.$travelerId'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KeysRoute = KeysRouteImport.update({
+  id: '/keys',
+  path: '/keys',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewRoute = NewRouteImport.update({
@@ -43,6 +49,7 @@ const TTravelerIdRoute = TTravelerIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/keys': typeof KeysRoute
   '/new': typeof NewRoute
   '/spec': typeof SpecRoute
   '/trust': typeof TrustRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/keys': typeof KeysRoute
   '/new': typeof NewRoute
   '/spec': typeof SpecRoute
   '/trust': typeof TrustRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/keys': typeof KeysRoute
   '/new': typeof NewRoute
   '/spec': typeof SpecRoute
   '/trust': typeof TrustRoute
@@ -65,14 +74,16 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
+  fullPaths: '/' | '/keys' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
-  id: '__root__' | '/' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
+  to: '/' | '/keys' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
+  id:
+    '__root__' | '/' | '/keys' | '/new' | '/spec' | '/trust' | '/t/$travelerId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  KeysRoute: typeof KeysRoute
   NewRoute: typeof NewRoute
   SpecRoute: typeof SpecRoute
   TrustRoute: typeof TrustRoute
@@ -86,6 +97,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/keys': {
+      id: '/keys'
+      path: '/keys'
+      fullPath: '/keys'
+      preLoaderRoute: typeof KeysRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/new': {
@@ -121,6 +139,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  KeysRoute: KeysRoute,
   NewRoute: NewRoute,
   SpecRoute: SpecRoute,
   TrustRoute: TrustRoute,
