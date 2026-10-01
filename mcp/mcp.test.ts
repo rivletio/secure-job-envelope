@@ -12,10 +12,11 @@ import JSZip from "jszip";
 import { buildServer } from "./server.ts";
 import { parseTraveler } from "../src/lib/traveler/conformance.ts";
 import { travelerHash } from "../src/lib/traveler/hash.ts";
-import { createIdentity } from "../src/lib/traveler/keystore.ts";
+import { createIdentity, unlock } from "../src/lib/traveler/keystore.ts";
 import { sealEnvelope } from "../src/lib/traveler/envelope.ts";
 import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
 import { bytesToHex } from "../src/lib/traveler/bytes.ts";
 
 type ToolResult = { isError?: boolean; content: Array<{ type: string; text: string }> };
@@ -27,16 +28,21 @@ let workdir: string;
 let directory: Directory;
 let rootPublicKeyHex: string;
 let recipient: { kid: string; public_key: string };
+let prekeyBundle: PrekeyBundle;
 const RECIP_ORG = "org_test";
 const KS_PASS = "mcp-test-passphrase";
 
 before(async () => {
   // This desk's decryption identity, loaded from env exactly like the real server
-  // (serverKeystore reads SJE_KEYSTORE + SJE_KEYSTORE_PASSPHRASE on first open).
+  // (serverKeystore reads SJE_KEYSTORE + SJE_KEYSTORE_PASSPHRASE on first open). The
+  // on-disk blob carries one-time prekeys so the server can open forward-secret
+  // envelopes, consuming (and persisting) them as it goes.
   workdir = mkdtempSync(join(tmpdir(), "sje-mcp-test-"));
   const ksPath = join(workdir, "desk.keystore.json");
   const id = await createIdentity({ passphrase: KS_PASS, orgId: RECIP_ORG });
-  writeFileSync(ksPath, JSON.stringify(id.keystore));
+  const u = await unlock(id.keystore, KS_PASS);
+  const { keystore: ksWithPrekeys, prekeys } = u.addPrekeys(4);
+  writeFileSync(ksPath, JSON.stringify(ksWithPrekeys));
   process.env.SJE_KEYSTORE = ksPath;
   process.env.SJE_KEYSTORE_PASSPHRASE = KS_PASS;
   recipient = { kid: id.directoryEntry.kid, public_key: id.directoryEntry.enc_public_key };
@@ -66,6 +72,20 @@ before(async () => {
     ],
   };
   directory = { ...body, sig: signDirectory(body, root.secretKey) };
+
+  // A signed prekey bundle for RECIP_ORG (kid "desk-2026" resolves to it), listing
+  // the one-time prekeys the on-disk keystore holds — enables forward-secret seals.
+  const bundleBody: PrekeyBundle = {
+    spec: PREKEY_BUNDLE_SPEC,
+    org_id: RECIP_ORG,
+    kid: "desk-2026",
+    enc_alg: "ML-KEM-1024",
+    issued_at: "2026-01-01T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
+    prekeys,
+  };
+  bundleBody.sig = signPrekeyBundle(bundleBody, signer.secretKey);
+  prekeyBundle = bundleBody;
 
   const [ct, st] = InMemoryTransport.createLinkedPair();
   server = buildServer();
@@ -267,6 +287,36 @@ describe("sje mcp surface", () => {
     if (t.part.part_number) assert.ok(!wire.includes(t.part.part_number), "part number must not leak");
     const payloadBytes = Buffer.from((sealed.sje as { payload: string }).payload, "hex");
     assert.ok(!payloadBytes.includes(Buffer.from("PK\x03\x04")), "no ZIP header in the ciphertext");
+  });
+
+  it("sje_seal with a prekey bundle produces a forward-secret envelope that opens exactly once", async () => {
+    const sealed = payload(
+      await call("sje_seal", {
+        traveler: EXAMPLE,
+        directory,
+        root_public_key_hex: rootPublicKeyHex,
+        recipient_org: RECIP_ORG,
+        prekey_bundle: prekeyBundle,
+      }),
+    );
+    assert.equal(sealed.forward_secret, true);
+    assert.equal(sealed.spec, "sje-envelope/0.2.0");
+    const opened = payload(await call("sje_open", { sje: sealed.sje }));
+    assert.equal(opened.traveler_hash, sealed.traveler_hash);
+    // The one-time prekey is now spent (consumed + persisted): re-opening is refused.
+    const again = await call("sje_open", { sje: sealed.sje });
+    assert.ok(again.isError, "a spent one-time prekey cannot be reused");
+  });
+
+  it("sje_seal refuses to downgrade when require_forward_secret is set and no bundle is given", async () => {
+    const res = await call("sje_seal", {
+      traveler: EXAMPLE,
+      directory,
+      root_public_key_hex: rootPublicKeyHex,
+      recipient_org: RECIP_ORG,
+      require_forward_secret: true,
+    });
+    assert.ok(res.isError, "must refuse rather than silently fall back to static");
   });
 
   it("sje_open refuses a decrypted archive whose non-quoteable fields were tampered (F3)", async () => {

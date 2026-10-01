@@ -40,7 +40,8 @@ import { createIdentity, unlock, type Keystore, type Unlocked } from "../src/lib
 import { MAX_ARCHIVE_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
 import type { Award, Op, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
 import type { Directory } from "../src/lib/traveler/directory.ts";
-import { readFileSync } from "node:fs";
+import type { PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const COMPANY = process.env.SJE_COMPANY ?? "unnamed-desk";
 
@@ -213,13 +214,15 @@ const TOOLS = [
   {
     name: "sje_seal",
     description:
-      "Encrypt a traveler to a directory-attested recipient and return the `.sje` envelope — the ONLY artifact sent between companies (ML-KEM-1024 + AES-256-GCM, post-quantum). Needs the signed directory and the trust-root public key (both public) to resolve the recipient's encryption key; no secret key is needed to seal.",
+      "Encrypt a traveler to a directory-attested recipient and return the `.sje` envelope — the ONLY artifact sent between companies (ML-KEM-1024 + AES-256-GCM, post-quantum). Needs the signed directory and the trust-root public key (both public) to resolve the recipient's encryption key; no secret key is needed to seal. Supply the recipient's signed prekey_bundle to get a forward-secret envelope (reported via forward_secret); set require_forward_secret to refuse sending without it.",
     inputSchema: obj(
       {
         traveler: TRAVELER_ARG,
         directory: { type: "object", description: "the signed key directory" },
         root_public_key_hex: { type: "string", description: "the trust-root public key (hex)" },
         recipient_org: { type: "string", description: "org_id of the recipient" },
+        prekey_bundle: { type: "object", description: "the recipient's signed one-time prekey bundle (enables forward secrecy)" },
+        require_forward_secret: { type: "boolean", description: "throw instead of falling back to the static envelope" },
       },
       ["traveler", "directory", "root_public_key_hex", "recipient_org"],
     ),
@@ -378,6 +381,8 @@ async function handle(name: string, args: Args) {
         directory: args.directory as Directory,
         rootPublicKeyHex: rootHex,
         recipientOrg,
+        ...(args.prekey_bundle ? { prekeyBundle: args.prekey_bundle as PrekeyBundle } : {}),
+        ...(args.require_forward_secret ? { requireForwardSecret: true } : {}),
       });
       return ok({
         sje: envelope,
@@ -408,9 +413,14 @@ async function handle(name: string, args: Args) {
       } catch {
         return fail("Input is not a recognized SJE envelope.");
       }
+      // On the forward-secret path, persist the consumed-prekey deletion back to the
+      // keystore file so a restart cannot resurrect a spent one-time prekey.
+      const keystorePath = process.env.SJE_KEYSTORE;
       let t: Traveler;
       try {
-        t = await openTraveler(envelope, keystore);
+        t = await openTraveler(envelope, keystore, {
+          persistKeystore: keystorePath ? (ks) => writeFileSync(keystorePath, JSON.stringify(ks)) : undefined,
+        });
       } catch {
         // Uniform failure — do not reveal whether it was the wrong recipient, a
         // tampered envelope, or a malformed payload (no decryption oracle).

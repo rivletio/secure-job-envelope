@@ -12,10 +12,11 @@
  *   3. Authenticity / confidentiality — sign & verify travelers and quotes against
  *      a seeded directory, seal & open static and forward-secret envelopes, and
  *      confirm every tamper is caught.
- *   4. Encrypted transport — the end-to-end wiring: sealTraveler produces ciphertext
- *      on the wire (no plaintext field leaks, not a zip), openTraveler decrypts with
- *      a passphrase-encrypted keystore over directory resolution, and tamper /
- *      wrong-recipient envelopes are refused.
+ *   4. Encrypted transport — the end-to-end wiring, static (0.1) and forward-secret
+ *      (0.2): sealTraveler produces ciphertext on the wire (no plaintext field leaks,
+ *      not a zip), openTraveler decrypts with a passphrase-encrypted keystore over
+ *      directory resolution, tamper / wrong-recipient envelopes are refused, and a
+ *      consumed one-time prekey cannot be reused.
  *
  *  Exits non-zero if any invariant fails, so CI fails loudly.
  *
@@ -35,6 +36,7 @@ import { recipientByOrg, sealEnvelope, openEnvelope, fsRecipientFromBundle, seal
 import { sealTraveler, openTraveler } from "../src/lib/traveler/transport.ts";
 import { createIdentity, unlock, type Unlocked } from "../src/lib/traveler/keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
 import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
 import { bytesToHex } from "../src/lib/traveler/bytes.ts";
 import type { Quote, Traveler } from "../src/lib/traveler/types.ts";
@@ -314,13 +316,15 @@ type TransportTrust = {
   rootPublicKeyHex: string;
   recipientOrg: string;
   unlocked: Unlocked;
+  bundle: PrekeyBundle;
+  prekeyIds: string[];
 };
 
-async function buildTransportTrust(): Promise<TransportTrust> {
+async function buildTransportTrust(prekeyCount: number): Promise<TransportTrust> {
   const PASS = "soak-keystore-passphrase";
   const recipientOrg = "org_recipient";
   const trustRoot = keypairFromSeed(new Uint8Array(32).fill(21));
-  const signer = keypairFromSeed(new Uint8Array(32).fill(22)); // placeholder org signing key
+  const signer = keypairFromSeed(new Uint8Array(32).fill(22)); // the org's (placeholder) signing key
   const { keystore, directoryEntry } = await createIdentity({ passphrase: PASS, orgId: recipientOrg });
   const body: Directory = {
     spec: DIRECTORY_SPEC,
@@ -342,11 +346,29 @@ async function buildTransportTrust(): Promise<TransportTrust> {
     ],
   };
   const directory: Directory = { ...body, sig: signDirectory(body, trustRoot.secretKey) };
+
+  // Mint a pool of one-time prekeys into the keystore and publish them in a bundle
+  // signed by the org's directory key, so the forward-secret path has usable prekeys.
+  const unlocked = await unlock(keystore, PASS);
+  const { prekeys } = unlocked.addPrekeys(Math.max(1, prekeyCount));
+  const bundleBody: PrekeyBundle = {
+    spec: PREKEY_BUNDLE_SPEC,
+    org_id: recipientOrg,
+    kid: "recip-2026",
+    enc_alg: "ML-KEM-1024",
+    issued_at: "2026-01-01T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
+    prekeys,
+  };
+  bundleBody.sig = signPrekeyBundle(bundleBody, signer.secretKey);
+
   return {
     directory,
     rootPublicKeyHex: bytesToHex(trustRoot.publicKey),
     recipientOrg,
-    unlocked: await unlock(keystore, PASS),
+    unlocked,
+    bundle: bundleBody,
+    prekeyIds: prekeys.map((p) => p.prekey_id),
   };
 }
 
@@ -361,7 +383,10 @@ async function transport(seed: number, tt: TransportTrust) {
     recipientOrg: tt.recipientOrg,
   });
   ok(forwardSecret === false, `#${seed} static transport path (no prekey bundle)`);
-  ok(envelope.spec === "sje-envelope/0.1.0", `#${seed} envelope spec is the static one`);
+  if (envelope.spec !== "sje-envelope/0.1.0") {
+    ok(false, `#${seed} static transport unexpectedly used spec ${envelope.spec}`);
+    return; // narrows envelope to the static Envelope for the checks below
+  }
 
   // Ciphertext proof: no plaintext field value leaks, and the payload is not a zip.
   const wire = JSON.stringify(envelope);
@@ -384,6 +409,44 @@ async function transport(seed: number, tt: TransportTrust) {
   await mustReject(() => openTraveler(foreign, tt.unlocked), `#${seed} envelope not addressed to this keystore is refused`);
 }
 
+/** Forward-secret transport: seal with a one-time prekey (0.2), open it (consuming
+ *  the prekey), then prove the spent prekey cannot be reused. Each job uses its own
+ *  prekeyId, so consumption never collides across jobs. */
+async function fsTransport(seed: number, tt: TransportTrust, prekeyId: string) {
+  const rng = new Rng(seed ^ 0x3c3c3c3c);
+  const level = rng.pick(["L0", "L1", "L2"] as const);
+  const traveler = genTraveler(rng, { level, itar: rng.bool(0.2) });
+
+  const seal = () =>
+    sealTraveler(traveler, {
+      directory: tt.directory,
+      rootPublicKeyHex: tt.rootPublicKeyHex,
+      recipientOrg: tt.recipientOrg,
+      prekeyBundle: tt.bundle,
+      prekeyId,
+    });
+
+  const { envelope, forwardSecret } = await seal();
+  ok(forwardSecret === true, `#${seed} forward-secret path used when a bundle is present`);
+  ok(envelope.spec === "sje-envelope/0.2.0", `#${seed} forward-secret envelope spec`);
+
+  // Ciphertext proof (same invariants as the static leg).
+  const wire = JSON.stringify(envelope);
+  ok(!wire.includes(traveler.traveler_id), `#${seed} FS: traveler_id not in the clear`);
+  ok(!wire.includes(traveler.part.part_number), `#${seed} FS: part number not in the clear`);
+  const payloadBytes = Buffer.from(envelope.payload, "hex");
+  ok(!payloadBytes.includes(Buffer.from("PK\x03\x04")), `#${seed} FS: no ZIP header in the ciphertext`);
+
+  // Round-trip consumes the one-time prekey.
+  const opened = await openTraveler(envelope, tt.unlocked);
+  ok(canonicalJson(opened) === canonicalJson(traveler), `#${seed} FS transport round-trips to an equal traveler`);
+
+  // Reuse: a second envelope to the now-spent prekey cannot be opened (availability,
+  // not confidentiality — the static half would still protect a mis-sent payload).
+  const resent = (await seal()).envelope;
+  await mustReject(() => openTraveler(resent, tt.unlocked), `#${seed} a spent one-time prekey cannot be reused`);
+}
+
 // ------------------------------------ main ------------------------------------
 async function main() {
   const argv = process.argv.slice(2);
@@ -395,6 +458,7 @@ async function main() {
   const start = arg("--start", 1);
   const cryptoJobs = Math.min(jobs, arg("--crypto", 40));
   const transportJobs = Math.min(jobs, arg("--transport", 40));
+  const fsJobs = Math.min(transportJobs, arg("--fs-transport", 20));
 
   const t0 = Date.now();
   for (let seed = start; seed < start + jobs; seed++) {
@@ -406,12 +470,13 @@ async function main() {
   adversarial();
   const trust = buildTrust(new Rng(0xc0ffee));
   for (let seed = start; seed < start + cryptoJobs; seed++) crypto(seed, trust);
-  const transportTrust = await buildTransportTrust();
+  const transportTrust = await buildTransportTrust(Math.max(1, fsJobs));
   for (let seed = start; seed < start + transportJobs; seed++) await transport(seed, transportTrust);
+  for (let i = 0; i < fsJobs; i++) await fsTransport(start + i, transportTrust, transportTrust.prekeyIds[i]!);
 
   const ms = Date.now() - t0;
   console.log(
-    `\nsoak: ${checks} invariant checks over ${jobs} jobs (+${cryptoJobs} crypto, +${transportJobs} transport) in ${ms}ms`,
+    `\nsoak: ${checks} invariant checks over ${jobs} jobs (+${cryptoJobs} crypto, +${transportJobs} transport, +${fsJobs} fs) in ${ms}ms`,
   );
   if (failures.length) {
     console.log(`\n${failures.length} FAILURES:`);
