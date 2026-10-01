@@ -18,7 +18,7 @@ A courier may compute `courierView` and nothing else from the file. That view is
 - whether the traveler is self-declared ITAR
 - the buyer's cert labels (ISO, AS), not the buyer's name
 - how many quotes exist, and whether one was awarded
-- the conformance level (draft, quoteable, awardable, executable)
+- the conformance level (draft, quoteable, awardable, executable, as-built)
 
 A courier may not say, and `courierView` does not contain:
 

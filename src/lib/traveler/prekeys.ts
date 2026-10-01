@@ -16,6 +16,7 @@
  *  browser desk verifies only and never holds signing keys.
  */
 import { canonicalJson } from "./canonical.ts";
+import { isoDateTimeMs } from "./datetime.ts";
 import { SIG_DOMAIN, signBody, verifyBody } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
 import { entryByKid, verifyDirectory, type Directory } from "./directory.ts";
@@ -64,9 +65,11 @@ export function verifyPrekeyBundle(
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) return undefined;
   const t = when.getTime();
-  const issued = Date.parse(bundle.issued_at);
-  const until = Date.parse(bundle.valid_until);
-  if (!Number.isFinite(issued) || !Number.isFinite(until)) return undefined;
+  // Strict, shared datetime parse (matches Rust rfc3339_millis / verifyDirectory)
+  // so both implementations agree on the bundle's validity window.
+  const issued = isoDateTimeMs(bundle.issued_at);
+  const until = isoDateTimeMs(bundle.valid_until);
+  if (issued === null || until === null) return undefined;
   if (!(issued <= t && t < until)) return undefined;
   const entry = entryByKid(dir, bundle.kid, when);
   if (!entry || entry.org_id !== bundle.org_id) return undefined;

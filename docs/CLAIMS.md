@@ -25,6 +25,10 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 | C9 | Every schema field is classified as clear-in-file, and the pre-reveal courier view omits names, contacts, prices, part numbers, and addresses ([DISCLOSURE.md](DISCLOSURE.md)) | `src/lib/traveler/disclosure.test.ts` | ✅ |
 | C10 | Empty strings and empty arrays are dropped from the quoteable body identically on both sides (SPEC §quoteable body) — a traveler with `part.processes: []` (or empty `certs`/`breaks`) hashes the same as one that omits them, and TS == Rust | conformance `travelers/l0-empty-arrays.json` (both runners); `traveler.test.ts` "drops empty strings and arrays"; `lib.rs::empty_arrays_and_strings_drop_from_the_hash` | ✅ |
 | C11 | The published JSON Schemas bound every numeric field inside the canonical range and accept the whole reference corpus (SPEC §Canonical JSON) | `src/lib/traveler/schema-contract.test.ts` — ajv validates the example, all conformance vectors, and every seed fixture, and rejects out-of-range integers and sub-1e-5 / >1e12 money | ✅ |
+| C12 | The Rust core's structural validation mirrors the zod schema field for field — every numeric ceiling, UTF-16 string-length bound, array-count cap, regex, the 8 KiB blob limit, and unknown-key rejection (`deny_unknown_fields` ↔ zod `.strict()`) — so both implementations accept and reject exactly the same documents | `crates/secure-job-envelope/src/validate.rs`; shared reject vectors `conformance/travelers/reject/*` (both runners); the differential + corpus (C15) | ✅ |
+| C13 | One strict, shared datetime definition (fixed-width `YYYY-MM-DDTHH:MM:SS(.f)?Z`, real leap-aware calendar): both sides accept/reject the same timestamps and compute the same instant for bind/expiry — a trailing offset, second 60, hour 24, or `2026-02-31` is refused on both | `src/lib/traveler/datetime.ts` + `datetime.test.ts`; `lib.rs::rfc3339_millis_is_strict_and_calendar_aware` / `iso_day_ok_is_calendar_strict`; reject vectors `created-at-*` (both runners) | ✅ |
+| C14 | A string carrying a lone UTF-16 surrogate (no UTF-8 encoding) is refused at parse on both sides, and a hashed/limited string with leading or trailing whitespace is refused rather than silently trimmed — so the two implementations never hash different bytes for the "same" document | `conformance.ts` UTF-8-safety walk + `vectors.test.ts`; serde's parse-time refusal + `lib.rs::serde_rejects_lone_surrogate`; reject vectors `untrimmed-name.json`, `lone-surrogate-in-notes.json` (both runners) | ✅ |
+| C15 | The two implementations are held to identical verdicts (parse / hash / level / bound) at scale: a seeded TS↔Rust differential fuzzer over thousands of mutated documents finds zero divergence, a committed fuzz corpus replays in `cargo test` with no Node in the loop, and a lifecycle soak asserts the invariants over hundreds of transacted jobs | `sim/differential.ts` (`npm run differential`); `conformance/fuzz/*` + `crates/secure-job-envelope/tests/fuzz_corpus.rs`; `sim/soak.ts` (`npm run soak`); all wired into CI (`crossimpl` job) | ✅ |
 
 ## Quote binding & lifecycle
 
@@ -34,13 +38,13 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 | L2 | Awarded (L2) travelers lock: further amendment is refused (SPEC, TRUST CC8) | `store.test.ts` "locks the traveler at L2" | ✅ |
 | L3 | A stale quote cannot be awarded; expiry and priced-line-at-target are enforced at award (SPEC) | `store.test.ts` stale-award refusal; `traveler.test.ts` expiry + price-line guards | ✅ |
 | L4 | An ITAR traveler cannot take a quote from a seller without `itar: true` (SPEC §Export control) | `traveler.test.ts` ITAR guard; `lib.rs::itar_traveler_rejects_non_itar_seller`; reject vector `itar-mismatch.json` both sides | ✅ |
-| L5 | Every compose/quote/amend/award/import/export is appended to the audit log with a timestamp (TRUST CC7) | `store.test.ts` "audits every state change in order" | ✅ |
+| L5 | Every compose/quote/amend/award/import is appended to the store's audit log with a timestamp; export is audited from the traveler route (UI). (TRUST CC7) | `store.test.ts` "audits every state change in order" (compose/quote/amend) and "audits award and import" (award/import); export audit is in `src/routes/t.$travelerId.tsx` (not unit-tested) | ✅ |
 
 ## Archive handling
 
 | # | Claim | Proof | Status |
 |---|---|---|---|
-| A1 | Zip import allowlists members (`traveler.json`, `META.json`, `quoteable.canonical.json`), requires `META.json`, and refuses path traversal, non-allowlisted members (e.g. `NOTES.txt`), oversized entries, CRC mismatches, META id/digest mismatches, and a tampered `quoteable.canonical.json` (SPEC §Archive, SECURITY) | `traveler.test.ts` zip round-trip + path-trick + META-mismatch + canonical-member-mismatch negative cases | ✅ |
+| A1 | Zip import allowlists members (`traveler.json`, `META.json`, `quoteable.canonical.json`), requires `META.json`, and refuses path traversal, non-allowlisted members (e.g. `NOTES.txt`), oversized/zip-bomb entries, META id/digest mismatches, and a tampered `quoteable.canonical.json`. Integrity rests on SHA-384 cross-checks, not CRC32 (CRC is deliberately skipped to avoid inflating a hostile archive before the guards run). (SPEC §Archive, SECURITY) | `traveler.test.ts` zip round-trip + path-trick + zip-bomb + META-mismatch + canonical-member-mismatch negative cases | ✅ |
 
 ## MCP surface
 
@@ -48,8 +52,8 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 |---|---|---|---|
 | M1 | The MCP tools enforce the same guards as the reference implementation — stale quotes unawardable, ITAR mismatch refused, L2 locks against amendment, and `amend` cannot inject `ops`/`ship_to`/`as_built` to escalate the level (mcp/README) | `mcp/mcp.test.ts` stale-award, ITAR, locked-amend, and amend-cannot-inject-fields cases over a real client/server pair (InMemory transport) | ✅ |
 | M2 | Quote binding cannot be asserted through the MCP surface — `traveler_hash_quoted` is computed from the traveler the desk holds (mcp/README) | `mcp/mcp.test.ts` "binding cannot be asserted"; `sje_quote` handler takes no binding input by schema | ✅ |
-| M3 | A tampered sealed archive is refused on open over MCP | `mcp/mcp.test.ts` tamper case; demo step 3 | ✅ |
-| M4 | Two desks with zero shared state complete RFQ → quote → award with hash lineage verified at every hop | `npm run demo` (CI): two separate server processes, asserts on every exchange | ✅ |
+| M3 | What crosses companies over MCP is an **encrypted envelope**, not a plaintext zip: `sje_open` decrypts with the desk keystore, then runs the full defensive import. A one-byte tamper of the envelope is refused by AEAD, and tampering the non-quoteable lifecycle fields (award/ship_to/ops) inside a re-sealed archive is still refused by the required full-bytes `traveler_json_sha384` digest after decryption. Adversarial re-authorship is out of scope (unkeyed integrity — see G7). | `mcp/mcp.test.ts` encrypted seal/open round-trip + payload-tamper + injected-award (F3) cases; `transport.test.ts`; demo step 3 | ✅ |
+| M4 | Two desks with zero shared state complete RFQ → quote → award with **every hop encrypted** (ciphertext on the wire; a flipped byte refused on open) and hash lineage verified at every hop | `npm run demo` (CI): two separate server processes, each loading its own passphrase keystore, asserting ciphertext + byte-flip refusal on every exchange | ✅ |
 
 ## Post-quantum authenticity & confidentiality (0.1, CNSA 2.0 suite)
 
@@ -72,21 +76,50 @@ the content-hash vectors above.
 | PQ7 | Envelope recipients are resolved through the signed directory (an org's attested ML-KEM key), the recipient kid is derived from that key (`enc_kid`) identically on both sides, and the payload AAD authenticates the ordered recipient set (dropping/reordering a recipient fails open) | `conformance/signatures/envelope.json` recipient (both runners); `envelope.test.ts` (M3 resolution, L2 recipient-set); `vectors.rs` `enc_kid` parity assertion | ✅ |
 | PQ8 | A signed one-time prekey bundle binds an org's one-time ML-KEM keys to its ML-DSA identity: both sides verify the bundle against the directory (kid → org, bundle validity window, ML-DSA signature over the canonical body), and a tampered prekey, out-of-window bundle, or wrong root fails closed | `conformance/signatures/prekey-bundle.json` (both runners); `prekeys.test.ts`; `sign.rs::verify_prekey_bundle`; `vectors.rs::prekey_bundle_vector_verifies_cross_language` | ✅ |
 | PQ9 | The forward-secret envelope (`sje-envelope/0.2.0`) encapsulates to a one-time prekey **and** the static identity key, binding both shared secrets into the KEK (`HKDF(ss_onetime ‖ ss_static)`); both sides re-seal byte-identically and open with both keys, and a missing one-time secret, a reordered/dropped recipient, or a tampered payload all fail closed | `conformance/signatures/fs-envelope.json` (both runners); `envelope.test.ts` (FS suite); `envelope.rs::seal_fs_deterministic_fields` / `open_fs`; `vectors.rs::fs_envelope_vector_roundtrips_cross_language` | ✅ |
+| PQ10 | Signature verification is fail-closed on hostile input: a quote or traveler whose signature body cannot be canonicalized (e.g. an out-of-range number in an opaque `assumptions`/`capacity` blob) returns "not verified" rather than raising an uncaught exception — no verifier-reachable denial of service | `authenticity.test.ts` "fails closed (never throws) on a non-canonicalizable body (D3)"; try/catch in `authenticity.ts` `verifyQuoteSignature` / `verifyTravelerSignatures` | ✅ |
+
+## Encrypted transport & key custody
+
+The envelope above (PQ4/PQ7/PQ9) is the confidentiality primitive, proven in both
+languages. This section covers the **wiring** that makes what is *sent* ciphertext
+by default — the keystore that holds the decryption secret and the transport that
+seals/opens with it. These are **TypeScript-only**: the keystore is local custody
+that never travels on the wire, and the transport reuses the dual-language envelope,
+so neither adds a new cross-implementation contract (if a Rust CLI ever reads the
+same keystore file, the blob format becomes a contract that needs its own vector).
+
+| # | Claim | Proof | Status |
+|---|---|---|---|
+| KS1 | The decryption secret is held only in a passphrase-encrypted keystore (scrypt N=2¹⁶ + AES-256-GCM; it stores seeds, not expanded keys). Wrong passphrase, tampered ciphertext/nonce, or a substituted public-key header all fail with one **uniform** error (no oracle); unlock re-derives the public key and refuses a substituted identity; one-time prekeys consume exactly once. | `src/lib/traveler/keystore.ts`; `keystore.test.ts`; `keys-store.test.ts` | ✅ (TS-only) |
+| T1 | `sealTraveler` verifies the directory against the trust root **before** resolving a recipient, then encrypts the traveler zip into an envelope — the sent artifact is ciphertext (no traveler_id/buyer/part in the clear, no ZIP header). | `transport.ts`; `transport.test.ts`; `mcp.test.ts`; `sim/soak.ts` phase 4 | ✅ (TS) |
+| T2 | `openTraveler` decrypts with an unlocked keystore and runs the **same** defensive zip import; a one-byte tamper, or an envelope not addressed to the keystore, is refused. | `transport.test.ts`; `mcp.test.ts`; `sim/soak.ts` phase 4 | ✅ (TS) |
+| T3 | Forward secrecy (0.2) is used **and reported** when a verifying prekey bundle with a usable prekey is supplied; the fallback to the static envelope (0.1) is explicit and reported via `forwardSecret`, never silent, and `requireForwardSecret` refuses to send rather than downgrade. | `transport.test.ts`; `mcp.test.ts`; `sim/soak.ts` phase 4 | ✅ (TS) |
+| T4 | A consumed one-time prekey cannot be reused: `openTraveler` deletes it and persists the deletion **before** using the secret, so a second envelope to the same prekey fails to open and a reload cannot resurrect it. | `transport.test.ts`; `keystore.test.ts`; `mcp.test.ts`; `sim/soak.ts` phase 4 | ✅ (TS) |
+| T5 | MCP (`sje_seal`/`sje_open`/`sje_identity`) and the browser desk send the encrypted `.sje` under a **random** filename (never `{traveler_id}.sje`, which would leak the id); the plaintext zip/JSON remain only as a labeled local copy. | `mcp.test.ts`; `mcp/demo.ts`; desk `seal-dialog.tsx`/`keys.tsx`/`zip.ts` (not unit-tested) | ✅ (TS) |
 
 ## Honest gaps and drafts
 
 | # | Statement | Where | Status |
 |---|---|---|---|
-| G1 | Party authentication. 0.0.1 had none — the hash is integrity, not a signature, so any party could claim any `org_id`. 0.1 implements ML-DSA-87 authorship signatures bound to a signed key directory. | README, SPEC, SECURITY, TRUST | ✅ **resolved in 0.1** (PQ1–PQ6); the browser desk verifies only and never holds signing keys |
+| G1 | Party authentication. 0.0.1 had none — the hash is integrity, not a signature, so any party could claim any `org_id`. 0.1 implements ML-DSA-87 authorship signatures bound to a signed key directory. | README, SPEC, SECURITY, TRUST | ✅ **resolved in 0.1** (PQ1–PQ6). Signature/directory verification lives in the reference library (exercised by the conformance vectors, unit tests, and the soak) — it is **not** wired into the browser desk UI, which never holds **signing** keys and never signs (it does now hold its ML-KEM **decryption** secret, but only in a passphrase-encrypted keystore — see G8) |
 | G2 | Encrypted envelope (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM, algorithms from the CNSA 2.0 Cat 5 suite). 0.0.1 had no confidentiality. | PQ4, PQ7; `docs/ENVELOPE-DRAFT.md` | ✅ **resolved in 0.1** with the dual-language golden vectors the draft itself demanded |
-| G3 | TS parse (zod, strict bounds) is stricter than the Rust verifier's structural parse — e.g. Rust accepts an empty `material.spec` and reports level D where TS refuses the document. (An *acceptance* difference; both sides **hash** identically — see C10 — and both now refuse to **bind** a quote whose `valid_until` is not after `created_at`.) | this file; `lib.rs::quote_valid_until_must_be_after_created_at_to_bind` | ⚠️ acceptance sets converge in 0.1; shared vectors pin the surface both sides must agree on today |
+| G3 | TS parse (zod) and the Rust structural parse now accept and reject the same documents. The former acceptance gap — Rust accepting documents zod refused (looser numeric ceilings, missing string/count bounds, unknown keys, lenient datetimes) — is closed by a full structural validator in the Rust core. | this file (C12–C14); `crates/secure-job-envelope/src/validate.rs`; the differential + committed corpus (C15) | ✅ **resolved in this pass** — a seeded TS↔Rust differential over thousands of documents finds zero accept/reject divergence, pinned by shared reject vectors and the committed corpus |
+| G6 | The 512 KiB size limit is enforced on the raw input length in Rust vs the re-serialized (compact, UTF-16) length in zod, so a document padded with whitespace to just under the limit could differ at the exact boundary. A negligible edge (both cap ≈512 KiB; the differential feeds compact JSON), stated rather than hidden. | this file; `lib.rs::parse_traveler`; `schema.ts` superRefine | ⚠️ documented edge |
 | G4 | Forward secrecy. The base 0.1 envelope encapsulates only to a recipient's **static** ML-KEM key (a later compromise exposes past envelopes). The 0.2 envelope adds single-use prekeys + a two-KEM combine that binds both shared secrets. | PQ8, PQ9; `docs/ENVELOPE-DRAFT.md` §"Forward secrecy" | ✅ **resolved in the 0.2 envelope** — with the operational caveat that realizing forward secrecy requires the recipient to delete the consumed one-time secret; the base 0.1 static envelope still has none |
-| G5 | Key sorting for non-ASCII keys can differ across languages (UTF-16 vs UTF-8 order); field names are ASCII | SPEC §Canonical JSON | ⚠️ documented restriction |
+| G5 | Key sorting for non-ASCII keys now uses Unicode code point order on both sides (== UTF-8 byte order), so astral-plane keys sort identically; field names remain ASCII regardless. | SPEC §Canonical JSON; C1 | ✅ **resolved** — `canonical.ts` code-point sort; vector `astral-key-order` (both runners) |
+| G7 | Archive integrity is **unkeyed** SHA-384. The required `traveler_json_sha384` digest makes any byte-level tamper of a received archive refused (award/ship_to/ops included), but a party that re-seals an archive recomputes the digest. Adversarial authenticity is the ML-DSA authorship signature, which in 0.1 signs the **quoteable body only** — the lifecycle fields (award, ship_to, ops) are mutable workflow state, not signed. Signing them is a candidate for a later revision. | SPEC §Archive; SECURITY; `zip.ts` (digest now required); `types.ts` (Award/ShipTo/Op have no sig) | ⚠️ documented boundary |
+| G8 | Key-custody posture reversal. The desk now holds its ML-KEM **decryption** secret, in a passphrase-encrypted keystore (encrypted at rest; plaintext in memory only while unlocked). This protects a stolen keystore/localStorage blob **without** the passphrase (at-rest safety = passphrase entropy × scrypt cost). It does **not** protect against script in the origin — an XSS on an **unlocked** desk can read the in-memory secret (ML-KEM runs in JS; the key is extractable during decapsulation). The desk still never holds **signing** keys. Working traveler state stays plaintext localStorage (the user's own data at rest). | SECURITY, TRUST, README, `src/routes/trust.tsx`; `keystore.ts` threat-model header | ⚠️ documented boundary |
 
 ## Running the proofs
 
 ```bash
 npm test                                # TS: vectors + traveler suite + store state machine
-cd crates/secure-job-envelope && cargo test   # Rust: unit + golden + the same shared vectors
+cd crates/secure-job-envelope && cargo test   # Rust: unit + golden + shared vectors + fuzz corpus replay
 node --experimental-strip-types conformance/generate.ts   # regenerate vectors (TS is generator, Rust is independent verifier)
+
+# Cross-implementation hardening (the crossimpl CI job runs all three):
+cargo build --release --manifest-path crates/secure-job-envelope/Cargo.toml  # the differential's other half
+npm run soak                            # simulate + transact hundreds of jobs, assert lifecycle invariants
+npm run differential                    # seeded TS<->Rust differential fuzz (parse/hash/level/bound)
+npm run corpus                          # regenerate the committed cross-impl fuzz corpus (conformance/fuzz)
 ```

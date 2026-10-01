@@ -1,0 +1,489 @@
+/** Soak + adversarial harness: simulate many jobs, transact them through the full
+ *  lifecycle, and try to break the invariants.
+ *
+ *  Four phases, all deterministic in the seed range:
+ *   1. Lifecycle — compose -> quote -> award -> (amend) through the real store
+ *      state machine, asserting the invariants that must always hold (hash
+ *      stability, binding, level progression, the executable lock).
+ *   2. Adversarial — a battery of inputs that MUST be refused or handled: hostile
+ *      documents, quotes bound to the wrong hash, expired/unbound awards, and
+ *      verifiers fed uncanonicalizable bodies. None may silently succeed or throw
+ *      uncaught.
+ *   3. Authenticity / confidentiality — sign & verify travelers and quotes against
+ *      a seeded directory, seal & open static and forward-secret envelopes, and
+ *      confirm every tamper is caught.
+ *   4. Encrypted transport — the end-to-end wiring, static (0.1) and forward-secret
+ *      (0.2): sealTraveler produces ciphertext on the wire (no plaintext field leaks,
+ *      not a zip), openTraveler decrypts with a passphrase-encrypted keystore over
+ *      directory resolution, tamper / wrong-recipient envelopes are refused, and a
+ *      consumed one-time prekey cannot be reused.
+ *
+ *  Exits non-zero if any invariant fails, so CI fails loudly.
+ *
+ *  Run: node --experimental-strip-types sim/soak.ts [--jobs N] [--start S]
+ */
+import { readFileSync, readdirSync } from "node:fs";
+import { Rng } from "./rng.ts";
+import { SHOPS, genId, genTraveler } from "./generate.ts";
+import { buildTrust } from "./directory.ts";
+import { useTravelerStore } from "../src/lib/traveler/store.ts";
+import { awardedQuote, boundQuotes, levelOf, parseTraveler, staleQuotes } from "../src/lib/traveler/conformance.ts";
+import { travelerHash } from "../src/lib/traveler/hash.ts";
+import { locked } from "../src/lib/traveler/guards.ts";
+import { canonicalJson } from "../src/lib/traveler/canonical.ts";
+import { signTraveler, signQuote, verifyTravelerSignatures, verifyQuoteSignature, itarAttestationBlocker } from "../src/lib/traveler/authenticity.ts";
+import { recipientByOrg, sealEnvelope, openEnvelope, fsRecipientFromBundle, sealFsEnvelope, openFsEnvelope } from "../src/lib/traveler/envelope.ts";
+import { sealTraveler, openTraveler } from "../src/lib/traveler/transport.ts";
+import { createIdentity, unlock, type Unlocked } from "../src/lib/traveler/keystore.ts";
+import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
+import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
+import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
+import { bytesToHex } from "../src/lib/traveler/bytes.ts";
+import type { Quote, Traveler } from "../src/lib/traveler/types.ts";
+
+// ---- tiny assertion harness (collects failures with context, never throws) ----
+let checks = 0;
+const failures: string[] = [];
+const ok = (cond: boolean, msg: string) => {
+  checks++;
+  if (!cond) failures.push(`FAIL ${msg}`);
+};
+const mustThrow = (fn: () => void, msg: string) => {
+  checks++;
+  try {
+    fn();
+    failures.push(`FAIL expected rejection: ${msg}`);
+  } catch {
+    /* expected */
+  }
+};
+const mustReject = async (fn: () => Promise<unknown>, msg: string) => {
+  checks++;
+  try {
+    await fn();
+    failures.push(`FAIL expected rejection: ${msg}`);
+  } catch {
+    /* expected */
+  }
+};
+const LEVELS = new Set(["D", "L0", "L1", "L2", "L3"]);
+
+/** A quote guaranteed to be bindable and (given `target`) awardable now: bound to
+ *  `hash`, a price line whose qty is exactly `target` (cannotAward requires an exact
+ *  match), and a validity window that spans today. */
+function goodQuote(
+  rng: Rng,
+  hash: string,
+  seller: { org_id: string; name: string; itar: boolean },
+  target = 1,
+): Quote {
+  const lines = [{ qty: 1, unit: rng.int(100, 500_000) }];
+  if (target !== 1) lines.push({ qty: target, unit: rng.int(100, 400_000) });
+  return {
+    quote_id: genId(rng, "qot"),
+    seller: { org_id: seller.org_id, name: seller.name, ...(seller.itar ? { itar: true } : {}) },
+    traveler_hash_quoted: hash,
+    created_at: "2026-01-02T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
+    lead_time_days: rng.int(1, 300),
+    pricing: { currency: "USD", lines },
+  };
+}
+
+function sellerFor(rng: Rng, itar: boolean) {
+  if (itar) return { org_id: "org_huron", name: "Huron Precision", itar: true };
+  const s = rng.pick(SHOPS.filter((x) => !x.itar));
+  return { org_id: s.org_id, name: s.name, itar: false };
+}
+
+// ------------------------------- phase 1: lifecycle -------------------------------
+function lifecycle(seed: number) {
+  const rng = new Rng(seed);
+  const store = useTravelerStore.getState();
+  const itar = rng.bool(0.15);
+  const l0 = genTraveler(rng, { level: "L0", itar });
+  const id = l0.traveler_id;
+
+  store.upsert(l0);
+  const composed = store.get(id)!;
+  ok(!!composed, `#${seed} composed traveler present`);
+  ok(levelOf(composed).code === "L0", `#${seed} fresh traveler is L0`);
+  ok(boundQuotes(composed).length === 0, `#${seed} no bound quotes before quoting`);
+  ok(travelerHash(l0) === travelerHash(structuredClone(l0)), `#${seed} hash is deterministic`);
+  ok(!locked(composed), `#${seed} L0 is not locked`);
+
+  const hash = travelerHash(composed);
+  const quote = goodQuote(rng, hash, sellerFor(rng, itar), l0.part.qty.target);
+  store.addQuote(id, quote);
+  const quoted = store.get(id)!;
+  ok(boundQuotes(quoted).some((q) => q.quote_id === quote.quote_id), `#${seed} quote binds to current hash`);
+  ok(levelOf(quoted).code === "L1", `#${seed} bound quote makes it L1`);
+  // A quote bound to a WRONG hash must never bind or be accepted.
+  mustThrow(
+    () => store.addQuote(id, { ...goodQuote(rng, "sha384:" + "b".repeat(96), sellerFor(rng, itar)) }),
+    `#${seed} quote bound to wrong hash is refused`,
+  );
+
+  const award = { quote_id: quote.quote_id, awarded_at: "2026-03-01T00:00:00.000Z", qty: l0.part.qty.target };
+  const shipTo = { name: "Dock 4", line1: "1800 Industrial Way", city: "Reno", region: "NV", postal: "89502", country: "US" };
+  store.award(id, award, shipTo, [{ seq: 1, code: "laser" }, { seq: 2, code: "deburr" }]);
+  const awarded = store.get(id)!;
+  ok(levelOf(awarded).code === "L2", `#${seed} awarded traveler is L2`);
+  ok(locked(awarded), `#${seed} awarded traveler is locked`);
+  ok(travelerHash(awarded) === hash, `#${seed} award does not change the quoteable hash`);
+
+  // The executable lock: neither upsert nor amend may mutate a locked traveler.
+  mustThrow(() => store.upsert({ ...awarded, part: { ...awarded.part, notes: "tamper" } }), `#${seed} locked traveler refuses upsert`);
+  const revBefore = awarded.revision;
+  store.amend(id, { incoterms: "FOB" });
+  ok(store.get(id)!.revision === revBefore, `#${seed} amend is a no-op on a locked traveler`);
+
+  store.remove(id);
+}
+
+// ---------------------- phase 1b: amend invalidates prior quotes ----------------------
+function amendInvalidation(seed: number) {
+  const rng = new Rng(seed ^ 0x5a5a5a5a);
+  const store = useTravelerStore.getState();
+  const l0 = genTraveler(rng, { level: "L0", itar: false });
+  const id = l0.traveler_id;
+  store.upsert(l0);
+  const quote = goodQuote(rng, travelerHash(l0), sellerFor(rng, false));
+  store.addQuote(id, quote);
+  ok(boundQuotes(store.get(id)!).length === 1, `#${seed} quote bound before amend`);
+
+  store.amend(id, { incoterms: "DAP" });
+  const amended = store.get(id)!;
+  ok(amended.revision === l0.revision + 1, `#${seed} amend bumps the revision`);
+  ok(boundQuotes(amended).length === 0, `#${seed} the prior quote no longer binds after amend`);
+  ok(staleQuotes(amended).length === 1, `#${seed} the prior quote is now stale`);
+  ok(LEVELS.has(levelOf(amended).code), `#${seed} amended level is well-formed`);
+  store.remove(id);
+}
+
+// ---------------------- phase 1c: multi-quote award selection ----------------------
+function multiQuoteLifecycle(seed: number) {
+  const rng = new Rng(seed ^ 0x1234abcd);
+  const store = useTravelerStore.getState();
+  const l0 = genTraveler(rng, { level: "L0", itar: false });
+  const id = l0.traveler_id;
+  store.upsert(l0);
+  const hash = travelerHash(l0);
+  // Two quotes from DIFFERENT sellers (a same-seller duplicate is refused by cannotQuote).
+  const quotes = [
+    goodQuote(rng, hash, { org_id: "org_redriver", name: "Red River", itar: false }, l0.part.qty.target),
+    goodQuote(rng, hash, { org_id: "org_cascade", name: "Cascade", itar: false }, l0.part.qty.target),
+  ];
+  for (const q of quotes) store.addQuote(id, q);
+  ok(boundQuotes(store.get(id)!).length === 2, `#${seed} both quotes bind`);
+  const chosen = rng.pick(quotes);
+  const shipTo = { name: "Dock", line1: "1 A St", city: "Reno", region: "NV", postal: "89502", country: "US" };
+  store.award(id, { quote_id: chosen.quote_id, awarded_at: "2026-03-01T00:00:00.000Z", qty: l0.part.qty.target }, shipTo, [{ seq: 1, code: "laser" }]);
+  const awarded = store.get(id)!;
+  ok(levelOf(awarded).code === "L2", `#${seed} L2 after awarding one of two bound quotes`);
+  ok(awardedQuote(awarded)?.quote_id === chosen.quote_id, `#${seed} the awarded quote is the chosen one`);
+  store.remove(id);
+}
+
+// ---------------------- phase 1d: re-award after amend (rebind flow) ----------------------
+function reawardAfterAmend(seed: number) {
+  const rng = new Rng(seed ^ 0x77777777);
+  const store = useTravelerStore.getState();
+  const l0 = genTraveler(rng, { level: "L0", itar: false });
+  const id = l0.traveler_id;
+  store.upsert(l0);
+  const q1 = goodQuote(rng, travelerHash(l0), { org_id: "org_redriver", name: "Red River", itar: false }, l0.part.qty.target);
+  store.addQuote(id, q1);
+  ok(boundQuotes(store.get(id)!).length === 1, `#${seed} first quote bound`);
+
+  store.amend(id, { incoterms: "FOB" }); // revision++ -> hash changes -> q1 goes stale
+  const amended = store.get(id)!;
+  ok(boundQuotes(amended).length === 0, `#${seed} old quote unbound after amend`);
+  ok(staleQuotes(amended).some((q) => q.quote_id === q1.quote_id), `#${seed} old quote is stale`);
+
+  // Re-quote against the NEW hash (different seller — q1 still sits in quotes[]) and award.
+  const q2 = goodQuote(rng, travelerHash(amended), { org_id: "org_cascade", name: "Cascade", itar: false }, amended.part.qty.target);
+  store.addQuote(id, q2);
+  ok(boundQuotes(store.get(id)!).some((q) => q.quote_id === q2.quote_id), `#${seed} new quote binds to amended hash`);
+  const shipTo = { name: "Dock", line1: "1 A St", city: "Reno", region: "NV", postal: "89502", country: "US" };
+  store.award(id, { quote_id: q2.quote_id, awarded_at: "2026-04-01T00:00:00.000Z", qty: amended.part.qty.target }, shipTo, [{ seq: 1, code: "laser" }]);
+  ok(levelOf(store.get(id)!).code === "L2", `#${seed} re-award reaches L2`);
+  store.remove(id);
+}
+
+// ------------------------------- phase 2: adversarial -------------------------------
+function adversarial() {
+  const store = useTravelerStore.getState();
+  const root = new URL("../conformance/travelers/reject/", import.meta.url).pathname;
+  for (const file of readdirSync(root)) {
+    const doc = JSON.parse(readFileSync(`${root}${file}`, "utf8"));
+    mustThrow(() => parseTraveler(doc), `reject vector refused at parse: ${file}`);
+  }
+
+  // Award refuses a quote that is not on the traveler.
+  const rng = new Rng(0xadbeef);
+  const l0 = genTraveler(rng, { level: "L0", itar: false });
+  store.upsert(l0);
+  const shipTo = { name: "D", line1: "1 A St", city: "Reno", region: "NV", postal: "89502", country: "US" };
+  mustThrow(
+    () => store.award(l0.traveler_id, { quote_id: "qot_notthere1", awarded_at: "2026-03-01T00:00:00.000Z", qty: 1 }, shipTo, [{ seq: 1, code: "laser" }]),
+    "award refuses a quote not on the traveler",
+  );
+
+  // Award refuses an expired quote (added while unexpired-checks-are-off, awarded after expiry).
+  const exp = goodQuote(rng, travelerHash(l0), sellerFor(rng, false), l0.part.qty.target);
+  exp.created_at = "2024-01-01T00:00:00.000Z";
+  exp.valid_until = "2024-02-01T00:00:00.000Z"; // already expired today
+  store.addQuote(l0.traveler_id, exp);
+  mustThrow(
+    () => store.award(l0.traveler_id, { quote_id: exp.quote_id, awarded_at: "2026-03-01T00:00:00.000Z", qty: l0.part.qty.target }, shipTo, [{ seq: 1, code: "laser" }]),
+    "award refuses an expired quote",
+  );
+  store.remove(l0.traveler_id);
+}
+
+// ---------------------- phase 3: authenticity & confidentiality ----------------------
+function crypto(seed: number, trust: ReturnType<typeof buildTrust>) {
+  const rng = new Rng(seed ^ 0x13371337);
+  const { directory, rootPublicKeyHex, orgs, prekeyBundle, prekeyOrg } = trust;
+  const buyer = orgs.get("org_northline")!;
+  const at = new Date("2027-01-01T00:00:00.000Z");
+
+  // Traveler authorship: sign as the buyer org, verify, then tamper.
+  const base = genTraveler(rng, { level: "L0", itar: false });
+  const t: Traveler = { ...base, buyer: { ...base.buyer, org_id: "org_northline" } };
+  t.signatures = [signTraveler(t, buyer.kid, buyer.signer.secretKey)];
+  ok(verifyTravelerSignatures(t, directory, rootPublicKeyHex, at).every((c) => c.ok), `#${seed} buyer signature verifies`);
+  const tampered: Traveler = { ...t, revision: t.revision + 1 };
+  ok(!verifyTravelerSignatures(tampered, directory, rootPublicKeyHex, at).some((c) => c.ok), `#${seed} tampered traveler fails authenticity`);
+  const wrongOrg: Traveler = { ...t, buyer: { ...t.buyer, org_id: "org_summitfab" } };
+  ok(!verifyTravelerSignatures(wrongOrg, directory, rootPublicKeyHex, at).some((c) => c.ok), `#${seed} wrong signer org fails authenticity`);
+
+  // Quote authorship: sign as a seller org (org_huron), verify, then tamper.
+  const seller = orgs.get("org_huron")!;
+  const quote = goodQuote(rng, travelerHash(t), { org_id: "org_huron", name: "Huron Precision", itar: true });
+  quote.sig = signQuote(quote, seller.kid, seller.signer.secretKey);
+  ok(verifyQuoteSignature(quote, directory, rootPublicKeyHex, at)?.ok === true, `#${seed} seller quote signature verifies`);
+  const tq: Quote = { ...quote, lead_time_days: quote.lead_time_days + 1 };
+  ok(verifyQuoteSignature(tq, directory, rootPublicKeyHex, at)?.ok === false, `#${seed} tampered quote fails authenticity`);
+
+  // ITAR attestation gate: an attested seller is allowed, a non-attested one blocked.
+  const itarT: Traveler = { ...t, itar: true };
+  ok(itarAttestationBlocker(itarT, quote, directory, rootPublicKeyHex, at) === null, `#${seed} ITAR-attested seller passes the gate`);
+  const nonItarQuote: Quote = { ...quote, seller: { ...quote.seller, org_id: "org_summitfab" } };
+  ok(!!itarAttestationBlocker(itarT, nonItarQuote, directory, rootPublicKeyHex, at), `#${seed} non-attested seller is blocked`);
+
+  // Static envelope: seal to a directory recipient, open, then tamper the payload.
+  const plaintext = new TextEncoder().encode(canonicalJson(t));
+  const rcpt = recipientByOrg(directory, "org_huron", at)!;
+  const env = sealEnvelope(plaintext, [rcpt]);
+  const opened = openEnvelope(env, rcpt.kid, seller.kem.secretKey);
+  ok(new TextDecoder().decode(opened) === canonicalJson(t), `#${seed} static envelope round-trips`);
+  const tamperedEnv = { ...env, payload: (env.payload.startsWith("00") ? "11" : "00") + env.payload.slice(2) };
+  mustThrow(() => openEnvelope(tamperedEnv, rcpt.kid, seller.kem.secretKey), `#${seed} tampered static envelope fails to open`);
+
+  // Multi-recipient static envelope: seal to two orgs, each opens with its OWN key;
+  // a third org (not in the recipient set) cannot open it.
+  const summit = orgs.get("org_summitfab")!;
+  const redriver = orgs.get("org_redriver")!;
+  const rcptSummit = recipientByOrg(directory, "org_summitfab", at)!;
+  const multiEnv = sealEnvelope(plaintext, [rcpt, rcptSummit]);
+  ok(new TextDecoder().decode(openEnvelope(multiEnv, rcpt.kid, seller.kem.secretKey)) === canonicalJson(t), `#${seed} multi-recipient opens for recipient A`);
+  ok(new TextDecoder().decode(openEnvelope(multiEnv, rcptSummit.kid, summit.kem.secretKey)) === canonicalJson(t), `#${seed} multi-recipient opens for recipient B`);
+  mustThrow(() => openEnvelope(multiEnv, rcpt.kid, redriver.kem.secretKey), `#${seed} a non-recipient key cannot open the multi-recipient envelope`);
+
+  // Forward-secret envelope: seal with a one-time prekey + static key, open, tamper.
+  const prekeyId = prekeyBundle.prekeys[0]!.prekey_id;
+  const fsR = fsRecipientFromBundle(directory, prekeyBundle, prekeyOrg, prekeyId, rootPublicKeyHex, at);
+  ok(!!fsR, `#${seed} FS recipient resolves from the signed bundle`);
+  if (fsR) {
+    const fsEnv = sealFsEnvelope(plaintext, [fsR]);
+    const onetime = trust.prekeySecret(prekeyId)!;
+    const fsOpened = openFsEnvelope(fsEnv, fsR.kid, seller.kem.secretKey, onetime);
+    ok(new TextDecoder().decode(fsOpened) === canonicalJson(t), `#${seed} FS envelope round-trips`);
+    const tf = { ...fsEnv, payload: (fsEnv.payload.startsWith("00") ? "11" : "00") + fsEnv.payload.slice(2) };
+    mustThrow(() => openFsEnvelope(tf, fsR.kid, seller.kem.secretKey, onetime), `#${seed} tampered FS envelope fails to open`);
+  }
+}
+
+// ---------------------- phase 4: encrypted transport (end-to-end) ----------------------
+// Exercises the REAL wiring a party uses: sealTraveler -> ciphertext on the wire ->
+// openTraveler with a passphrase-encrypted keystore, over directory resolution.
+// The keystore + directory are built ONCE (scrypt is deliberately expensive), then
+// reused across jobs; sealing/opening per job is only ML-KEM + AES + zip.
+type TransportTrust = {
+  directory: Directory;
+  rootPublicKeyHex: string;
+  recipientOrg: string;
+  unlocked: Unlocked;
+  bundle: PrekeyBundle;
+  prekeyIds: string[];
+};
+
+async function buildTransportTrust(prekeyCount: number): Promise<TransportTrust> {
+  const PASS = "soak-keystore-passphrase";
+  const recipientOrg = "org_recipient";
+  const trustRoot = keypairFromSeed(new Uint8Array(32).fill(21));
+  const signer = keypairFromSeed(new Uint8Array(32).fill(22)); // the org's (placeholder) signing key
+  const { keystore, directoryEntry } = await createIdentity({ passphrase: PASS, orgId: recipientOrg });
+  const body: Directory = {
+    spec: DIRECTORY_SPEC,
+    issued_at: "2026-01-01T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
+    root_kid: "root-2026",
+    entries: [
+      {
+        org_id: recipientOrg,
+        kid: "recip-2026",
+        alg: "ML-DSA-87",
+        public_key: bytesToHex(signer.publicKey),
+        valid_from: "2026-01-01T00:00:00.000Z",
+        valid_until: "2030-01-01T00:00:00.000Z",
+        status: "active",
+        enc_alg: "ML-KEM-1024",
+        enc_public_key: directoryEntry.enc_public_key,
+      },
+    ],
+  };
+  const directory: Directory = { ...body, sig: signDirectory(body, trustRoot.secretKey) };
+
+  // Mint a pool of one-time prekeys into the keystore and publish them in a bundle
+  // signed by the org's directory key, so the forward-secret path has usable prekeys.
+  const unlocked = await unlock(keystore, PASS);
+  const { prekeys } = unlocked.addPrekeys(Math.max(1, prekeyCount));
+  const bundleBody: PrekeyBundle = {
+    spec: PREKEY_BUNDLE_SPEC,
+    org_id: recipientOrg,
+    kid: "recip-2026",
+    enc_alg: "ML-KEM-1024",
+    issued_at: "2026-01-01T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
+    prekeys,
+  };
+  bundleBody.sig = signPrekeyBundle(bundleBody, signer.secretKey);
+
+  return {
+    directory,
+    rootPublicKeyHex: bytesToHex(trustRoot.publicKey),
+    recipientOrg,
+    unlocked,
+    bundle: bundleBody,
+    prekeyIds: prekeys.map((p) => p.prekey_id),
+  };
+}
+
+async function transport(seed: number, tt: TransportTrust) {
+  const rng = new Rng(seed ^ 0x2b2b2b2b);
+  const level = rng.pick(["L0", "L1", "L2"] as const);
+  const traveler = genTraveler(rng, { level, itar: rng.bool(0.2) });
+
+  const { envelope, forwardSecret } = await sealTraveler(traveler, {
+    directory: tt.directory,
+    rootPublicKeyHex: tt.rootPublicKeyHex,
+    recipientOrg: tt.recipientOrg,
+  });
+  ok(forwardSecret === false, `#${seed} static transport path (no prekey bundle)`);
+  if (envelope.spec !== "sje-envelope/0.1.0") {
+    ok(false, `#${seed} static transport unexpectedly used spec ${envelope.spec}`);
+    return; // narrows envelope to the static Envelope for the checks below
+  }
+
+  // Ciphertext proof: no plaintext field value leaks, and the payload is not a zip.
+  const wire = JSON.stringify(envelope);
+  ok(!wire.includes(traveler.traveler_id), `#${seed} traveler_id does not appear in the clear`);
+  ok(!wire.includes(traveler.buyer.name), `#${seed} buyer name does not appear in the clear`);
+  ok(!wire.includes(traveler.part.part_number), `#${seed} part number does not appear in the clear`);
+  const payloadBytes = Buffer.from(envelope.payload, "hex");
+  ok(!payloadBytes.includes(Buffer.from("PK\x03\x04")), `#${seed} no ZIP local-file header in the ciphertext`);
+
+  // Round-trip equals the input (full-object canonical compare, order-independent).
+  const opened = await openTraveler(envelope, tt.unlocked);
+  ok(canonicalJson(opened) === canonicalJson(traveler), `#${seed} transport round-trips to an equal traveler`);
+
+  // Tamper: a one-byte flip in the payload is refused by AEAD.
+  const tampered = { ...envelope, payload: (envelope.payload.startsWith("00") ? "11" : "00") + envelope.payload.slice(2) };
+  await mustReject(() => openTraveler(tampered, tt.unlocked), `#${seed} tampered transport envelope is refused`);
+
+  // Not addressed to this keystore: the recipient-mismatch guard refuses before decrypt.
+  const foreign = { ...envelope, recipients: envelope.recipients.map((r) => ({ ...r, kid: "ffffffffffffffff" })) };
+  await mustReject(() => openTraveler(foreign, tt.unlocked), `#${seed} envelope not addressed to this keystore is refused`);
+}
+
+/** Forward-secret transport: seal with a one-time prekey (0.2), open it (consuming
+ *  the prekey), then prove the spent prekey cannot be reused. Each job uses its own
+ *  prekeyId, so consumption never collides across jobs. */
+async function fsTransport(seed: number, tt: TransportTrust, prekeyId: string) {
+  const rng = new Rng(seed ^ 0x3c3c3c3c);
+  const level = rng.pick(["L0", "L1", "L2"] as const);
+  const traveler = genTraveler(rng, { level, itar: rng.bool(0.2) });
+
+  const seal = () =>
+    sealTraveler(traveler, {
+      directory: tt.directory,
+      rootPublicKeyHex: tt.rootPublicKeyHex,
+      recipientOrg: tt.recipientOrg,
+      prekeyBundle: tt.bundle,
+      prekeyId,
+    });
+
+  const { envelope, forwardSecret } = await seal();
+  ok(forwardSecret === true, `#${seed} forward-secret path used when a bundle is present`);
+  ok(envelope.spec === "sje-envelope/0.2.0", `#${seed} forward-secret envelope spec`);
+
+  // Ciphertext proof (same invariants as the static leg).
+  const wire = JSON.stringify(envelope);
+  ok(!wire.includes(traveler.traveler_id), `#${seed} FS: traveler_id not in the clear`);
+  ok(!wire.includes(traveler.part.part_number), `#${seed} FS: part number not in the clear`);
+  const payloadBytes = Buffer.from(envelope.payload, "hex");
+  ok(!payloadBytes.includes(Buffer.from("PK\x03\x04")), `#${seed} FS: no ZIP header in the ciphertext`);
+
+  // Round-trip consumes the one-time prekey.
+  const opened = await openTraveler(envelope, tt.unlocked);
+  ok(canonicalJson(opened) === canonicalJson(traveler), `#${seed} FS transport round-trips to an equal traveler`);
+
+  // Reuse: a second envelope to the now-spent prekey cannot be opened (availability,
+  // not confidentiality — the static half would still protect a mis-sent payload).
+  const resent = (await seal()).envelope;
+  await mustReject(() => openTraveler(resent, tt.unlocked), `#${seed} a spent one-time prekey cannot be reused`);
+}
+
+// ------------------------------------ main ------------------------------------
+async function main() {
+  const argv = process.argv.slice(2);
+  const arg = (name: string, def: number) => {
+    const i = argv.indexOf(name);
+    return i >= 0 ? Number(argv[i + 1]) : def;
+  };
+  const jobs = arg("--jobs", 500);
+  const start = arg("--start", 1);
+  const cryptoJobs = Math.min(jobs, arg("--crypto", 40));
+  const transportJobs = Math.min(jobs, arg("--transport", 40));
+  const fsJobs = Math.min(transportJobs, arg("--fs-transport", 20));
+
+  const t0 = Date.now();
+  for (let seed = start; seed < start + jobs; seed++) {
+    lifecycle(seed);
+    amendInvalidation(seed);
+    multiQuoteLifecycle(seed);
+    reawardAfterAmend(seed);
+  }
+  adversarial();
+  const trust = buildTrust(new Rng(0xc0ffee));
+  for (let seed = start; seed < start + cryptoJobs; seed++) crypto(seed, trust);
+  const transportTrust = await buildTransportTrust(Math.max(1, fsJobs));
+  for (let seed = start; seed < start + transportJobs; seed++) await transport(seed, transportTrust);
+  for (let i = 0; i < fsJobs; i++) await fsTransport(start + i, transportTrust, transportTrust.prekeyIds[i]!);
+
+  const ms = Date.now() - t0;
+  console.log(
+    `\nsoak: ${checks} invariant checks over ${jobs} jobs (+${cryptoJobs} crypto, +${transportJobs} transport, +${fsJobs} fs) in ${ms}ms`,
+  );
+  if (failures.length) {
+    console.log(`\n${failures.length} FAILURES:`);
+    for (const f of failures.slice(0, 40)) console.log(`  ${f}`);
+    process.exit(1);
+  }
+  console.log("all invariants held — no breakage.");
+}
+
+await main();

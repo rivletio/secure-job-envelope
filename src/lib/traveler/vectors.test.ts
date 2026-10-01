@@ -36,6 +36,27 @@ describe("conformance vectors", () => {
     }
   });
 
+  it("refuses strings and keys with a lone surrogate (cross-impl safety)", () => {
+    // Rust's serde_json cannot parse a lone surrogate, so TS must refuse to hash
+    // one too — otherwise the same document hashes on one side and not the other.
+    assert.throws(() => canonicalJson({ s: "A\uD800B" }), /lone surrogate/);
+    assert.throws(() => canonicalJson({ ["k\uDC00"]: 1 }), /lone surrogate/);
+    // a valid surrogate pair (astral character) is fine and hashes on both sides
+    assert.doesNotThrow(() => canonicalJson({ s: "ok \u{1F600}" }));
+  });
+
+  it("parseTraveler refuses a lone surrogate in any string field (matches serde)", () => {
+    // serde rejects the whole document at parse; TS must reject it too, or the two
+    // implementations disagree on whether the document is even acceptable.
+    const base = JSON.parse(
+      readFileSync(`${root}travelers/l0-bracket.json`, "utf8"),
+    ) as Record<string, any>;
+    assert.doesNotThrow(() => parseTraveler(structuredClone(base)));
+    const withSurrogate = structuredClone(base);
+    withSurrogate.part.notes = "note\uD800end";
+    assert.throws(() => parseTraveler(withSurrogate), /lone surrogate/);
+  });
+
   it("computes the expected hash and level for every traveler vector", () => {
     const expected = JSON.parse(readFileSync(`${root}travelers/expected.json`, "utf8")) as Record<
       string,

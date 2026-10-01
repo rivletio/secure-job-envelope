@@ -14,6 +14,7 @@ use sha2::{Digest, Sha384};
 
 pub mod envelope;
 pub mod sign;
+mod validate;
 
 pub const SPEC: &str = "sje/0.1.0";
 pub const MEDIA_TYPE: &str = "application/vnd.sje+json";
@@ -30,7 +31,13 @@ pub enum Error {
     Invalid(String),
 }
 
+// deny_unknown_fields on every wire struct mirrors zod's `.strict()`: an
+// unexpected key is a rejection, not a silently-ignored field, so the two
+// implementations agree on which documents are well-formed. (Free-form blobs —
+// assumptions / capacity / as_built — are serde_json::Value and keep arbitrary
+// keys, exactly as the zod `jsonBlob` record does.)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Org {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub org_id: Option<String>,
@@ -48,6 +55,7 @@ pub struct Org {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Material {
     pub spec: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -57,6 +65,7 @@ pub struct Material {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Qty {
     pub target: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -64,6 +73,7 @@ pub struct Qty {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Part {
     pub family: String,
     pub part_number: String,
@@ -84,6 +94,7 @@ pub struct Part {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PriceLine {
     pub qty: i64,
     /// Integer count of the currency's minor unit (e.g. cents for USD).
@@ -91,6 +102,7 @@ pub struct PriceLine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Pricing {
     pub currency: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -103,6 +115,7 @@ pub struct Pricing {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QuoteException {
     pub code: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -113,6 +126,7 @@ pub struct QuoteException {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Signature {
     pub alg: String,
     pub kid: String,
@@ -120,6 +134,7 @@ pub struct Signature {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Quote {
     pub quote_id: String,
     pub seller: Org,
@@ -141,6 +156,7 @@ pub struct Quote {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ShipTo {
     pub name: String,
     pub line1: String,
@@ -153,6 +169,7 @@ pub struct ShipTo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Op {
     pub seq: i64,
     pub code: String,
@@ -161,6 +178,7 @@ pub struct Op {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AwardTerms {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub governing_law: Option<String>,
@@ -171,6 +189,7 @@ pub struct AwardTerms {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Award {
     pub quote_id: String,
     pub awarded_at: String,
@@ -181,6 +200,7 @@ pub struct Award {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Traveler {
     pub spec: String,
     pub traveler_id: String,
@@ -237,22 +257,13 @@ pub fn parse_traveler(json: &str) -> Result<Traveler, Error> {
     if traveler.spec != SPEC {
         return Err(Error::Invalid("unsupported spec".into()));
     }
-    if !id_ok(&traveler.traveler_id) {
-        return Err(Error::Invalid("invalid traveler_id".into()));
-    }
-    if traveler.itar.unwrap_or(false) {
-        for q in traveler.quotes.as_deref().unwrap_or(&[]) {
-            if q.seller.itar != Some(true) {
-                return Err(Error::Invalid(
-                    "ITAR traveler quoted by a seller without itar: true".into(),
-                ));
-            }
-        }
-    }
+    // Full structural validation, mirroring the zod schema field for field, so the
+    // two implementations agree on exactly which documents are well-formed.
+    validate::traveler(&traveler)?;
     Ok(traveler)
 }
 
-fn id_ok(id: &str) -> bool {
+pub(crate) fn id_ok(id: &str) -> bool {
     let bytes = id.as_bytes();
     if bytes.len() < 10 || bytes.len() > 28 {
         return false;
@@ -521,39 +532,98 @@ pub fn quote_expired(q: &Quote, now_ms: i64) -> bool {
     }
 }
 
+pub(crate) fn all_digits(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
+}
+
+fn is_leap(y: i64) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+pub(crate) fn days_in_month(y: i64, m: i64) -> i64 {
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap(y) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+/// A strict ISO-8601 calendar day `YYYY-MM-DD` (real calendar, leap-aware).
+/// Mirrors the TypeScript `isoDayOk` — the date branch of the traveler `need_by`.
+pub(crate) fn iso_day_ok(s: &str) -> bool {
+    let b = s.as_bytes();
+    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
+        return false;
+    }
+    let (Ok(y), Ok(m), Ok(day)) = (s[0..4].parse::<i64>(), s[5..7].parse::<i64>(), s[8..10].parse::<i64>())
+    else {
+        return false;
+    };
+    if !all_digits(&s[0..4]) || !all_digits(&s[5..7]) || !all_digits(&s[8..10]) {
+        return false;
+    }
+    (0..=9999).contains(&y) && (1..=12).contains(&m) && day >= 1 && day <= days_in_month(y, m)
+}
+
+/// Strict ISO-8601 UTC datetime → Unix milliseconds, or None if the string is not
+/// a canonical timestamp. Shape is `YYYY-MM-DDTHH:MM:SS(.f…)Z` with fixed-width
+/// components and 1–9 fractional digits, plus a real-calendar check (leap-aware
+/// day, hour ≤ 23, minute/second ≤ 59). This is the single timestamp gate: the
+/// same rule the TypeScript schema enforces at parse (isoDateTimeMs), so the two
+/// implementations accept and reject exactly the same timestamps AND agree on the
+/// instant used for bind/expiry decisions. A leniently-parsed timestamp (single
+/// digits, second 60, 2026-02-31, a trailing offset) is refused rather than
+/// silently coerced.
 pub(crate) fn rfc3339_millis(iso: &str) -> Option<i64> {
-    // 2026-09-30T00:00:00.000Z or 2026-09-30T00:00:00Z
     let body = iso.strip_suffix('Z')?;
     let (date, time) = body.split_once('T')?;
-    let mut d = date.split('-');
-    let y: i64 = d.next()?.parse().ok()?;
-    let m: i64 = d.next()?.parse().ok()?;
-    let day: i64 = d.next()?.parse().ok()?;
-    let (hms, frac) = match time.split_once('.') {
-        Some((hms, f)) => (hms, f),
-        None => (time, "0"),
-    };
-    let mut t = hms.split(':');
-    let h: i64 = t.next()?.parse().ok()?;
-    let min: i64 = t.next()?.parse().ok()?;
-    let s: i64 = t.next()?.parse().ok()?;
-    // Bound every component before the civil-date arithmetic below: without it
-    // a 13-digit year or huge hour ("9999999999999-01-01T…") overflows the i64
-    // multiplication — a panic in debug, a silently wrong value (corrupting
-    // expiry/bind decisions) in release.
-    if !(0..=9999).contains(&y)
-        || !(1..=12).contains(&m)
-        || !(1..=31).contains(&day)
-        || !(0..=23).contains(&h)
-        || !(0..=59).contains(&min)
-        || !(0..=60).contains(&s)
-    {
+    // date: exactly YYYY-MM-DD
+    let db = date.as_bytes();
+    if db.len() != 10 || db[4] != b'-' || db[7] != b'-' {
         return None;
     }
+    if !all_digits(&date[0..4]) || !all_digits(&date[5..7]) || !all_digits(&date[8..10]) {
+        return None;
+    }
+    let y: i64 = date[0..4].parse().ok()?;
+    let m: i64 = date[5..7].parse().ok()?;
+    let day: i64 = date[8..10].parse().ok()?;
+    // time: exactly HH:MM:SS with an optional .fraction of 1..=9 digits
+    let (hms, frac) = match time.split_once('.') {
+        Some((hms, f)) => (hms, Some(f)),
+        None => (time, None),
+    };
+    let hb = hms.as_bytes();
+    if hb.len() != 8 || hb[2] != b':' || hb[5] != b':' {
+        return None;
+    }
+    if !all_digits(&hms[0..2]) || !all_digits(&hms[3..5]) || !all_digits(&hms[6..8]) {
+        return None;
+    }
+    let h: i64 = hms[0..2].parse().ok()?;
+    let min: i64 = hms[3..5].parse().ok()?;
+    let s: i64 = hms[6..8].parse().ok()?;
     let mut ms: i64 = 0;
-    if !frac.is_empty() {
-        let padded = format!("{:0<3}", frac.chars().take(3).collect::<String>());
+    if let Some(f) = frac {
+        if f.is_empty() || f.len() > 9 || !all_digits(f) {
+            return None;
+        }
+        let padded: String = f.chars().chain(std::iter::repeat('0')).take(3).collect();
         ms = padded.parse().ok()?;
+    }
+    // Real-calendar validity. The year is bounded so the civil-date arithmetic
+    // below cannot overflow the i64 multiplications.
+    if !(0..=9999).contains(&y)
+        || !(1..=12).contains(&m)
+        || day < 1
+        || day > days_in_month(y, m)
+        || !(0..=23).contains(&h)
+        || !(0..=59).contains(&min)
+        || !(0..=59).contains(&s)
+    {
+        return None;
     }
     // Unix ms via days from 1970-01-01 UTC, civil date algorithm (Howard Hinnant).
     let y = if m <= 2 { y - 1 } else { y };
@@ -624,6 +694,31 @@ pub fn level(traveler: &Traveler) -> Level {
     }
 }
 
+/// The four decisions the cross-implementation differential and fuzz corpus
+/// compare against the TypeScript reference: does this document parse, what does
+/// it hash to, what level is it, and which quotes bind. Emitted as one compact
+/// JSON object so a single call captures the whole verdict. Error wording is never
+/// included — only the decisions are compared across implementations.
+pub fn check_verdict(json: &str) -> String {
+    let traveler = match parse_traveler(json) {
+        Ok(t) => t,
+        Err(_) => return r#"{"accept":false,"hash":null,"level":null,"bound":null}"#.into(),
+    };
+    let hash = traveler_hash(&traveler).ok();
+    let mut ids: Vec<&str> = bound_quotes(&traveler)
+        .iter()
+        .map(|q| q.quote_id.as_str())
+        .collect();
+    ids.sort_unstable();
+    serde_json::json!({
+        "accept": true,
+        "hash": hash,
+        "level": level(&traveler).code,
+        "bound": ids,
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -632,6 +727,13 @@ mod tests {
     fn golden_hash_matches_ts() {
         let body: Quoteable = serde_json::from_str(include_str!("../tests/golden.json")).unwrap();
         assert_eq!(hash_quoteable(&body).unwrap(), GOLDEN_HASH);
+    }
+
+    #[test]
+    fn serde_rejects_lone_surrogate() {
+        // Rust cannot represent a lone surrogate; serde refuses it at parse, so
+        // neither implementation hashes one (the TS canonicalizer refuses it too).
+        assert!(serde_json::from_str::<Value>(r#"{"s":"A\uD800B"}"#).is_err());
     }
 
     #[test]
@@ -764,9 +866,12 @@ mod tests {
     }
 
     #[test]
-    fn negative_unit_is_not_bound() {
-        let traveler = parse_traveler(
-            r#"{
+    fn negative_unit_is_rejected_at_parse() {
+        // Money is a non-negative integer count of minor units; a negative unit is
+        // refused at parse, matching the zod schema (money.nonnegative), not merely
+        // left unbound. The whole traveler is rejected because one of its quotes is
+        // malformed — same as zod parsing the quote inside the traveler.
+        let json = r#"{
           "spec":"sje/0.1.0",
           "traveler_id":"tvl_negprice01",
           "revision":1,
@@ -783,10 +888,8 @@ mod tests {
             "lead_time_days":12,
             "pricing":{"currency":"USD","lines":[{"qty":50,"unit":-29}]}
           }]
-        }"#,
-        )
-        .unwrap();
-        assert!(bound_quotes(&traveler).is_empty());
+        }"#;
+        assert!(parse_traveler(json).is_err());
     }
 
     #[test]
@@ -805,6 +908,33 @@ mod tests {
         assert_eq!(rfc3339_millis("2026-01-01T25:00:00Z"), None);
         assert_eq!(rfc3339_millis("2026-01-01T00:60:00Z"), None);
         assert!(rfc3339_millis("2026-01-01T00:00:00Z").is_some());
+    }
+
+    #[test]
+    fn rfc3339_millis_is_strict_and_calendar_aware() {
+        // Both the no-fraction and fractional forms parse.
+        assert!(rfc3339_millis("2026-05-01T12:00:00Z").is_some());
+        assert_eq!(rfc3339_millis("2026-05-01T12:00:00.5Z"), rfc3339_millis("2026-05-01T12:00:00.500Z"));
+        // A leniently-parsed timestamp must be refused, matching TS isoDateTimeMs:
+        assert!(rfc3339_millis("2026-05-01T12:00:00.000+00:00").is_none()); // trailing offset, not Z
+        assert!(rfc3339_millis("2026-5-1T12:00:00Z").is_none()); // single-digit fields
+        assert!(rfc3339_millis("2026-05-01T12:00:60.000Z").is_none()); // second 60
+        assert!(rfc3339_millis("2026-05-01T24:00:00.000Z").is_none()); // hour 24
+        assert!(rfc3339_millis("2026-02-31T12:00:00.000Z").is_none()); // impossible calendar day
+        assert!(rfc3339_millis("2026-01-01T12:00:00.0000000000Z").is_none()); // > 9 fractional digits
+        // Leap-year awareness.
+        assert!(rfc3339_millis("2024-02-29T00:00:00Z").is_some());
+        assert!(rfc3339_millis("2026-02-29T00:00:00Z").is_none());
+    }
+
+    #[test]
+    fn iso_day_ok_is_calendar_strict() {
+        assert!(iso_day_ok("2026-10-24"));
+        assert!(!iso_day_ok("2026-02-31"));
+        assert!(!iso_day_ok("2026-13-01"));
+        assert!(!iso_day_ok("2026-1-1")); // single-digit fields
+        assert!(iso_day_ok("2024-02-29"));
+        assert!(!iso_day_ok("2026-02-29"));
     }
 
     #[test]

@@ -128,6 +128,34 @@ describe("desk store state machine", () => {
     }
   });
 
+  it("audits award and import", () => {
+    const s = useTravelerStore.getState();
+    const p = freshTraveler();
+    s.upsert(p);
+    const q = boundQuoteFor(p);
+    s.addQuote(p.traveler_id, q);
+    s.award(
+      p.traveler_id,
+      { quote_id: q.quote_id, awarded_at: isoNow(), qty: p.part.qty.target },
+      SHIP,
+      [{ seq: 1, code: "laser" }],
+    );
+    const acts = useTravelerStore
+      .getState()
+      .audit.filter((e) => e.traveler_id === p.traveler_id)
+      .map((e) => e.act);
+    assert.deepEqual(acts, ["compose", "quote", "award"], "award is audited");
+
+    // Importing a (different) traveler is audited as an import.
+    const imported = freshTraveler();
+    useTravelerStore.getState().importOne(imported);
+    const importActs = useTravelerStore
+      .getState()
+      .audit.filter((e) => e.traveler_id === imported.traveler_id)
+      .map((e) => e.act);
+    assert.deepEqual(importActs, ["import"], "import is audited");
+  });
+
   it("sanitizeTravelers drops malformed persisted travelers on rehydrate", () => {
     const valid = freshTraveler();
     // Simulate a corrupt persisted blob: one valid traveler plus garbage

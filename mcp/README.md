@@ -2,9 +2,10 @@
 
 The Secure Job Envelope reference implementation, exposed as [Model
 Context Protocol](https://modelcontextprotocol.io) tools — so an AI agent
-at a buyer and an AI agent at a seller can do business over sealed
+at a buyer and an AI agent at a seller can do business over **encrypted**
 travelers with **zero shared state**. Each company runs its own desk; the
-only thing that crosses the boundary is the sealed archive.
+only thing that crosses the boundary is an encrypted `.sje` envelope
+(ML-KEM-1024 + AES-256-GCM).
 
 The MCP layer adds **no second truth**: every check is the reference
 implementation's own schema, guards, hash binding, and defensive zip
@@ -14,7 +15,9 @@ import. Two properties worth naming:
   `traveler_hash_quoted` server-side from the traveler in hand, so it cannot be
   asserted through the tool input (test M2).
 - **Stateless by design.** The traveler file is the state. No database,
-  no session: the protocol's thesis, enforced by the tool surface.
+  no session — the one exception is the desk's passphrase-encrypted decryption
+  keystore (`SJE_KEYSTORE` + `SJE_KEYSTORE_PASSPHRASE`), loaded to open received
+  envelopes. The protocol's thesis, enforced by the tool surface.
 
 ## Tools
 
@@ -26,8 +29,9 @@ import. Two properties worth naming:
 | `sje_quote` | seller | Attach a quote; binding hash computed server-side; ITAR + schema guards |
 | `sje_evaluate` | buyer | Bound/stale/expired analysis, unit price at target, award blockers |
 | `sje_award` | buyer | Award a bound, unexpired quote + ops + ship-to → **L2, locked** |
-| `sje_seal` | any | `{traveler_id}.traveler.zip` with META digests + canonical body, base64 |
-| `sje_open` | any | Defensive import: allowlist, size caps, CRC, digest cross-checks — tampered archives refused |
+| `sje_identity` | any | Mint an ML-KEM identity: a passphrase-encrypted keystore blob + the public directory entry to publish (+ optional one-time prekeys) |
+| `sje_seal` | any | Encrypt a traveler to a directory-attested recipient → the `.sje` envelope (ML-KEM-1024 + AES-256-GCM); a `prekey_bundle` enables forward secrecy, reported via `forward_secret` |
+| `sje_open` | any | Decrypt a received `.sje` with this desk's keystore (`SJE_KEYSTORE` + `SJE_KEYSTORE_PASSPHRASE`), then the full defensive import — wrong-recipient / tampered / corrupt refused |
 
 ## The demo
 
@@ -36,11 +40,12 @@ npm run demo
 ```
 
 Two separate server processes (Northline the buyer, Summit Fabrication
-the seller), two MCP clients, one job: compose → seal → *(tamper attempt
-refused)* → open → quote → seal → open → evaluate → award → seal → final
-verify → amend-after-lock refused. Every hop asserts the hash lineage.
-It runs in CI; the transcript is the executive explanation of the
-standard.
+the seller), each loading its own passphrase-encrypted keystore, two MCP
+clients, one job: compose → **seal (encrypted)** → *(a flipped byte refused
+by AEAD)* → **decrypt** → quote → seal → decrypt → evaluate → award → seal →
+final verify → amend-after-lock refused. Every hop is ciphertext on the wire
+and asserts the hash lineage. It runs in CI; the transcript is the executive
+explanation of the standard.
 
 ## Using it from Claude (or any MCP client)
 

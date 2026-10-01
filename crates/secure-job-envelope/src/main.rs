@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::process;
 
-use secure_job_envelope::{level, traveler_hash, parse_traveler};
+use secure_job_envelope::{check_verdict, level, parse_traveler, traveler_hash};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -28,10 +28,21 @@ fn main() {
                 println!("{} {}", l.code, l.name);
             }
         }
+        // A single machine-readable verdict for the cross-implementation
+        // differential (sim/differential.ts): does this document parse, what does
+        // it hash to, what level is it, and which quotes bind? Emitting all four in
+        // one compact JSON line lets the fuzzer compare the two implementations
+        // with a single process spawn per input. Errors are never included in the
+        // verdict — their wording differs by design; only the decisions are compared.
+        "check" => {
+            let json = read_input(args.get(2).map(String::as_str));
+            println!("{}", check_verdict(&json));
+        }
         _ => {
             eprintln!("envelope (SJE) 0.1.0");
             eprintln!("  envelope hash [traveler.json]");
             eprintln!("  envelope level [traveler.json]");
+            eprintln!("  envelope check [traveler.json]   # JSON verdict for the differential");
             eprintln!("stdin is used when no file is given.");
         }
     }

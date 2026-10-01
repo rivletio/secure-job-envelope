@@ -3,21 +3,34 @@ import {
   COUNTRY_RE,
   CURRENCY_RE,
   HASH_RE,
-  ISO_DAY_RE,
-  ISO_DT_RE,
   MAX_NAME,
   MAX_TRAVELER_JSON_BYTES,
   MAX_STRING,
   TRAVELER_ID_RE,
   TRAVELER_SPEC,
 } from "./types.ts";
+import { isoDateTimeMs, isoDayOk } from "./datetime.ts";
 
-const name = z.string().trim().min(1).max(MAX_NAME);
+// A required, non-empty string that must already be trimmed. We *reject* leading
+// or trailing whitespace rather than silently trimming it (the old `.trim()`
+// transform): a silent trim means the bytes we hash differ from the bytes we were
+// given, and the Rust core — which does not trim — would then hash a different
+// string for the "same" document. Rejecting keeps the two implementations
+// byte-identical. The desk UI already trims user input before it reaches here.
+const trimmedMax = (max: number) =>
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .refine((s) => s === s.trim(), "must not have leading or trailing whitespace");
+const name = trimmedMax(MAX_NAME);
 const longText = z.string().min(1).max(MAX_STRING);
-const optName = z.string().trim().min(1).max(MAX_NAME).optional();
+const optName = trimmedMax(MAX_NAME).optional();
 const optLong = z.string().min(1).max(MAX_STRING).optional();
-const isoDt = z.string().regex(ISO_DT_RE, "ISO-8601 UTC datetime");
-const isoDayOrDt = z.union([z.string().regex(ISO_DAY_RE), isoDt]);
+const isoDt = z.string().refine((s) => isoDateTimeMs(s) !== null, "ISO-8601 UTC datetime");
+const isoDayOrDt = z
+  .string()
+  .refine((s) => isoDayOk(s) || isoDateTimeMs(s) !== null, "ISO-8601 date or UTC datetime");
 /** Values must sit in the canonical numeric range (see canonical.ts): integers
  * or non-integers of magnitude >= 1e-5, so both reference implementations
  * render them identically. */
@@ -50,7 +63,7 @@ const orgSchema = z
     name,
     city: optName,
     region: optName,
-    contact: z.string().trim().min(1).max(200).optional(),
+    contact: trimmedMax(200).optional(),
     certs: z.array(z.string().min(1).max(64)).max(16).optional(),
     itar: z.boolean().optional(),
   })
@@ -100,7 +113,11 @@ export const quoteSchema = z
   })
   .strict()
   .superRefine((q, ctx) => {
-    if (Date.parse(q.valid_until) <= Date.parse(q.created_at)) {
+    // Both dates already passed the strict isoDt refinement, so parse them the same
+    // way the Rust core does (isoDateTimeMs === rfc3339_millis) and compare instants.
+    const created = isoDateTimeMs(q.created_at);
+    const until = isoDateTimeMs(q.valid_until);
+    if (created !== null && until !== null && until <= created) {
       ctx.addIssue({
         code: "custom",
         path: ["valid_until"],
@@ -112,11 +129,11 @@ export const quoteSchema = z
 const shipToSchema = z
   .object({
     name,
-    line1: z.string().trim().min(1).max(200),
-    line2: z.string().trim().min(1).max(200).optional(),
+    line1: trimmedMax(200),
+    line2: trimmedMax(200).optional(),
     city: name,
     region: name,
-    postal: z.string().trim().min(1).max(16),
+    postal: trimmedMax(16),
     country: z.string().regex(COUNTRY_RE),
   })
   .strict();
@@ -177,9 +194,9 @@ export const travelerSchema = z
         qty: z.number().int().min(1).max(1_000_000),
         terms: z
           .object({
-            governing_law: z.string().trim().min(1).max(128).optional(),
+            governing_law: trimmedMax(128).optional(),
             warranty: z.string().min(1).max(MAX_STRING).optional(),
-            payment_terms: z.string().trim().min(1).max(128).optional(),
+            payment_terms: trimmedMax(128).optional(),
           })
           .strict()
           .optional(),

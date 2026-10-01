@@ -42,6 +42,16 @@ const validValues: Array<{ name: string; value: unknown }> = [
   { name: "empty-structures", value: { obj: {}, arr: [], s: "" } },
   { name: "booleans-null", value: { t: true, f: false, n: null } },
   { name: "key-order-digits", value: { "10": 1, "2": 2, A: 3, a: 4 } },
+  // Long-decimal floats (regression): both implementations must parse to the
+  // same f64 and render identically. Requires serde_json's float_roundtrip on
+  // the Rust side; without it these hash differently across implementations.
+  { name: "long-decimal", value: { t: 223.23501793805622 } },
+  { name: "long-decimal-negative", value: { t: -946696.1927003545 } },
+  { name: "long-decimal-large", value: { t: 4435404841756971.5 } },
+  // Astral-plane object keys must sort by code point identically on both sides
+  // (JS default UTF-16 order would put U+1F600 before U+FFFF; both must agree).
+  { name: "astral-key-order", value: { "\u{1F600}": 1, "￿": 2 } },
+  { name: "astral-string-value", value: { s: "grüß 😀 \u{1F680}" } },
 ];
 
 const invalidValues: Array<{ name: string; value: unknown; reason: string }> = [
@@ -151,9 +161,27 @@ const emptyArrays: Traveler = {
   itar: false,
 };
 
+// Long-decimal thickness_mm (regression): the only float in the quoteable body.
+// Pins cross-implementation hash parity end to end at the traveler layer.
+const longFloat: Traveler = {
+  spec: "sje/0.1.0",
+  traveler_id: "tvl_longfloat01",
+  revision: 1,
+  created_at: "2026-09-16T12:00:00.000Z",
+  buyer: { name: "Northline Equipment" },
+  part: {
+    family: "CNC bracket",
+    part_number: "NL-BRK-4410",
+    material: { spec: "6061-T6", thickness_mm: 223.23501793805622 },
+    qty: { target: 50 },
+  },
+  itar: false,
+};
+
 const expected: Record<string, { traveler_hash: string; level: string }> = {};
 for (const [file, p] of [
   ["l0-bracket.json", l0],
+  ["l0-longfloat.json", longFloat],
   ["l0-empty-arrays.json", emptyArrays],
   ["l1-quoted.json", l1],
   ["l2-awarded.json", l2],

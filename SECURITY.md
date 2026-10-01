@@ -17,15 +17,31 @@ What the format defends, by design:
   hashed (see `docs/SPEC.md` § Canonical JSON).
 - **Quote binding.** A quote binds to the exact buyer revision it priced
   via `traveler_hash_quoted`; amending the body stale-marks every quote.
+- **Cross-implementation parity.** The two implementations accept and reject
+  the same documents and agree on hash, level, and binding. A Rust validator
+  mirrors the TypeScript schema field for field (numeric ceilings, UTF-16
+  string bounds, unknown-key rejection, strict leap-aware datetimes, and
+  rejection of untrimmed strings and lone surrogates). A seeded TS↔Rust
+  differential fuzzer, a committed fuzz corpus, and a lifecycle soak enforce
+  this in CI (see `docs/CLAIMS.md` C12–C15).
 - **Hostile archives.** `.traveler.zip` import allowlists members (max 3),
-  refuses path traversal, caps compressed and uncompressed sizes, verifies
-  CRC32, and cross-checks META.json digests.
+  refuses path traversal, caps compressed and uncompressed sizes, and verifies
+  integrity with SHA-384 cross-checks rather than CRC32 — CRC is deliberately
+  skipped so a hostile archive is never fully inflated before the guards run. The
+  full-bytes `traveler_json_sha384` digest is **required** (not optional): since
+  `traveler_hash` covers only the quoteable body, this digest is what detects
+  tampering of the non-quoteable lifecycle fields (award, ship_to, ops). These
+  digests are *unkeyed* integrity (they catch corruption and naive tampering);
+  adversarial authenticity is the ML-DSA authorship signature, which in 0.1 signs
+  the quoteable body but not the lifecycle fields — see `docs/CLAIMS.md` G7.
 - **ID generation** uses `crypto.getRandomValues` with rejection sampling
   (no modulo bias); there is no non-cryptographic fallback.
 - **Party authentication (0.1).** ML-DSA-87 (FIPS 204) authorship signatures
   bind a traveler/quote to a key in a signed directory; a signature whose
   key's `org_id` differs from the body's — or that names no org at all — is
-  refused. The desk verifies signatures only and never holds signing keys.
+  refused. Signature verification lives in the reference library (and is
+  available to CLI / MCP consumers); it is not wired into the browser desk UI,
+  which never holds signing keys and never signs.
 - **Confidentiality (0.1).** The encrypted envelope (ML-KEM-1024 +
   HKDF-SHA-384 + AES-256-GCM) is designed to keep payloads confidential in
   transit and at rest against a harvest-now-decrypt-later adversary, subject to
@@ -33,7 +49,19 @@ What the format defends, by design:
   the 0.2 envelope adds it — see below). AEAD binds
   `{spec, enc_alg, recipients}` to the payload and `{spec, enc_alg, kid}` to
   each wrap, so a stripped, swapped, or reordered field/recipient fails the tag;
-  recipient keys are resolved through the signed directory.
+  recipient keys are resolved through the signed directory. The transport layer
+  (`src/lib/traveler/transport.ts`) now seals travelers into this envelope **by
+  default** and opens them with the keystore below, so what is *sent* — over the
+  MCP tools and from the browser desk — is ciphertext, under a random `.sje`
+  filename that does not leak the traveler id.
+- **Key custody at rest.** The ML-KEM *decryption* secret needed to OPEN
+  envelopes is held only in a passphrase-encrypted keystore
+  (`src/lib/traveler/keystore.ts`): scrypt (N=2¹⁶) + AES-256-GCM, storing seeds
+  not expanded keys, the clear header bound as AAD, and a substitution check on
+  unlock (a tampered header cannot point the vault at another identity). A wrong
+  passphrase and a tampered blob both fail with one **uniform** error — no oracle.
+  Sealing needs only public keys, so it never touches a secret; one-time prekeys
+  are consume-once, the deletion persisted before the secret is used.
 
 What the format does **not** defend — known, stated, and the roadmap for
 future versions:
@@ -41,6 +69,14 @@ future versions:
 - **No multi-tenant access control.** The signed directory establishes
   *identity* (org_id → key with attested capabilities), but there is no
   per-tenant authorization layer; the desk's Buyer/Seller toggle is a view.
+- **Script in the origin (XSS).** The keystore protects a stolen blob (disk /
+  localStorage) *without* the passphrase — at-rest safety is passphrase entropy ×
+  scrypt cost, so a weak passphrase plus a stolen blob is crackable offline. It
+  does **not** protect against script running on an **unlocked** desk: an XSS can
+  read the in-memory ML-KEM secret (ML-KEM runs in JS; the key is extractable
+  during decapsulation). Lock promptly; keep the unlocked lifetime short. The desk
+  still never holds **signing** keys. Working traveler state remains plaintext in
+  localStorage (the user's own data at rest).
 - **Forward secrecy is opt-in (the 0.2 envelope), not automatic.** The base 0.1
   envelope encapsulates only to a recipient's long-lived static ML-KEM key, so a
   future compromise of that key exposes past envelopes sent to it. The 0.2
@@ -48,6 +84,10 @@ future versions:
   and a two-KEM combine (one-time prekey + static, both shared secrets bound) —
   but realizing it depends on the recipient deleting the consumed one-time secret
   after opening: the format enables forward secrecy, key management completes it.
+  The transport prefers 0.2 when a verifying prekey bundle is supplied and
+  **reports** the choice (the `forwardSecret` flag); the fallback to 0.1 is
+  explicit, never silent, and `requireForwardSecret` refuses to send rather than
+  downgrade.
 - **Quotes are outside the hash** (deliberately, so travelers can climb
   levels without invalidating prices) — a quote's content is covered by its
   own seller signature and the archive's META.json digests, not by

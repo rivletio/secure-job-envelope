@@ -38,6 +38,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavLink to="/new" active={path === "/new"}>
               New traveler
             </NavLink>
+            <NavLink to="/keys" active={path === "/keys"}>
+              Keys
+            </NavLink>
             <NavLink to="/spec" active={path === "/spec"}>
               Spec
             </NavLink>
@@ -91,7 +94,7 @@ function NavLink({
   active,
   children,
 }: {
-  to: "/" | "/new" | "/spec" | "/trust";
+  to: "/" | "/new" | "/keys" | "/spec" | "/trust";
   active: boolean;
   children: ReactNode;
 }) {

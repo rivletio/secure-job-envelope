@@ -5,7 +5,7 @@ import { canonicalJson } from "./canonical.ts";
 import { boundQuotes, levelOf, parseTraveler } from "./conformance.ts";
 import { GOLDEN_QUOTEABLE, seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote, isQuoteExpired } from "./guards.ts";
-import { GOLDEN_HASH, hashQuoteable, travelerHash, quoteableBody } from "./hash.ts";
+import { GOLDEN_HASH, hashQuoteable, sha384Hex, travelerHash, quoteableBody } from "./hash.ts";
 import { quoteSchema } from "./schema.ts";
 import type { Traveler, Quote } from "./types.ts";
 import { importTravelerFile, travelerToZip } from "./zip.ts";
@@ -15,7 +15,7 @@ function validQuote(over: Partial<Quote> & { traveler_hash_quoted: string }): Qu
     quote_id: "qot_testquote01",
     seller: { name: "Huron Precision", org_id: "org_huron", itar: true },
     created_at: "2026-09-09T00:00:00.000Z",
-    valid_until: "2026-09-30T00:00:00.000Z",
+    valid_until: "2030-01-01T00:00:00.000Z",
     lead_time_days: 12,
     pricing: { currency: "USD", lines: [{ qty: 50, unit: 29 }] },
     ...over,
@@ -132,11 +132,18 @@ describe("rivlet traveler 0.0.1", () => {
     const expired: Quote = { ...quote, valid_until: "2026-09-01T00:00:00.000Z" };
     assert.equal(isQuoteExpired(expired, new Date("2026-09-14T00:00:00.000Z")), true);
     assert.match(cannotAward(bracket, expired, new Date("2026-09-14T00:00:00.000Z")) ?? "", /expired/);
+    // Far-future validity + a fixed evaluation instant so this asserts the
+    // price-line path specifically, not expiry (which is checked first) — and so
+    // the test never depends on the wall clock.
     const noLine: Quote = {
       ...quote,
+      valid_until: "2099-01-01T00:00:00.000Z",
       pricing: { ...quote.pricing, lines: [{ qty: 7, unit: 99 }] },
     };
-    assert.match(cannotAward(bracket, noLine) ?? "", /no unit price/);
+    assert.match(
+      cannotAward(bracket, noLine, new Date("2026-09-14T00:00:00.000Z")) ?? "",
+      /no unit price/,
+    );
   });
 
   it("round-trips a zip and rejects path tricks and META mismatch", async () => {
@@ -186,16 +193,73 @@ describe("rivlet traveler 0.0.1", () => {
     );
 
     const badCanon = new JSZip();
-    badCanon.file("traveler.json", JSON.stringify(traveler, null, 2));
+    const badCanonJson = JSON.stringify(traveler, null, 2);
+    badCanon.file("traveler.json", badCanonJson);
     badCanon.file(
       "META.json",
-      JSON.stringify({ traveler_id: traveler.traveler_id, traveler_hash: travelerHash(traveler) }),
+      // A valid full-bytes digest so we reach the canonical-member check (the
+      // digest is now mandatory and would otherwise fire first).
+      JSON.stringify({
+        traveler_id: traveler.traveler_id,
+        traveler_hash: travelerHash(traveler),
+        traveler_json_sha384: sha384Hex(badCanonJson),
+      }),
     );
     badCanon.file("quoteable.canonical.json", '{"tampered":true}');
     const badCanonBlob = await badCanon.generateAsync({ type: "blob" });
     await assert.rejects(
       importTravelerFile(new File([badCanonBlob], "badcanon.zip", { type: "application/zip" })),
       /quoteable\.canonical\.json does not match/,
+    );
+  });
+
+  it("refuses tampering of non-quoteable fields (award/ship_to) — full-bytes digest is required", async () => {
+    // award/ship_to/ops are NOT in the quoteable body, so traveler_hash alone does
+    // not cover them. Only the mandatory traveler_json_sha384 over the whole
+    // traveler.json does. Injecting an award leaves traveler_hash unchanged.
+    const traveler = seedTravelers()[0]!;
+    const honestJson = JSON.stringify(traveler, null, 2);
+    const tampered = {
+      ...traveler,
+      award: { quote_id: "qot_injected1", awarded_at: "2027-01-01T00:00:00.000Z", qty: 1 },
+    };
+    const tamperedJson = JSON.stringify(tampered, null, 2);
+    assert.equal(
+      travelerHash(parseTraveler(tampered)),
+      travelerHash(traveler),
+      "an injected award does not change traveler_hash",
+    );
+
+    // (a) META carries the HONEST full-bytes digest, but traveler.json is tampered → refused.
+    const staleDigest = new JSZip();
+    staleDigest.file("traveler.json", tamperedJson);
+    staleDigest.file(
+      "META.json",
+      JSON.stringify({
+        traveler_id: traveler.traveler_id,
+        traveler_hash: travelerHash(traveler),
+        traveler_json_sha384: sha384Hex(honestJson),
+      }),
+    );
+    await assert.rejects(
+      importTravelerFile(
+        new File([await staleDigest.generateAsync({ type: "blob" })], "a.zip", { type: "application/zip" }),
+      ),
+      /traveler_json_sha384/,
+    );
+
+    // (b) META omits the digest entirely → refused (it is required, no longer optional).
+    const noDigest = new JSZip();
+    noDigest.file("traveler.json", tamperedJson);
+    noDigest.file(
+      "META.json",
+      JSON.stringify({ traveler_id: traveler.traveler_id, traveler_hash: travelerHash(traveler) }),
+    );
+    await assert.rejects(
+      importTravelerFile(
+        new File([await noDigest.generateAsync({ type: "blob" })], "b.zip", { type: "application/zip" }),
+      ),
+      /traveler_json_sha384 is required/,
     );
   });
 

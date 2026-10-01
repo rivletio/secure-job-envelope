@@ -1,6 +1,35 @@
 import { travelerHash } from "./hash.ts";
+import { LONE_SURROGATE } from "./canonical.ts";
 import { travelerSchema, quoteSchema } from "./schema.ts";
 import type { ConformanceLevel, Traveler, Quote } from "./types.ts";
+
+/** Reject a document containing a lone surrogate in ANY string key or value.
+ *  Such a string has no UTF-8 encoding, so the Rust core's serde_json refuses the
+ *  whole document at parse; without this check TypeScript would accept a document
+ *  Rust rejects (a cross-implementation accept/reject divergence), and the
+ *  offending string would also be unhashable. Mirrors serde's parse-time refusal. */
+// Depth-bounded like the canonicalizer (MAX_CANONICAL_DEPTH): this runs before the
+// schema/size checks, so a hand-built deeply-nested document must be refused
+// cleanly rather than blowing the stack with an uncaught RangeError.
+const MAX_UTF8_DEPTH = 128;
+
+function assertUtf8Safe(v: unknown, depth = 0): void {
+  if (depth > MAX_UTF8_DEPTH) throw new Error("JSON nesting exceeds the maximum depth");
+  if (typeof v === "string") {
+    if (LONE_SURROGATE.test(v)) throw new Error("string contains a lone surrogate (no UTF-8 encoding)");
+    return;
+  }
+  if (Array.isArray(v)) {
+    for (const x of v) assertUtf8Safe(x, depth + 1);
+    return;
+  }
+  if (v && typeof v === "object") {
+    for (const [k, val] of Object.entries(v)) {
+      if (LONE_SURROGATE.test(k)) throw new Error("object key contains a lone surrogate (no UTF-8 encoding)");
+      assertUtf8Safe(val, depth + 1);
+    }
+  }
+}
 
 export type LevelInfo = {
   level: ConformanceLevel;
@@ -84,17 +113,19 @@ export function levelOf(traveler: Traveler): LevelInfo {
     level: 2,
     name: "Executable",
     code: "L2",
-    missing: ["as_built (reserved in 0.0.1)"],
+    missing: ["as_built (record L3 as-built data to advance)"],
   };
 }
 
 export function parseTraveler(data: unknown): Traveler {
+  assertUtf8Safe(data);
   const r = travelerSchema.safeParse(data);
   if (!r.success) throw new Error(formatZod(r.error, "traveler"));
   return r.data as Traveler;
 }
 
 export function parseQuote(data: unknown): Quote {
+  assertUtf8Safe(data);
   const r = quoteSchema.safeParse(data);
   if (!r.success) throw new Error(formatZod(r.error, "quote"));
   return r.data as Quote;

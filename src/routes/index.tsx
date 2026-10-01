@@ -7,8 +7,10 @@ import { TravelerCard } from "@/components/traveler-card";
 import { Button } from "@/components/ui/button";
 import { levelOf } from "@/lib/traveler/conformance";
 import { itarExportWarning } from "@/lib/traveler/guards";
+import { useKeysStore } from "@/lib/traveler/keys-store";
 import { useTravelerStore } from "@/lib/traveler/store";
-import type { Traveler } from "@/lib/traveler/types";
+import { openTraveler, parseSjeEnvelope } from "@/lib/traveler/transport";
+import { MAX_ARCHIVE_BYTES, type Traveler } from "@/lib/traveler/types";
 import { importTravelerFile } from "@/lib/traveler/zip";
 import { cn } from "@/lib/utils";
 
@@ -45,15 +47,51 @@ function Desk() {
     return code === filter;
   });
 
-  async function ingest(file: File) {
+  function admit(traveler: Traveler, note: string) {
+    if (itarExportWarning(traveler)) {
+      setPendingTraveler(traveler);
+      return;
+    }
+    importOne(traveler);
+    toast.success(`${note} ${traveler.traveler_id}`);
+  }
+
+  /** Open a sealed `.sje`: decrypt with the unlocked desk keystore, then run the same
+   *  defensive import as a plaintext traveler. Needs an unlocked identity. */
+  async function ingestSje(file: File) {
+    const unlocked = useKeysStore.getState().unlocked;
+    if (!unlocked) {
+      toast.error("Unlock your identity in Keys to open a sealed .sje");
+      return;
+    }
+    if (file.size > 2 * MAX_ARCHIVE_BYTES + 64 * 1024) {
+      toast.error("Sealed envelope exceeds size limit");
+      return;
+    }
+    let envelope;
     try {
-      const traveler = await importTravelerFile(file);
-      if (itarExportWarning(traveler)) {
-        setPendingTraveler(traveler);
-        return;
-      }
-      importOne(traveler);
-      toast.success(`Opened ${traveler.traveler_id}`);
+      envelope = parseSjeEnvelope(await file.text());
+    } catch {
+      toast.error("Not a recognized SJE envelope");
+      return;
+    }
+    try {
+      const traveler = await openTraveler(envelope, unlocked, {
+        persistKeystore: (ks) => useKeysStore.getState().persistKeystore(ks),
+      });
+      admit(traveler, "Decrypted");
+    } catch {
+      toast.error("Could not open envelope (wrong recipient, tampered, or not addressed to this desk)");
+    }
+  }
+
+  async function ingest(file: File) {
+    if (file.name.toLowerCase().endsWith(".sje")) {
+      await ingestSje(file);
+      return;
+    }
+    try {
+      admit(await importTravelerFile(file), "Opened");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not open traveler");
     }
@@ -100,7 +138,7 @@ function Desk() {
               onClick={() => {
                 const input = document.createElement("input");
                 input.type = "file";
-                input.accept = ".json,.zip,.traveler.zip,application/json,application/zip";
+                input.accept = ".json,.zip,.traveler.zip,.sje,application/json,application/zip";
                 input.addEventListener("change", () => {
                   const f = input.files?.[0];
                   if (f) void ingest(f);
@@ -108,7 +146,7 @@ function Desk() {
                 input.click();
               }}
             >
-              Open .traveler
+              Open .traveler / .sje
             </Button>
           </div>
         </div>
@@ -118,7 +156,7 @@ function Desk() {
             <LevelRow code="L0" name="Quoteable" hint="Material and qty are known" n={counts.L0} />
             <LevelRow code="L1" name="Awardable" hint="A quote bound to this hash" n={counts.L1} />
             <LevelRow code="L2" name="Executable" hint="Awarded, ops, ship-to" n={counts.L2} />
-            <LevelRow code="L3" name="As-built" hint="Reserved in 0.1" n={0} />
+            <LevelRow code="L3" name="As-built" hint="As-built (grouped under Executable)" n={0} />
           </ul>
         </aside>
       </section>
