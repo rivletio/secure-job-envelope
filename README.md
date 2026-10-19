@@ -28,6 +28,7 @@ This repo contains:
 
 | Path | What it is |
 |---|---|
+| `docs/GUIDE.md` | **Practical manual** — install, the mental model, and three runnable walkthroughs (lifecycle, signatures, encrypted exchange) across all four surfaces |
 | `docs/PLAN.md` | Project plan: goals, milestones, current state (shalt manages the live copy in `.shalt/plan.md`) |
 | `docs/CLAANKER.md` | How Claanker carries a sealed envelope and does not open it |
 | `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |
@@ -36,7 +37,7 @@ This repo contains:
 | `src/lib/traveler/` | Reference **TypeScript** implementation (canonicalization, hashing, guards, zip import/export, encrypted transport + passphrase keystore) |
 | `crates/secure-job-envelope/` | Independent **Rust** implementation + CLI (`envelope hash|level`) |
 | `src/` (the rest) | The **desk** — a browser workbench that demonstrates the full L0→L2 flow |
-| `examples/` | A worked example traveler and how to verify it with both implementations |
+| `examples/` | Worked traveler files + three runnable examples (`npm run example:lifecycle` / `:signatures` / `:exchange`) |
 | `mcp/` | **MCP server + two-desk agent demo** — buyer and seller agents transacting over sealed travelers (`npm run demo`) |
 | `conformance/` | Language-agnostic conformance vectors — both implementations run the same files in CI |
 | `docs/CLAIMS.md` | The claims register: every written security claim mapped to the test that proves it |

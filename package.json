@@ -17,6 +17,8 @@
     "mcp": "node --experimental-strip-types mcp/server.ts",
     "demo": "node --experimental-strip-types mcp/demo.ts",
     "example:exchange": "node --experimental-strip-types examples/encrypted-exchange.ts",
+    "example:lifecycle": "node --experimental-strip-types examples/lifecycle.ts",
+    "example:signatures": "node --experimental-strip-types examples/signed-traveler.ts",
     "soak": "node --experimental-strip-types sim/soak.ts",
     "differential": "node --experimental-strip-types sim/differential.ts",
     "corpus": "node --experimental-strip-types sim/corpus.ts"
