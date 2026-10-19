@@ -37,6 +37,10 @@ jobs:
       # copied to the desk index and the site-root 404 (deep-link fallback).
       - run: node scripts/build-pages.mjs _pages
       - uses: actions/configure-pages@v5
+        # Enable Pages (Source: GitHub Actions) on the first run via the API, so no
+        # manual repo-setting toggle is needed. Uses the job's `pages: write` grant.
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _pages
