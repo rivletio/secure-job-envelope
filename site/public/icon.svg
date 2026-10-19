@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Secure Job Envelope">
+  <rect width="512" height="512" rx="104" fill="#0b1b30" />
+  <g transform="rotate(10 256 256)">
+    <rect x="148" y="148" width="216" height="216" rx="44" fill="none" stroke="#5cc8ff" stroke-width="26" />
+    <rect x="214" y="214" width="84" height="84" rx="18" fill="#5cc8ff" />
+  </g>
+</svg>

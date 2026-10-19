@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SJE — Encrypted exchange demo</title>
+    <meta
+      name="description"
+      content="Seal a Secure Job Envelope traveler to a recipient with post-quantum, forward-secret encryption — and watch every tamper, wrong-key and downgrade attack get refused, in your browser."
+    />
+    <meta name="theme-color" content="#0b1b30" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site">
+        <div class="mark"></div>
+        <span class="brand">SJE<span>.demos</span></span>
+        <nav>
+          <a href="./">Home</a>
+          <a href="lifecycle.html">Lifecycle</a>
+          <a href="exchange.html" aria-current="page">Encrypted</a>
+          <a href="https://github.com/rivletio/secure-job-envelope">GitHub</a>
+        </nav>
+      </header>
+
+      <h1>Encrypted <em>exchange</em></h1>
+      <p class="lede">
+        Two desks mint post-quantum identities, publish a signed directory and a one-time prekey
+        bundle, then seal a traveler so only the recipient can open it — forward-secret by default.
+        Real ML-KEM-1024 and ML-DSA-87, running entirely in your browser.
+      </p>
+
+      <div class="card grid">
+        <div class="row" style="justify-content: space-between">
+          <span class="pill">ML-KEM-1024 · HKDF-SHA-384 · AES-256-GCM</span>
+          <button id="run">Run the exchange</button>
+        </div>
+        <div id="steps"></div>
+        <div id="out" class="out" aria-live="polite"></div>
+      </div>
+
+      <p class="note">
+        Nothing leaves your browser. The transit artifact is a <span class="mono">.sje</span>
+        envelope — ciphertext — so the traveler id, buyer and part number never appear in the clear.
+        A one-byte flip, the wrong keystore, a forged envelope and a silent downgrade are all
+        refused.
+      </p>
+      <p class="foot">
+        Same code as <span class="mono">npm run example:exchange</span> ·
+        <a href="https://github.com/rivletio/secure-job-envelope">source on GitHub</a>
+      </p>
+    </div>
+    <script type="module" src="/src/exchange.ts"></script>
+  </body>
+</html>

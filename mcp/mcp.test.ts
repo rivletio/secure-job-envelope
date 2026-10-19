@@ -347,6 +347,24 @@ describe("sje mcp surface", () => {
     }
   });
 
+  it("sje_seal refuses an unknown recipient org and a wrong trust root", async () => {
+    const unknownOrg = await call("sje_seal", {
+      traveler: EXAMPLE,
+      directory,
+      root_public_key_hex: rootPublicKeyHex,
+      recipient_org: "org_nonesuch",
+    });
+    assert.ok(unknownOrg.isError, "an org with no directory entry must be refused");
+
+    const wrongRoot = await call("sje_seal", {
+      traveler: EXAMPLE,
+      directory,
+      root_public_key_hex: "00".repeat(2592), // a root the directory does not verify against
+      recipient_org: RECIP_ORG,
+    });
+    assert.ok(wrongRoot.isError, "a directory that doesn't verify against the given root must be refused");
+  });
+
   it("sje_open refuses a decrypted archive whose non-quoteable fields were tampered (F3)", async () => {
     // A well-formed ENVELOPE (AEAD passes on decrypt) whose decrypted payload is a
     // semantically-tampered archive: an award injected (a NON-quoteable field, so

@@ -1,8 +1,35 @@
-# Worked example
+# Worked examples
 
-[`bracket.traveler.json`](bracket.traveler.json) is a complete L0 (Quoteable)
-traveler: a CNC bracket, 6061-T6 plate, 250 target with price breaks, need-by
-and Incoterms set, ITAR false.
+Two traveler files and three runnable examples. Each example drives the real
+library — the same code the MCP server and the browser desk call — and exits
+non-zero if any invariant fails, so they are living documentation and smoke tests
+at once.
+
+- [`bracket.traveler.json`](bracket.traveler.json) — a complete L0 (Quoteable)
+  traveler: a CNC bracket, 6061-T6 plate, 250 target with price breaks, need-by
+  and Incoterms set, ITAR false.
+- [`itar.traveler.json`](itar.traveler.json) — an L0 traveler with the ITAR flag
+  set (demo data only; no controlled technical data). The flag is a self-declared
+  consistency check, not an access-control system.
+- [`lifecycle.ts`](lifecycle.ts) — compose → quote → amend → re-quote → award: a
+  quote binds to the exact revision it priced, and the award locks the traveler.
+- [`signed-traveler.ts`](signed-traveler.ts) — ML-DSA-87 authorship: sign the
+  quoteable body, verify against a signed directory, and refuse a tampered body or
+  a wrong-org signer.
+- [`encrypted-exchange.ts`](encrypted-exchange.ts) — a post-quantum encrypted
+  exchange between two desks, with a live "attacks refused" section.
+
+## Run the examples
+
+```bash
+npm run example:lifecycle    # binding + the executable lock
+npm run example:signatures   # authorship: sign, verify, refuse tamper / wrong org
+npm run example:exchange      # confidentiality: seal, open, refuse the attacks
+```
+
+The three map to SJE's three security properties — integrity + binding,
+authenticity, and confidentiality. For a full walkthrough across every surface
+(library, Rust CLI, MCP, and the browser desk), see [docs/GUIDE.md](../docs/GUIDE.md).
 
 ## Verify it with the Rust CLI
 
