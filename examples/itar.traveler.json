@@ -1,0 +1,28 @@
+{
+  "spec": "sje/0.1.0",
+  "traveler_id": "tvl_itardemo01",
+  "revision": 1,
+  "created_at": "2026-09-15T17:00:00.000Z",
+  "buyer": {
+    "org_id": "org_huron",
+    "name": "Huron Defense Works",
+    "city": "Ann Arbor",
+    "region": "MI",
+    "contact": "buyer@huron.example",
+    "itar": true
+  },
+  "part": {
+    "family": "machined housing",
+    "part_number": "HD-HSG-0007",
+    "description": "Generic aluminum housing — DEMO ONLY, no controlled technical data",
+    "drawing_rev": "A",
+    "material": { "spec": "7075-T6", "form": "bar" },
+    "qty": { "target": 40, "breaks": [20, 40] },
+    "processes": ["cnc-mill", "anodize"],
+    "finish": "clear anodize",
+    "notes": "ITAR is self-declared on the envelope; it is a consistency check, not an access-control system. No USML technical data is included in this demo file."
+  },
+  "need_by": "2026-12-15",
+  "incoterms": "FOB",
+  "itar": true
+}

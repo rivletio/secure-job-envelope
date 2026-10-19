@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { sealTraveler, openTraveler, parseSjeEnvelope } from "./transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "./keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "./directory.ts";
@@ -192,6 +194,28 @@ describe("encrypted transport (forward-secret path)", () => {
     const reloaded = await unlock(persisted!, PASS);
     const resent = (await seal()).envelope;
     await assert.rejects(() => openTraveler(resent, reloaded), /already consumed/);
+  });
+
+  it("persists the consumed prekey to disk: a reload from the written file cannot reuse it", async () => {
+    const { directory, rootPublicKeyHex, unlocked, signer } = await setup();
+    const { bundle, prekeyIds } = signedBundle(unlocked, signer, 1);
+    const seal = () =>
+      sealTraveler(sampleTraveler(), { directory, rootPublicKeyHex, recipientOrg: "org_recipient", prekeyBundle: bundle, prekeyId: prekeyIds[0] });
+    const dir = mkdtempSync(join(tmpdir(), "sje-ks-"));
+    const ksPath = join(dir, "desk.keystore.json");
+    try {
+      // Open with a persistKeystore that writes the updated blob to a real file.
+      await openTraveler((await seal()).envelope, unlocked, {
+        persistKeystore: (ks) => writeFileSync(ksPath, JSON.stringify(ks)),
+      });
+      // Reload the keystore straight from disk; the consumed prekey must be gone, so a
+      // re-sent envelope to it cannot be opened even by this fresh, file-backed unlock.
+      const reloaded = await unlock(JSON.parse(readFileSync(ksPath, "utf8")) as Keystore, PASS);
+      const resent = (await seal()).envelope;
+      await assert.rejects(() => openTraveler(resent, reloaded), /already consumed/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("requireForwardSecret throws instead of silently downgrading to static", async () => {

@@ -1,8 +1,30 @@
-# Worked example
+# Worked examples
 
-[`bracket.traveler.json`](bracket.traveler.json) is a complete L0 (Quoteable)
-traveler: a CNC bracket, 6061-T6 plate, 250 target with price breaks, need-by
-and Incoterms set, ITAR false.
+Two travelers and one runnable end-to-end script:
+
+- [`bracket.traveler.json`](bracket.traveler.json) — a complete L0 (Quoteable)
+  traveler: a CNC bracket, 6061-T6 plate, 250 target with price breaks, need-by
+  and Incoterms set, ITAR false.
+- [`itar.traveler.json`](itar.traveler.json) — an L0 traveler with the ITAR flag
+  set (demo data only; no controlled technical data). The flag is a self-declared
+  consistency check, not an access-control system.
+- [`encrypted-exchange.ts`](encrypted-exchange.ts) — a runnable, post-quantum
+  encrypted exchange between two desks (below).
+
+## Run the encrypted exchange
+
+```bash
+npm run example:exchange
+```
+
+`encrypted-exchange.ts` mints two desk identities (ML-KEM keys in passphrase-
+encrypted keystores), publishes a signed directory and the seller's one-time
+prekey bundle, seals the bracket traveler into a **forward-secret `.sje`**
+envelope, and opens it — then demonstrates the attacks the transport refuses: a
+flipped ciphertext byte, the wrong desk's keystore, a forged envelope that names
+a real prekey (which must **not** burn it), and a refused silent downgrade. It
+uses the same library the MCP server and the browser desk call, and exits
+non-zero if any invariant fails.
 
 ## Verify it with the Rust CLI
 
