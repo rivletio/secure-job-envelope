@@ -1,5 +1,6 @@
 node_modules/
 dist/
+_pages/
 .output/
 .nitro/
 .tanstack/

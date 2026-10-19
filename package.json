@@ -24,7 +24,8 @@
     "corpus": "node --experimental-strip-types sim/corpus.ts",
     "site:dev": "vite dev -c site/vite.config.ts",
     "site:build": "vite build -c site/vite.config.ts",
-    "site:preview": "vite preview -c site/vite.config.ts"
+    "site:preview": "vite preview -c site/vite.config.ts",
+    "desk:build": "DESK_STATIC=1 vite build"
   },
   "dependencies": {
     "@noble/ciphers": "^2.4.0",

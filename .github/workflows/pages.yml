@@ -1,0 +1,52 @@
+name: Pages
+
+# Build the GitHub Pages site — the two demo PWAs plus the statically exported
+# desk — and deploy it. One-time setup: Settings → Pages → Source: "GitHub Actions".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege for a Pages deploy: read the repo, write the Pages artifact,
+# and mint the deployment's OIDC token. Nothing else.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One live deployment at a time; never cancel an in-flight deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Demos + landing at the site root (/secure-job-envelope/).
+      - run: npm run site:build
+      # The desk SPA under /secure-job-envelope/desk/.
+      - run: npm run desk:build
+      # Assemble _pages: demos at the root, the desk under /desk/, the SPA shell
+      # copied to the desk index and the site-root 404 (deep-link fallback).
+      - run: node scripts/build-pages.mjs _pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
