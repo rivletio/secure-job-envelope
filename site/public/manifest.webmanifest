@@ -1,0 +1,13 @@
+{
+  "name": "Secure Job Envelope — Demos",
+  "short_name": "SJE Demos",
+  "description": "Run the Secure Job Envelope reference library in your browser: the traveler lifecycle and a post-quantum encrypted exchange.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0b1b30",
+  "theme_color": "#0b1b30",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

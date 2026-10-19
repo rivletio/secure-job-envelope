@@ -21,7 +21,10 @@
     "example:signatures": "node --experimental-strip-types examples/signed-traveler.ts",
     "soak": "node --experimental-strip-types sim/soak.ts",
     "differential": "node --experimental-strip-types sim/differential.ts",
-    "corpus": "node --experimental-strip-types sim/corpus.ts"
+    "corpus": "node --experimental-strip-types sim/corpus.ts",
+    "site:dev": "vite dev -c site/vite.config.ts",
+    "site:build": "vite build -c site/vite.config.ts",
+    "site:preview": "vite preview -c site/vite.config.ts"
   },
   "dependencies": {
     "@noble/ciphers": "^2.4.0",

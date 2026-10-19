@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Secure Job Envelope — Demos</title>
+    <meta
+      name="description"
+      content="Run the Secure Job Envelope reference library in your browser: the traveler lifecycle and a post-quantum encrypted exchange. Installable, works offline."
+    />
+    <meta name="theme-color" content="#0b1b30" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site">
+        <div class="mark"></div>
+        <span class="brand">SJE<span>.demos</span></span>
+        <nav>
+          <a href="./" aria-current="page">Home</a>
+          <a href="lifecycle.html">Lifecycle</a>
+          <a href="exchange.html">Encrypted</a>
+          <a href="https://github.com/rivletio/secure-job-envelope">GitHub</a>
+        </nav>
+      </header>
+
+      <h1>Secure Job <em>Envelope</em></h1>
+      <p class="lede">
+        A portable, signed, post-quantum-encrypted record for a manufacturing job as it moves
+        between buyer and shop. These two demos run the <strong>real reference library</strong>
+        in your browser — no server, nothing leaves the page. Install either one and it works
+        offline.
+      </p>
+
+      <div class="row" style="margin: 4px 0 20px">
+        <button id="install" hidden>Install these demos</button>
+        <a
+          class="pill"
+          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/GUIDE.md"
+          >Guide</a
+        >
+        <a
+          class="pill"
+          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/CLAIMS.md"
+          >Claims &amp; conformance</a
+        >
+      </div>
+
+      <div class="cols two">
+        <a class="card demo-card" href="lifecycle.html">
+          <span class="tag">Lifecycle &amp; binding</span>
+          <h3>Compose → quote → amend → award</h3>
+          <p>
+            A quote binds to the exact revision it priced. Amend the spec and the hash moves, so the
+            quote goes stale; the award locks the traveler at L2 Executable. Watch the state machine
+            enforce it.
+          </p>
+        </a>
+        <a class="card demo-card" href="exchange.html">
+          <span class="tag">Encrypted exchange</span>
+          <h3>Seal it so only the shop can open it</h3>
+          <p>
+            Post-quantum, forward-secret sealing with ML-KEM-1024 and a one-time prekey. The wire
+            artifact is ciphertext; tamper, wrong-key, prekey-burn and downgrade attacks are all
+            refused — live.
+          </p>
+        </a>
+      </div>
+
+      <p class="note">
+        Everything you see is computed locally with the same modules shipped in the library, the
+        Rust CLI and the MCP server. The demos never transmit a traveler; the “encrypted exchange”
+        seals and opens entirely within this one tab.
+      </p>
+      <p class="foot">
+        Secure Job Envelope ·
+        <a href="https://github.com/rivletio/secure-job-envelope"
+          >github.com/rivletio/secure-job-envelope</a
+        >
+      </p>
+    </div>
+    <script type="module" src="/src/landing.ts"></script>
+  </body>
+</html>

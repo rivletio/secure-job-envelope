@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SJE — Lifecycle demo</title>
+    <meta
+      name="description"
+      content="Compose, quote, amend and award a Secure Job Envelope traveler — running the real library in your browser."
+    />
+    <meta name="theme-color" content="#0b1b30" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site">
+        <div class="mark"></div>
+        <span class="brand">SJE<span>.demos</span></span>
+        <nav>
+          <a href="./">Home</a>
+          <a href="lifecycle.html" aria-current="page">Lifecycle</a>
+          <a href="exchange.html">Encrypted</a>
+          <a href="https://github.com/rivletio/secure-job-envelope">GitHub</a>
+        </nav>
+      </header>
+
+      <h1>Lifecycle <em>&amp; binding</em></h1>
+      <p class="lede">
+        Compose → quote → amend → re-quote → award, running the real reference library in your
+        browser. A quote binds to the exact revision it priced; amend the spec and it goes stale;
+        the award locks the traveler at L2.
+      </p>
+
+      <div class="card grid">
+        <div class="row" style="justify-content: space-between">
+          <div id="state" class="chips"></div>
+          <button id="run">Run the lifecycle</button>
+        </div>
+        <div id="steps"></div>
+        <div id="out" class="out" aria-live="polite"></div>
+      </div>
+
+      <p class="note">
+        Nothing leaves your browser. <span class="mono">traveler_hash</span> is a SHA-384 over the
+        canonical quoteable body — change material or quantity and every prior quote stops matching.
+      </p>
+      <p class="foot">
+        Same code as <span class="mono">npm run example:lifecycle</span> ·
+        <a href="https://github.com/rivletio/secure-job-envelope">source on GitHub</a>
+      </p>
+    </div>
+    <script type="module" src="/src/lifecycle.ts"></script>
+  </body>
+</html>
