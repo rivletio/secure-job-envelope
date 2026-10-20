@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "Secure Job Envelope (SJE) 0.1.0 — content-addressed job envelope for one part family"
-repository = "https://github.com/rivletio/sje"
+repository = "https://github.com/rivletio/secure-job-envelope"
 homepage = "https://securejobenvelope.org"
 
 [dependencies]
