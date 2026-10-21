@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { buildDemoTrust } from "@/lib/traveler/demo-trust";
 import { useKeysStore } from "@/lib/traveler/keys-store";
 import type { PublicPrekey } from "@/lib/traveler/keystore";
 
@@ -163,7 +164,8 @@ function KeysPage() {
               <h2 className="text-sm font-medium">This desk&apos;s identity</h2>
               <span
                 className={
-                  "font-mono text-xs " + (unlocked ? "text-accent" : identity ? "text-warn" : "text-faint")
+                  "font-mono text-xs " +
+                  (unlocked ? "text-accent" : identity ? "text-warn" : "text-faint")
                 }
               >
                 {unlocked ? "unlocked" : identity ? "locked" : "none"}
@@ -177,7 +179,12 @@ function KeysPage() {
                 </p>
                 <div className="grid gap-1">
                   <Label htmlFor="org">Org id (optional label)</Label>
-                  <Input id="org" value={orgId} onChange={(e) => setOrgId(e.target.value)} placeholder="org_yourco" />
+                  <Input
+                    id="org"
+                    value={orgId}
+                    onChange={(e) => setOrgId(e.target.value)}
+                    placeholder="org_yourco"
+                  />
                 </div>
                 <div className="grid gap-1">
                   <Label htmlFor="pass">Passphrase (min 12 chars)</Label>
@@ -220,7 +227,9 @@ function KeysPage() {
                     <Button type="button" variant="outline" onClick={lock}>
                       Lock
                     </Button>
-                    <span className="text-xs text-muted-foreground">Secret is in memory. Lock when done.</span>
+                    <span className="text-xs text-muted-foreground">
+                      Secret is in memory. Lock when done.
+                    </span>
                   </div>
                 )}
 
@@ -249,8 +258,8 @@ function KeysPage() {
                     {lastPrekeys && (
                       <div>
                         <p className="text-xs text-muted-foreground">
-                          Publish these in a bundle signed by your org directory key (signed off this
-                          desk):
+                          Publish these in a bundle signed by your org directory key (signed off
+                          this desk):
                         </p>
                         <Json value={lastPrekeys} />
                       </div>
@@ -282,7 +291,9 @@ function KeysPage() {
             {trust ? (
               <div className="mt-4 grid gap-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Root public key (verify out of band)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Root public key (verify out of band)
+                  </p>
                   <div className="mt-1 flex items-start gap-2">
                     <code className="block flex-1 overflow-x-auto rounded-sm bg-wash p-2 font-mono text-xs">
                       {trust.rootPublicKeyHex}
@@ -296,7 +307,10 @@ function KeysPage() {
                   </p>
                   <ul className="mt-1 grid gap-1 text-sm">
                     {trust.directory.entries.map((e) => (
-                      <li key={`${e.org_id}-${e.kid}`} className="flex items-center justify-between gap-2">
+                      <li
+                        key={`${e.org_id}-${e.kid}`}
+                        className="flex items-center justify-between gap-2"
+                      >
                         <span className="font-mono text-xs">{e.org_id}</span>
                         <span className="text-xs text-muted-foreground">
                           {e.enc_public_key ? "ML-KEM" : "sign-only"}
@@ -306,26 +320,60 @@ function KeysPage() {
                     ))}
                   </ul>
                 </div>
-                <Button type="button" variant="ghost" className="justify-start text-danger" onClick={clearTrust}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="justify-start text-danger"
+                  onClick={clearTrust}
+                >
                   Clear trust anchor
                 </Button>
               </div>
             ) : (
-              <div className="mt-4 grid gap-2">
-                <Label htmlFor="anchor">
-                  Paste {"{ root_public_key_hex, directory, bundles? }"}
-                </Label>
-                <Textarea
-                  id="anchor"
-                  rows={8}
-                  value={anchorText}
-                  onChange={(e) => setAnchorText(e.target.value)}
-                  placeholder='{"root_public_key_hex":"…","directory":{…}}'
-                  className="font-mono text-xs"
-                />
-                <Button type="button" onClick={onLoadAnchor} disabled={!anchorText.trim()}>
-                  Load &amp; verify
-                </Button>
+              <div className="mt-4 grid gap-3">
+                <div className="grid gap-1">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        setTrust(buildDemoTrust());
+                        toast.success("Loaded a demo trust anchor");
+                      } catch (err) {
+                        toast.error(
+                          err instanceof Error ? err.message : "Could not load demo trust anchor",
+                        );
+                      }
+                    }}
+                  >
+                    Load a demo trust anchor
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Sample shops with real ML-KEM keys, so you can try{" "}
+                    <strong>Seal &amp; send</strong> right away. A convenience for the demo — not a
+                    real trust root.
+                  </p>
+                </div>
+                <div className="grid gap-2 border-t border-border pt-3">
+                  <Label htmlFor="anchor">
+                    Or paste your own {"{ root_public_key_hex, directory, bundles? }"}
+                  </Label>
+                  <Textarea
+                    id="anchor"
+                    rows={8}
+                    value={anchorText}
+                    onChange={(e) => setAnchorText(e.target.value)}
+                    placeholder='{"root_public_key_hex":"…","directory":{…}}'
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onLoadAnchor}
+                    disabled={!anchorText.trim()}
+                  >
+                    Load &amp; verify
+                  </Button>
+                </div>
               </div>
             )}
           </section>
