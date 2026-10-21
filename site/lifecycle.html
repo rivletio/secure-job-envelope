@@ -6,7 +6,7 @@
     <title>SJE — Lifecycle demo</title>
     <meta
       name="description"
-      content="Compose, quote, amend and award a Secure Job Envelope traveler — running the real library in your browser."
+      content="See how a manufacturing job gets a tamper-evident fingerprint — then edit the spec yourself and watch a quote go stale the instant the spec changes. Runs the real library in your browser."
     />
     <meta name="theme-color" content="#0b1b30" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -21,32 +21,56 @@
           <a href="./">Home</a>
           <a href="lifecycle.html" aria-current="page">Lifecycle</a>
           <a href="exchange.html">Encrypted</a>
+          <a href="desk/">Desk</a>
           <a href="https://github.com/rivletio/secure-job-envelope">GitHub</a>
         </nav>
       </header>
 
       <h1>Lifecycle <em>&amp; binding</em></h1>
       <p class="lede">
-        Compose → quote → amend → re-quote → award, running the real reference library in your
-        browser. A quote binds to the exact revision it priced; amend the spec and it goes stale;
-        the award locks the traveler at L2.
+        Before anyone can quote a price, the buyer and the shops have to agree on
+        <em>exactly</em> what's being built. Secure Job Envelope turns that spec into a
+        tamper-evident <strong>fingerprint</strong>, so a price is always tied to one exact
+        revision. Walk through the idea in plain language, then try it yourself.
       </p>
 
-      <div class="card grid">
-        <div class="row" style="justify-content: space-between">
-          <div id="state" class="chips"></div>
-          <button id="run">Run the lifecycle</button>
+      <!-- Guided walkthrough -->
+      <section class="card grid">
+        <div class="row between">
+          <h2 style="margin: 0">Walk it through</h2>
+          <div class="btn-row">
+            <button id="next">Start →</button>
+            <button id="replay" class="ghost" hidden>Start over</button>
+          </div>
         </div>
-        <div id="steps"></div>
-        <div id="out" class="out" aria-live="polite"></div>
-      </div>
+        <p class="sub" id="walk-hint">
+          Five steps, in plain language. Tap any underlined term for a definition.
+        </p>
+        <div id="walk" class="walk"></div>
+      </section>
+
+      <!-- Interactive sandbox -->
+      <section class="card grid">
+        <div>
+          <h2 style="margin: 0 0 4px">Now you try — you're the buyer</h2>
+          <p class="sub" id="box-intro"></p>
+        </div>
+        <div class="cols two">
+          <div>
+            <div id="controls"></div>
+            <button id="reset-box" class="ghost">Reset to the original spec</button>
+          </div>
+          <div class="grid" id="live"></div>
+        </div>
+      </section>
 
       <p class="note">
-        Nothing leaves your browser. <span class="mono">traveler_hash</span> is a SHA-384 over the
-        canonical quoteable body — change material or quantity and every prior quote stops matching.
+        Nothing leaves your browser — this runs the same reference library shipped in the CLI and
+        the desk. The fingerprint is a SHA-384 over the canonical quoteable body; change material,
+        quantity or terms and every prior quote stops matching.
       </p>
       <p class="foot">
-        Same code as <span class="mono">npm run example:lifecycle</span> ·
+        Same engine as <span class="mono">npm run example:lifecycle</span> ·
         <a href="https://github.com/rivletio/secure-job-envelope">source on GitHub</a>
       </p>
     </div>

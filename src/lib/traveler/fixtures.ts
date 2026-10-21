@@ -2,6 +2,23 @@ import { travelerHash } from "./hash.ts";
 import type { Traveler, Quote, QuoteableBody } from "./types.ts";
 import { TRAVELER_SPEC } from "./types.ts";
 
+// Demo seed dates are anchored to "today" (midnight UTC, fixed once per process) so
+// the demo never goes stale: quotes keep a live valid_until (you can still award),
+// and travelers read as recently created. Anchoring to the day keeps a given run
+// deterministic — every seedTravelers() call in the process yields identical dates,
+// so traveler hashes are stable within a run. (GOLDEN_QUOTEABLE below stays fixed —
+// it is a cross-implementation golden vector, not demo data.)
+const DAY_MS = 86_400_000;
+const SEED_ANCHOR = (() => {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d.getTime();
+})();
+/** Full ISO-8601 millisecond timestamp, `deltaDays` from today (negative = past). */
+const ts = (deltaDays: number): string => new Date(SEED_ANCHOR + deltaDays * DAY_MS).toISOString();
+/** Calendar day (YYYY-MM-DD), `deltaDays` from today — for date-only fields like need_by. */
+const day = (deltaDays: number): string => ts(deltaDays).slice(0, 10);
+
 function withBoundQuotes(traveler: Omit<Traveler, "quotes"> & { quotes?: Quote[] }): Traveler {
   const base: Traveler = { ...traveler, quotes: [] };
   const hash = travelerHash(base);
@@ -52,7 +69,7 @@ export function seedTravelers(): Traveler[] {
     spec: TRAVELER_SPEC,
     traveler_id: "tvl_nlbrk4410",
     revision: 1,
-    created_at: "2026-09-08T15:12:00.000Z",
+    created_at: ts(-40),
     buyer: {
       org_id: "org_northline",
       name: "Northline Equipment",
@@ -73,7 +90,7 @@ export function seedTravelers(): Traveler[] {
       tolerances: "ISO 2768-mK",
       notes: "No paint. Mask threads after anodize.",
     },
-    need_by: "2026-10-24",
+    need_by: day(40),
     incoterms: "FOB",
     itar: false,
     quotes: [
@@ -81,8 +98,8 @@ export function seedTravelers(): Traveler[] {
         quote_id: "qot_huron4410",
         seller: huron,
         traveler_hash_quoted: "sha384:pending",
-        created_at: "2026-09-09T18:40:00.000Z",
-        valid_until: "2026-09-30T00:00:00.000Z",
+        created_at: ts(-39),
+        valid_until: ts(21),
         lead_time_days: 12,
         need_by_feasible: true,
         pricing: {
@@ -103,8 +120,8 @@ export function seedTravelers(): Traveler[] {
         quote_id: "qot_red4410",
         seller: redRiver,
         traveler_hash_quoted: "sha384:pending",
-        created_at: "2026-09-10T13:05:00.000Z",
-        valid_until: "2026-09-28T00:00:00.000Z",
+        created_at: ts(-38),
+        valid_until: ts(18),
         lead_time_days: 18,
         need_by_feasible: true,
         pricing: {
@@ -135,7 +152,7 @@ export function seedTravelers(): Traveler[] {
     spec: TRAVELER_SPEC,
     traveler_id: "tvl_smenc1601",
     revision: 2,
-    created_at: "2026-09-02T11:00:00.000Z",
+    created_at: ts(-46),
     buyer: {
       org_id: "org_pacific",
       name: "Pacific Hatch",
@@ -153,7 +170,7 @@ export function seedTravelers(): Traveler[] {
       finish: "Black wrinkle powder, interior masked",
       tolerances: "ISO 2768-m",
     },
-    need_by: "2026-10-16",
+    need_by: day(32),
     incoterms: "FOB",
     itar: false,
     ship_to: {
@@ -177,8 +194,8 @@ export function seedTravelers(): Traveler[] {
         quote_id: "qot_casc1601",
         seller: cascade,
         traveler_hash_quoted: "sha384:pending",
-        created_at: "2026-09-04T16:22:00.000Z",
-        valid_until: "2026-09-25T00:00:00.000Z",
+        created_at: ts(-44),
+        valid_until: ts(16),
         lead_time_days: 15,
         need_by_feasible: true,
         pricing: {
@@ -196,7 +213,7 @@ export function seedTravelers(): Traveler[] {
     ],
     award: {
       quote_id: "qot_casc1601",
-      awarded_at: "2026-09-05T19:10:00.000Z",
+      awarded_at: ts(-43),
       qty: 200,
     },
   });
@@ -205,7 +222,7 @@ export function seedTravelers(): Traveler[] {
     spec: TRAVELER_SPEC,
     traveler_id: "tvl_shft30325",
     revision: 1,
-    created_at: "2026-09-11T09:30:00.000Z",
+    created_at: ts(-37),
     buyer: {
       org_id: "org_atlas",
       name: "Atlas Door Systems",
@@ -223,7 +240,7 @@ export function seedTravelers(): Traveler[] {
       finish: "As-turned, passivate",
       tolerances: "h7 on journals",
     },
-    need_by: "2026-11-06",
+    need_by: day(53),
     incoterms: "FOB",
     itar: false,
     quotes: [
@@ -231,8 +248,8 @@ export function seedTravelers(): Traveler[] {
         quote_id: "qot_lake303",
         seller: lakeshore,
         traveler_hash_quoted: "sha384:pending",
-        created_at: "2026-09-12T20:00:00.000Z",
-        valid_until: "2026-10-03T00:00:00.000Z",
+        created_at: ts(-36),
+        valid_until: ts(26),
         lead_time_days: 21,
         need_by_feasible: true,
         pricing: {
@@ -256,7 +273,7 @@ export function seedTravelers(): Traveler[] {
     spec: TRAVELER_SPEC,
     traveler_id: "tvl_wldcart12",
     revision: 1,
-    created_at: "2026-09-14T17:00:00.000Z",
+    created_at: ts(-34),
     buyer: {
       org_id: "org_northline",
       name: "Northline Equipment",
@@ -275,7 +292,7 @@ export function seedTravelers(): Traveler[] {
       tolerances: "AWS D1.1, ±1.5 mm envelope",
       notes: "Open RFQ. Need mill pads on the top rails.",
     },
-    need_by: "2026-11-20",
+    need_by: day(67),
     incoterms: "FOB",
     itar: false,
     quotes: [],

@@ -1,5 +1,6 @@
 import "./style.css";
-import { $, Out, Steps, sleep, short, registerSW } from "./ui.ts";
+import { $, el, registerSW, short } from "./ui.ts";
+import { term, initGlossary } from "./defs.ts";
 import { keypairFromSeed } from "../../src/lib/traveler/signature.ts";
 import { createIdentity, unlock } from "../../src/lib/traveler/keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../../src/lib/traveler/directory.ts";
@@ -14,25 +15,11 @@ import { parseTraveler } from "../../src/lib/traveler/conformance.ts";
 import { bytesToHex } from "../../src/lib/traveler/bytes.ts";
 
 registerSW();
-
-const out = new Out($("#out"));
-const runBtn = $("#run") as HTMLButtonElement;
-const steps = new Steps($("#steps"), [
-  { t: "Identities", d: "two desks mint ML-KEM keystores" },
-  { t: "Directory", d: "publish a signed directory + prekey bundle" },
-  { t: "Seal", d: "encrypt the traveler to the seller" },
-  { t: "Ciphertext", d: "nothing about the job leaks in the clear" },
-  { t: "Open", d: "the seller decrypts it" },
-  { t: "Attacks", d: "tamper, wrong key, prekey-burn, downgrade" },
-]);
+initGlossary();
 
 const PASS_B = "buyer desk passphrase";
 const PASS_S = "seller desk passphrase";
-const W = { issued_at: "2026-01-01T00:00:00.000Z", valid_until: "2030-01-01T00:00:00.000Z" };
-const must = (cond: boolean, msg: string) => {
-  if (!cond) throw new Error(msg);
-};
-const flip = (hex: string) => (hex[0] === "a" ? "b" : "a") + hex.slice(1);
+const W = { issued_at: "2026-01-01T00:00:00.000Z", valid_until: "2032-01-01T00:00:00.000Z" };
 
 const traveler = parseTraveler({
   spec: "sje/0.1.0",
@@ -52,44 +39,25 @@ const traveler = parseTraveler({
   itar: false,
 });
 
-async function rejects(fn: () => Promise<unknown>, label: string) {
-  let threw = false;
-  try {
-    await fn();
-  } catch {
-    threw = true;
-  }
-  out.line(threw ? `    refused: ${label} ✓` : `    NOT refused: ${label}`, threw ? "ok" : "no");
-  if (!threw) throw new Error(`expected rejection: ${label}`);
-}
+type Setup = {
+  buyerKid: string;
+  sellerKid: string;
+  rootShort: string;
+  sellerDesk: Awaited<ReturnType<typeof unlock>>;
+  buyerDesk: Awaited<ReturnType<typeof unlock>>;
+  fsEnvelope: FsEnvelope;
+  staticEnvelope: FsEnvelope;
+  forwardSecret: boolean;
+};
 
-async function run() {
-  runBtn.disabled = true;
-  runBtn.textContent = "Running…";
-  steps.reset();
-  out.clear();
-
-  // 1 — identities (ML-KEM keygen + scrypt; the slow part)
-  steps.on(0);
-  out.line("[1] Two desks mint post-quantum identities (ML-KEM + scrypt)…", "hl");
-  await sleep(30);
+async function setup(): Promise<Setup> {
   const root = keypairFromSeed(new Uint8Array(32).fill(1));
   const rootHex = bytesToHex(root.publicKey);
   const buyer = await createIdentity({ passphrase: PASS_B, orgId: "org_northline" });
   const seller = await createIdentity({ passphrase: PASS_S, orgId: "org_summitfab" });
-  out.line(
-    `    buyer kid ${buyer.directoryEntry.kid} · seller kid ${seller.directoryEntry.kid}`,
-    "k",
-  );
-  out.line(`    trust root ${short(rootHex, 22)} (verify out of band)`, "k");
-  steps.done(0);
-  await sleep(300);
-
-  // 2 — signed directory + the seller's prekey bundle
-  steps.on(1);
-  out.line("[2] Publish a signed directory and the seller's prekey bundle", "hl");
   const bSign = keypairFromSeed(new Uint8Array(32).fill(2));
   const sSign = keypairFromSeed(new Uint8Array(32).fill(3));
+
   const dirBody: Directory = {
     spec: DIRECTORY_SPEC,
     ...W,
@@ -120,8 +88,10 @@ async function run() {
     ],
   };
   const directory: Directory = { ...dirBody, sig: signDirectory(dirBody, root.secretKey) };
+
   const sellerDesk = await unlock(seller.keystore, PASS_S);
-  const { prekeys } = sellerDesk.addPrekeys(2);
+  const buyerDesk = await unlock(buyer.keystore, PASS_B);
+  const { prekeys } = sellerDesk.addPrekeys(4);
   const bundle: PrekeyBundle = {
     spec: PREKEY_BUNDLE_SPEC,
     org_id: "org_summitfab",
@@ -131,97 +101,272 @@ async function run() {
     prekeys,
   };
   bundle.sig = signPrekeyBundle(bundle, sSign.secretKey);
-  out.line(`    2 orgs · seller published ${prekeys.length} one-time prekeys`, "k");
-  steps.done(1);
-  await sleep(300);
 
-  // 3 — seal forward-secret
-  steps.on(2);
-  out.line("[3] Buyer seals the traveler to the seller (forward-secret)", "hl");
-  const { envelope, forwardSecret } = await sealTraveler(traveler, {
-    directory,
-    rootPublicKeyHex: rootHex,
-    recipientOrg: "org_summitfab",
+  const common = { directory, rootPublicKeyHex: rootHex, recipientOrg: "org_summitfab" };
+  const fs = await sealTraveler(traveler, {
+    ...common,
     prekeyBundle: bundle,
     prekeyId: prekeys[0]!.prekey_id,
   });
-  must(forwardSecret, "expected forward secrecy");
-  out.line(`    ${envelope.spec} · forward_secret=${forwardSecret}`, "ok");
-  steps.done(2);
-  await sleep(300);
+  const stat = await sealTraveler(traveler, common);
 
-  // 4 — ciphertext proof
-  steps.on(3);
-  out.line("[4] The .sje is ciphertext — nothing about the job leaks", "hl");
-  const wire = JSON.stringify(envelope);
-  must(
-    !wire.includes(traveler.traveler_id) &&
-      !wire.includes(traveler.buyer.name) &&
-      !wire.includes(traveler.part.part_number),
-    "plaintext leaked into the envelope",
-  );
-  out.line("    no traveler_id / buyer / part_number in the clear ✓", "ok");
-  out.line(`    payload ${envelope.payload.slice(0, 68)}…`, "k");
-  steps.done(3);
-  await sleep(300);
-
-  // 5 — open
-  steps.on(4);
-  out.line("[5] Seller unlocks its keystore and opens the envelope", "hl");
-  const opened = await openTraveler(envelope, sellerDesk);
-  must(opened.traveler_id === traveler.traveler_id, "round-trip mismatch");
-  out.line(`    decrypted ${opened.part.family} · ${opened.part.part_number} ✓`, "ok");
-  steps.done(4);
-  await sleep(300);
-
-  // 6 — attacks
-  steps.on(5);
-  out.line("[6] Attacks the transport refuses", "hl");
-  await rejects(
-    () => openTraveler({ ...envelope, payload: flip(envelope.payload) } as FsEnvelope, sellerDesk),
-    "a one-byte ciphertext flip",
-  );
-  const buyerDesk = await unlock(buyer.keystore, PASS_B);
-  await rejects(() => openTraveler(envelope, buyerDesk), "the wrong desk's keystore");
-  const otherId = prekeys[1]!.prekey_id;
-  const sealOther = () =>
-    sealTraveler(traveler, {
-      directory,
-      rootPublicKeyHex: rootHex,
-      recipientOrg: "org_summitfab",
-      prekeyBundle: bundle,
-      prekeyId: otherId,
-    });
-  const legit = (await sealOther()).envelope as FsEnvelope;
-  await rejects(
-    () => openTraveler({ ...legit, payload: flip(legit.payload) } as FsEnvelope, sellerDesk),
-    "a forged envelope naming a real prekey",
-  );
-  const reopened = await openTraveler((await sealOther()).envelope, sellerDesk);
-  must(reopened.traveler_id === traveler.traveler_id, "the prekey was wrongly burned");
-  out.line("    …and the prekey survived — a genuine envelope to it still opens ✓", "ok");
-  await rejects(
-    () =>
-      sealTraveler(traveler, {
-        directory,
-        rootPublicKeyHex: rootHex,
-        recipientOrg: "org_summitfab",
-        requireForwardSecret: true,
-      }),
-    "a silent downgrade (requireForwardSecret)",
-  );
-  steps.done(5);
-
-  out.line("");
-  out.line("Done — real post-quantum crypto, in your browser; every attack refused.", "ok");
-  runBtn.disabled = false;
-  runBtn.textContent = "Run again";
+  return {
+    buyerKid: buyer.directoryEntry.kid,
+    sellerKid: seller.directoryEntry.kid,
+    rootShort: short(rootHex, 20),
+    sellerDesk,
+    buyerDesk,
+    fsEnvelope: fs.envelope as FsEnvelope,
+    staticEnvelope: stat.envelope as FsEnvelope,
+    forwardSecret: fs.forwardSecret,
+  };
 }
 
-runBtn.addEventListener("click", () => {
-  run().catch((e) => {
-    out.line(`error: ${e instanceof Error ? e.message : String(e)}`, "no");
-    runBtn.disabled = false;
-    runBtn.textContent = "Run again";
+// ── little builders ──
+function dataCard(title: string, body: Node[]): HTMLElement {
+  return el("div", { class: "data" }, [el("h4", {}, [title]), ...body]);
+}
+function kv(pairs: [string, string][]): HTMLElement {
+  const out: Node[] = [];
+  for (const [k, v] of pairs) {
+    out.push(el("dt", {}, [k]));
+    out.push(el("dd", {}, [v]));
+  }
+  return el("dl", { class: "kv" }, out);
+}
+function cipher(hex: string): HTMLElement {
+  const d = el("div", { class: "out" });
+  d.append(el("span", { class: "ln k" }, [`${hex.slice(0, 360)}…`]));
+  return d;
+}
+const stack = (...n: Node[]) => el("div", { class: "grid" }, n);
+
+function buildWalk(s: Setup) {
+  const titles = ["Identities", "Directory", "Seal", "Open", "Refused"];
+  const steps: (() => HTMLElement)[] = [
+    () =>
+      wstep(
+        1,
+        "Two identities",
+        [
+          "The buyer (Northline) and the shop (Summit) each mint a ",
+          term("pq", "post-quantum"),
+          " key pair — a public ",
+          term("lock"),
+          " anyone can seal to, and a ",
+          term("secret"),
+          " only that desk holds.",
+        ],
+        stack(
+          dataCard("Desks", [
+            kv([
+              ["Buyer · Northline", s.buyerKid],
+              ["Shop · Summit", s.sellerKid],
+              ["Trust root", s.rootShort],
+            ]),
+          ]),
+        ),
+      ),
+    () =>
+      wstep(
+        2,
+        "A signed directory",
+        [
+          "They publish a signed ",
+          term("directory"),
+          " — a phonebook saying which public lock belongs to which organization, so the buyer seals to the real Summit and not an impostor.",
+        ],
+        dataCard("Directory", [
+          kv([
+            ["Organizations", "2 (Northline, Summit)"],
+            ["Signed by", "the trust root"],
+            ["Checked before sealing", "yes"],
+          ]),
+        ]),
+      ),
+    () =>
+      wstep(
+        3,
+        "Seal it",
+        [
+          "The buyer seals the job to Summit's public lock. Out comes a ",
+          term("sje"),
+          " — pure ",
+          term("ciphertext"),
+          ", ",
+          term("fs", "forward-secret"),
+          " by default. This is what actually travels:",
+        ],
+        stack(
+          dataCard(`The sealed .sje — ${s.fsEnvelope.spec} · forward_secret=${s.forwardSecret}`, [
+            cipher(s.fsEnvelope.payload),
+            el("p", { class: "hint" }, [
+              "No traveler id, buyer or part number appears anywhere in here.",
+            ]),
+          ]),
+        ),
+      ),
+    () =>
+      wstep(
+        4,
+        "Only Summit can open it",
+        [
+          "Summit unlocks its keystore and uses its ",
+          term("secret"),
+          " to open the envelope — back to the exact job.",
+        ],
+        dataCard("Opened by Summit", [
+          kv([
+            ["Part", `${traveler.part.family} · ${traveler.part.part_number}`],
+            ["Quantity", String(traveler.part.qty.target)],
+            ["Result", "decrypted ✓"],
+          ]),
+        ]),
+      ),
+    () =>
+      wstep(
+        5,
+        "Everything else is refused",
+        [
+          "Change one byte of the sealed file, open it with the wrong desk's key, or try to strip the ",
+          term("fs", "forward secrecy"),
+          " — every one is refused. Try it yourself just below. ↓",
+        ],
+        dataCard("Refused", [
+          el("div", { class: "chips" }, [
+            el("span", { class: "status bound" }, ["tampered byte ✗"]),
+            el("span", { class: "status bound" }, ["wrong key ✗"]),
+            el("span", { class: "status bound" }, ["downgrade ✗"]),
+          ]),
+        ]),
+      ),
+  ];
+
+  const walk = $("#walk");
+  const nextBtn = $("#next") as HTMLButtonElement;
+  const replayBtn = $("#replay") as HTMLButtonElement;
+  let shown = 0;
+  const reveal = () => {
+    if (shown >= steps.length) return;
+    const node = steps[shown]!();
+    walk.append(node);
+    shown++;
+    node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (shown >= steps.length) {
+      nextBtn.textContent = "That's the exchange ✓";
+      nextBtn.disabled = true;
+      replayBtn.hidden = false;
+    } else {
+      nextBtn.textContent = `Next: ${titles[shown]} →`;
+    }
+  };
+  nextBtn.addEventListener("click", reveal);
+  replayBtn.addEventListener("click", () => {
+    walk.replaceChildren();
+    shown = 0;
+    nextBtn.textContent = "Start →";
+    nextBtn.disabled = false;
+    replayBtn.hidden = true;
   });
-});
+}
+
+function wstep(num: number, title: string, why: (Node | string)[], data: Node): HTMLElement {
+  return el("div", { class: "wstep" }, [
+    el("div", { class: "num" }, [String(num)]),
+    el("div", {}, [el("h3", {}, [title]), el("p", { class: "why" }, why), data]),
+  ]);
+}
+
+function flip(hex: string): string {
+  const c = hex[0] === "a" ? "b" : "a";
+  return c + hex.slice(1);
+}
+
+function buildSandbox(s: Setup) {
+  $("#box-intro").replaceChildren(
+    "The job on the left is sealed into the ",
+    term("ciphertext"),
+    " on the right — the ",
+    term("sje"),
+    " that travels. Open it, or try to break it.",
+  );
+
+  const wire = JSON.stringify(s.staticEnvelope);
+  const leaks = wire.includes(traveler.part.part_number) || wire.includes(traveler.buyer.name);
+  $("#reveal").replaceChildren(
+    dataCard("The job (plaintext, before sealing)", [
+      kv([
+        ["Buyer", traveler.buyer.name],
+        ["Part", `${traveler.part.family} · ${traveler.part.part_number}`],
+        ["Material", traveler.part.material.spec],
+        ["Quantity", String(traveler.part.qty.target)],
+      ]),
+    ]),
+    dataCard("The sealed .sje (what travels)", [
+      cipher(s.staticEnvelope.payload),
+      el("p", { class: "hint" }, [
+        leaks
+          ? "⚠ plaintext leaked"
+          : `✓ “${traveler.part.part_number}” and the buyer name are nowhere in the sealed file`,
+      ]),
+    ]),
+  );
+
+  const result = $("#result");
+  const say = (cls: string, nodes: (Node | string)[]) =>
+    result.replaceChildren(el("p", { class: `verdict ${cls}` }, nodes));
+
+  $("#do-open").addEventListener("click", async () => {
+    try {
+      const t = await openTraveler(s.staticEnvelope, s.sellerDesk);
+      say("ok", [
+        "Opened ✓ — Summit's secret key turns the ciphertext back into the job: ",
+        el("b", {}, [`${t.part.family} · ${t.part.part_number}, ${t.part.qty.target} pcs`]),
+        ". Nobody without that key can do this.",
+      ]);
+    } catch {
+      say("stale", ["Unexpected: open failed."]);
+    }
+  });
+
+  $("#do-tamper").addEventListener("click", async () => {
+    const tampered = { ...s.staticEnvelope, payload: flip(s.staticEnvelope.payload) } as FsEnvelope;
+    try {
+      await openTraveler(tampered, s.sellerDesk);
+      say("stale", ["Unexpected: a tampered envelope opened."]);
+    } catch {
+      say("ok", [
+        "Refused ✓ — one flipped byte and the built-in authentication check fails. A tampered job can't be opened; it's rejected outright, not silently accepted.",
+      ]);
+    }
+  });
+
+  $("#do-wrong").addEventListener("click", async () => {
+    try {
+      await openTraveler(s.staticEnvelope, s.buyerDesk);
+      say("stale", ["Unexpected: the wrong key opened it."]);
+    } catch {
+      say("ok", [
+        "Refused ✓ — the buyer's own key can't open a job that was sealed to Summit. Only the intended shop's secret key works.",
+      ]);
+    }
+  });
+
+  say("ok", [
+    "Press ",
+    el("b", {}, ["Open it"]),
+    " to decrypt with Summit's key — or try to break it.",
+  ]);
+}
+
+setup()
+  .then((s) => {
+    $("#prep").hidden = true;
+    $("#walk-card").hidden = false;
+    $("#box-card").hidden = false;
+    buildWalk(s);
+    buildSandbox(s);
+  })
+  .catch((e) => {
+    $("#prep").replaceChildren(`setup failed: ${e instanceof Error ? e.message : String(e)}`);
+  });

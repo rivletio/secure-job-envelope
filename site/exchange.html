@@ -6,7 +6,7 @@
     <title>SJE — Encrypted exchange demo</title>
     <meta
       name="description"
-      content="Seal a Secure Job Envelope traveler to a recipient with post-quantum, forward-secret encryption — and watch every tamper, wrong-key and downgrade attack get refused, in your browser."
+      content="See a manufacturing job sealed with post-quantum encryption, then try to break it yourself — tamper with the sealed file or open it with the wrong key and watch it get refused. Real ML-KEM-1024 in your browser."
     />
     <meta name="theme-color" content="#0b1b30" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -21,34 +21,56 @@
           <a href="./">Home</a>
           <a href="lifecycle.html">Lifecycle</a>
           <a href="exchange.html" aria-current="page">Encrypted</a>
+          <a href="desk/">Desk</a>
           <a href="https://github.com/rivletio/secure-job-envelope">GitHub</a>
         </nav>
       </header>
 
       <h1>Encrypted <em>exchange</em></h1>
       <p class="lede">
-        Two desks mint post-quantum identities, publish a signed directory and a one-time prekey
-        bundle, then seal a traveler so only the recipient can open it — forward-secret by default.
-        Real ML-KEM-1024 and ML-DSA-87, running entirely in your browser.
+        When the buyer sends the job to a shop, nobody in between should be able to read it — not
+        even a future quantum computer. Here's how Secure Job Envelope seals it, and why the sealed
+        file is useless to anyone but the intended shop. All the crypto runs right here in your
+        browser.
       </p>
 
-      <div class="card grid">
-        <div class="row" style="justify-content: space-between">
-          <span class="pill">ML-KEM-1024 · HKDF-SHA-384 · AES-256-GCM</span>
-          <button id="run">Run the exchange</button>
+      <p class="pill" id="prep"><span class="spin"></span> Minting post-quantum identities…</p>
+
+      <!-- Guided walkthrough -->
+      <section class="card grid" id="walk-card" hidden>
+        <div class="row between">
+          <h2 style="margin: 0">Walk it through</h2>
+          <div class="btn-row">
+            <button id="next">Start →</button>
+            <button id="replay" class="ghost" hidden>Start over</button>
+          </div>
         </div>
-        <div id="steps"></div>
-        <div id="out" class="out" aria-live="polite"></div>
-      </div>
+        <p class="sub">Five steps, in plain language. Tap any underlined term for a definition.</p>
+        <div id="walk" class="walk"></div>
+      </section>
+
+      <!-- Hands-on sandbox -->
+      <section class="card grid" id="box-card" hidden>
+        <div>
+          <h2 style="margin: 0 0 4px">See for yourself</h2>
+          <p class="sub" id="box-intro"></p>
+        </div>
+        <div class="cols two" id="reveal"></div>
+        <div class="btn-row">
+          <button id="do-open">Open it (seller's key)</button>
+          <button id="do-tamper" class="ghost">Tamper, then open</button>
+          <button id="do-wrong" class="ghost">Open with the wrong key</button>
+        </div>
+        <div id="result"></div>
+      </section>
 
       <p class="note">
-        Nothing leaves your browser. The transit artifact is a <span class="mono">.sje</span>
-        envelope — ciphertext — so the traveler id, buyer and part number never appear in the clear.
-        A one-byte flip, the wrong keystore, a forged envelope and a silent downgrade are all
-        refused.
+        Nothing leaves your browser. The sealed <span class="mono">.sje</span> is ciphertext, so the
+        job id, the buyer and the part number never appear in the clear — and a one-byte change, the
+        wrong key, or an attempt to force weaker crypto are all refused.
       </p>
       <p class="foot">
-        Same code as <span class="mono">npm run example:exchange</span> ·
+        Same engine as <span class="mono">npm run example:exchange</span> ·
         <a href="https://github.com/rivletio/secure-job-envelope">source on GitHub</a>
       </p>
     </div>
