@@ -65,6 +65,22 @@ export class Steps {
 
 export const short = (h: string, n = 26) => (h.length > n ? `${h.slice(0, n)}…` : h);
 
+/** Tiny hyperscript: el("div", { class: "x" }, ["hi", child]). */
+export function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string> = {},
+  children: (Node | string)[] = [],
+): HTMLElementTagNameMap[K] {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k === "html") n.innerHTML = v;
+    else n.setAttribute(k, v);
+  }
+  for (const c of children) n.append(c);
+  return n;
+}
+
 /** Register the hand-rolled service worker so the demos install + work offline. */
 export function registerSW() {
   if (!("serviceWorker" in navigator)) return;

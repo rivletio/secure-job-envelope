@@ -28,10 +28,12 @@
 
       <h1>Secure Job <em>Envelope</em></h1>
       <p class="lede">
-        A portable, signed, post-quantum-encrypted record for a manufacturing job as it moves
-        between buyer and shop. The two demos run the <strong>real reference library</strong> in
-        your browser — no server, nothing leaves the page — and the full desk app is the interactive
-        workbench. Each demo installs as an offline PWA.
+        When a buyer orders custom parts, two things are easy to get wrong: the price has to match
+        the <em>exact</em> spec, and the details shouldn't leak on the way to the shop. Secure Job
+        Envelope is a shared record for that job — a price is always pinned to one exact spec, and
+        what's sent is encrypted. The demos below run the <strong>real thing</strong> in your
+        browser: read the plain-language walkthrough, then poke at it yourself. New here? Start with
+        <a href="lifecycle.html">Lifecycle</a>.
       </p>
 
       <div class="row" style="margin: 4px 0 20px">
@@ -50,33 +52,32 @@
 
       <div class="cols two">
         <a class="card demo-card" href="lifecycle.html">
-          <span class="tag">Lifecycle &amp; binding</span>
-          <h3>Compose → quote → amend → award</h3>
+          <span class="tag">Start here · Lifecycle</span>
+          <h3>Why a price sticks to one spec</h3>
           <p>
-            A quote binds to the exact revision it priced. Amend the spec and the hash moves, so the
-            quote goes stale; the award locks the traveler at L2 Executable. Watch the state machine
-            enforce it.
+            Follow a job from spec to award in plain English — then edit the spec yourself and watch
+            a shop's quote go stale the instant anything changes. See how one “fingerprint” keeps a
+            price honest.
           </p>
         </a>
         <a class="card demo-card" href="exchange.html">
           <span class="tag">Encrypted exchange</span>
-          <h3>Seal it so only the shop can open it</h3>
+          <h3>Seal a job so only the shop can read it</h3>
           <p>
-            Post-quantum, forward-secret sealing with ML-KEM-1024 and a one-time prekey. The wire
-            artifact is ciphertext; tamper, wrong-key, prekey-burn and downgrade attacks are all
-            refused — live.
+            See a job sealed with post-quantum encryption into unreadable ciphertext — then try to
+            break it: tamper with the sealed file or open it with the wrong key, and watch it get
+            refused, live.
           </p>
         </a>
       </div>
 
       <a class="card demo-card" href="desk/" style="margin-top: 14px; display: block">
         <span class="tag">The full desk</span>
-        <h3>Open the interactive workbench →</h3>
+        <h3>The whole workbench →</h3>
         <p>
-          The complete browser desk: compose a traveler, bind and award quotes, mint a
-          passphrase-encrypted post-quantum identity, and seal or open an encrypted
-          <span class="mono">.sje</span> envelope. The same app, exported static — all state stays
-          in your browser.
+          The complete app: build a job, bind and award quotes, create a passphrase-protected
+          post-quantum identity, and seal or open an encrypted <span class="mono">.sje</span> — all
+          in your browser, nothing sent anywhere.
         </p>
       </a>
 

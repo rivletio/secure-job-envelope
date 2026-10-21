@@ -342,3 +342,306 @@ button.danger {
     transform: rotate(360deg);
   }
 }
+
+/* ─── Guided + sandbox explainer (lifecycle) ─────────────────────────────── */
+
+/* Tap-to-define terms + their shared popover. */
+.term {
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: help;
+  text-decoration: underline dotted var(--accent-dim);
+  text-underline-offset: 3px;
+}
+.term:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+.term-pop {
+  position: absolute;
+  z-index: 50;
+  max-width: min(320px, calc(100vw - 24px));
+  background: #0c1f39;
+  border: 1px solid var(--accent-dim);
+  border-radius: 9px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 34px -14px #000;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--soft);
+}
+.term-pop[hidden] {
+  display: none;
+}
+.term-pop strong {
+  display: block;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.sub {
+  color: var(--soft);
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.row.between {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (min-width: 760px) {
+  .cols.three {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* The fingerprint, shown as a first-class object. */
+.fp {
+  font-family: var(--mono);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.fp .lbl {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fp .val {
+  font-size: 13px;
+  color: var(--accent);
+  word-break: break-all;
+}
+.fp-hero {
+  background: #061120;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.fp-hero .lbl {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+.fp-hero .val {
+  font-family: var(--mono);
+  font-size: clamp(14px, 3.2vw, 19px);
+  color: var(--accent);
+  word-break: break-all;
+}
+.fp-flash {
+  animation: fpflash 0.9s ease;
+}
+@keyframes fpflash {
+  0% {
+    background: #123;
+  }
+  35% {
+    background: #1d3b22;
+  }
+  100% {
+    background: #061120;
+  }
+}
+
+/* Readable data cards (not a JSON dump). */
+.data {
+  background: #0c1f39;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.data h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 600;
+}
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 14px;
+  font-size: 14px;
+}
+.kv dt {
+  color: var(--soft);
+}
+.kv dd {
+  margin: 0;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.kv dd.chg {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* A quote, with a live bound/stale status. */
+.quote {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #0d2037;
+  display: grid;
+  gap: 4px;
+}
+.quote .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.quote .who {
+  font-weight: 600;
+}
+.quote .price {
+  font-family: var(--mono);
+  color: var(--text);
+}
+.quote .meta {
+  font-size: 12px;
+  color: var(--faint);
+  font-family: var(--mono);
+}
+.status {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.status.bound {
+  color: var(--good);
+  border-color: #214b3c;
+  background: #0f2a20;
+}
+.status.stale {
+  color: var(--warn);
+  border-color: #5a4a24;
+  background: #2a230f;
+}
+
+/* Guided walk — steps reveal one at a time and accumulate. */
+.walk {
+  display: grid;
+  gap: 12px;
+}
+.wstep {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 14px;
+  align-items: start;
+  animation: rise 0.35s ease;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wstep .num {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--bg-deep);
+  background: var(--accent);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+}
+.wstep.muted .num {
+  background: var(--line);
+  color: var(--faint);
+}
+.wstep h3 {
+  margin: 2px 0 4px;
+  font-size: 17px;
+}
+.wstep .why {
+  color: var(--soft);
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.wstep .data {
+  margin-top: 2px;
+}
+
+/* Sandbox controls. */
+.field {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.field label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.field input,
+.field select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: #081626;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  width: 100%;
+}
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px #5cc8ff22;
+}
+.verdict {
+  border-left: 3px solid var(--line);
+  padding: 8px 0 8px 14px;
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.verdict.ok {
+  border-color: #214b3c;
+}
+.verdict.stale {
+  border-color: var(--warn);
+}
+.verdict b {
+  color: var(--accent);
+}
+.hint {
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: 2px 0 0;
+}
