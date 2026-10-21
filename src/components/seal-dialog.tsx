@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { buildDemoTrust } from "@/lib/traveler/demo-trust";
 import { travelerHash } from "@/lib/traveler/hash";
 import { useKeysStore } from "@/lib/traveler/keys-store";
 import { useTravelerStore } from "@/lib/traveler/store";
@@ -30,6 +31,7 @@ export function SealDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const trust = useKeysStore((s) => s.trust);
+  const setTrust = useKeysStore((s) => s.setTrust);
   const logAudit = useTravelerStore((s) => s.logAudit);
   const [org, setOrg] = useState("");
   const [requireFs, setRequireFs] = useState(false);
@@ -66,7 +68,9 @@ export function SealDialog({
       });
       downloadEnvelope(envelope);
       logAudit({ act: "export", traveler_id: traveler.traveler_id, hash: travelerHash(traveler) });
-      toast.success(`Sealed to ${org} · ${forwardSecret ? "forward-secret" : "static"} — downloaded .sje`);
+      toast.success(
+        `Sealed to ${org} · ${forwardSecret ? "forward-secret" : "static"} — downloaded .sje`,
+      );
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not seal");
@@ -81,17 +85,35 @@ export function SealDialog({
         <DialogHeader>
           <DialogTitle>Seal &amp; send {traveler.part.part_number}</DialogTitle>
           <DialogDescription>
-            Encrypts this traveler to a recipient from your trust anchor (ML-KEM-1024 + AES-256-GCM).
-            The downloaded <code>.sje</code> is ciphertext — the only artifact meant to be sent.
-            The filename is random so it does not leak the traveler id.
+            Encrypts this traveler to a recipient from your trust anchor (ML-KEM-1024 +
+            AES-256-GCM). The downloaded <code>.sje</code> is ciphertext — the only artifact meant
+            to be sent. The filename is random so it does not leak the traveler id.
           </DialogDescription>
         </DialogHeader>
 
         {!trust ? (
-          <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-            No trust anchor loaded. Open <span className="font-medium">Keys</span> and load a signed
-            directory before sealing.
-          </p>
+          <div className="flex flex-col items-start gap-3">
+            <p className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
+              Sealing needs a <span className="font-medium">trust anchor</span> — the signed list of
+              who can receive. Load a sample one to try it now, or paste your own in{" "}
+              <span className="font-medium">Keys</span>.
+            </p>
+            <Button
+              type="button"
+              onClick={() => {
+                try {
+                  setTrust(buildDemoTrust());
+                  toast.success("Loaded a demo trust anchor — now pick a recipient");
+                } catch (err) {
+                  toast.error(
+                    err instanceof Error ? err.message : "Could not load demo trust anchor",
+                  );
+                }
+              }}
+            >
+              Load a demo trust anchor
+            </Button>
+          </div>
         ) : recipients.length === 0 ? (
           <p className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
             The loaded directory has no recipients with an ML-KEM encryption key.
