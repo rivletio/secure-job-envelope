@@ -29,6 +29,7 @@ This repo contains:
 | Path | What it is |
 |---|---|
 | `docs/GUIDE.md` | **Practical manual** — install, the mental model, and three runnable walkthroughs (lifecycle, signatures, encrypted exchange) across all four surfaces |
+| `docs/ARCHITECTURE.md` | **Developer's map** — how the repo is organized, the one-library/four-surfaces shape, the module map, and how the site/desk are built and deployed |
 | `docs/PLAN.md` | Project plan: goals, milestones, current state (shalt manages the live copy in `.shalt/plan.md`) |
 | `docs/CLAANKER.md` | How Claanker carries a sealed envelope and does not open it |
 | `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |

@@ -47,6 +47,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavLink to="/trust" active={path === "/trust"}>
               Trust
             </NavLink>
+            <a
+              href="https://github.com/rivletio/secure-job-envelope"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-sm px-3 py-2 font-mono text-xs font-medium tracking-widest text-soft uppercase hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              GitHub ↗
+            </a>
           </nav>
         </div>
         <div className="relative z-10 border-t border-border bg-bg">
