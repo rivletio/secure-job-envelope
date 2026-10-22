@@ -6,7 +6,8 @@ library, the Rust CLI, the MCP server, and the browser desk). Every walkthrough
 below maps to a **runnable example** you can execute right now.
 
 New to the project? Read the [README](../README.md) first for the one-paragraph
-pitch, then come back here to actually use it. For the exact wire formats see
+pitch, then come back here to actually use it. To find your way around the codebase,
+see [ARCHITECTURE.md](ARCHITECTURE.md). For the exact wire formats see
 [SPEC.md](SPEC.md) and [ENVELOPE-DRAFT.md](ENVELOPE-DRAFT.md); for the security
 posture, [SECURITY.md](../SECURITY.md) and the proof map in [CLAIMS.md](CLAIMS.md).
 
@@ -238,6 +239,8 @@ npm run example:lifecycle && npm run example:signatures && npm run example:excha
 
 ## 9. Where to go next
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how the codebase is organized (one library,
+  four surfaces) and how the site/desk are built and deployed.
 - [SPEC.md](SPEC.md) — the frozen base format (canonical JSON, hash, ladder, archive).
 - [ENVELOPE-DRAFT.md](ENVELOPE-DRAFT.md) — the encrypted envelope and forward secrecy.
 - [CLAIMS.md](CLAIMS.md) — every claim mapped to its proof.
