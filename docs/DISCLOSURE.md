@@ -36,4 +36,4 @@ The two parties may exchange the file. That is the reveal. The courier still doe
 
 ## What this repo does not prove
 
-Claanker is a separate, private program. It is supposed to follow this view. This repository cannot see Claanker's model, so it cannot prove a spoken blurb obeyed the list. What it can prove is the list itself: run `npm test` and read the courier view. If Claanker says a name before both sides opt in, that is Claanker breaking this file, and the break is visible because the allowlist is public.
+A courier is a separate program, outside this repository. It is supposed to follow this view, but this repository cannot see its model, so it cannot prove a spoken blurb obeyed the list. What it can prove is the list itself: run `npm test` and read the courier view. If a courier says a name before both sides opt in, that is the courier breaking this file, and the break is visible because the allowlist is public.

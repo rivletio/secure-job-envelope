@@ -15,7 +15,7 @@ same quoteable body — so a quote can bind to *exactly* the revision it priced.
 
 What the file shows, and what a courier may say before both sides opt in, is [docs/DISCLOSURE.md](docs/DISCLOSURE.md). That list is tested. The hash does not hide the file. Anyone who holds the traveler can read it.
 
-This format is open source.  Rivlet uses it internally. After both sides opt in, Claanker carries a sealed traveler, PO, job, bill of lading, or envelope and does not open it. See [docs/CLAANKER.md](docs/CLAANKER.md).
+This format is open source.  Rivlet uses it internally.
 
 ```
 Buyer composes traveler  ──►  L0 Quoteable   (can price without guessing)
@@ -31,7 +31,6 @@ This repo contains:
 | `docs/GUIDE.md` | **Practical manual** — install, the mental model, and three runnable walkthroughs (lifecycle, signatures, encrypted exchange) across all four surfaces |
 | `docs/ARCHITECTURE.md` | **Developer's map** — how the repo is organized, the one-library/four-surfaces shape, the module map, and how the site/desk are built and deployed |
 | `docs/PLAN.md` | Project plan: goals, milestones, current state (shalt manages the live copy in `.shalt/plan.md`) |
-| `docs/CLAANKER.md` | How Claanker carries a sealed envelope and does not open it |
 | `docs/diagrams/` | Living mermaid: use cases, spec tree, play pipeline, work map |
 | `docs/SPEC.md` | The 0.1.0 spec: quoteable body, canonical JSON, hash, conformance ladder, archive layout |
 | `public/schemas/` | JSON Schema 2020-12 for traveler and quote |
