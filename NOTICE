@@ -1,0 +1,9 @@
+Secure Job Envelope (SJE)
+Copyright 2026 Rivlet, Inc.
+
+The Secure Job Envelope (SJE) standard and its reference implementations
+(TypeScript and Rust) were created and are maintained by Rivlet, Inc.
+<https://github.com/rivletio/secure-job-envelope>
+
+This product is licensed under the Apache License, Version 2.0; see the
+LICENSE file or <http://www.apache.org/licenses/LICENSE-2.0>.

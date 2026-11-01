@@ -1,7 +1,7 @@
 # Secure Job Envelope (SJE)
 
 **A content-addressed job envelope for parts manufacturing.**
-`application/vnd.sje+json` · spec `sje/0.1.0` · MIT
+`application/vnd.sje+json` · spec `sje/0.1.0` · Apache-2.0
 
 A **traveler** is the job object — one part family moving between a buyer and a
 seller: part, material, quantity (with price breaks), need-by, ship-to, the
@@ -149,7 +149,7 @@ their own. The platform can come later; the envelope has to come first.
 ## Governance
 
 SJE is intended as a **vendor-neutral standard** — the name carries no
-company, the spec and both reference implementations are MIT, and
+company, the spec and both reference implementations are Apache-2.0, and
 conformance is defined by the public vector suite, not by anyone's
 product. Rivlet, Inc. authors the spec today and operates a commercial
 **validation and execution service** built on it (envelope.rivlet.io);
@@ -158,8 +158,8 @@ anyone can implement, validate, and run jobs against the same vectors.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## Disclaimer
 
-SJE is provided under the MIT License, "as is" and without warranty of any kind (see [LICENSE](LICENSE)). Nothing here — the spec, the implementations, the desk, or the security docs — is a warranty, guarantee, or assurance of security, correctness, or fitness for any purpose. Its security is best-effort and has not been independently audited. Selecting NIST/CNSA 2.0 algorithms is an engineering choice, not a certification: SJE is not SOC 2, FIPS, CNSA 2.0, ITAR, DFARS, or NIST 800-171 compliant, and using it does not make your system compliant. It is not legal or export-control advice — meeting your ITAR/EAR and CUI (DFARS 252.204-7012 / NIST 800-171) obligations is your responsibility, and controlled technical data does not belong on a shared browser desk. To the fullest extent permitted by law, Rivlet, Inc. accepts no liability arising from use of this software.
+SJE is provided under the Apache License 2.0, "as is" and without warranty of any kind (see [LICENSE](LICENSE)). Nothing here — the spec, the implementations, the desk, or the security docs — is a warranty, guarantee, or assurance of security, correctness, or fitness for any purpose. Its security is best-effort and has not been independently audited. Selecting NIST/CNSA 2.0 algorithms is an engineering choice, not a certification: SJE is not SOC 2, FIPS, CNSA 2.0, ITAR, DFARS, or NIST 800-171 compliant, and using it does not make your system compliant. It is not legal or export-control advice — meeting your ITAR/EAR and CUI (DFARS 252.204-7012 / NIST 800-171) obligations is your responsibility, and controlled technical data does not belong on a shared browser desk. To the fullest extent permitted by law, Rivlet, Inc. accepts no liability arising from use of this software.

@@ -38,7 +38,7 @@ function TrustPage() {
       <section className="on-paper traveler-shadow mt-8 rounded-sm p-5">
         <h2 className="text-lg font-medium">Disclaimer</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          No warranty. SJE is provided as is under the MIT License — best-effort security, not a
+          No warranty. SJE is provided as is under the Apache License 2.0 — best-effort security, not a
           guarantee, and not legal, compliance, or export-control advice. Selecting NIST/CNSA 2.0
           algorithms is not certification; SJE is not SOC 2, FIPS, CNSA 2.0, ITAR, DFARS, or NIST
           800-171 compliant. Meeting your export-control and CUI obligations is your responsibility.
