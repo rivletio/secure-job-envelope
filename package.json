@@ -2,7 +2,7 @@
   "name": "secure-job-envelope",
   "version": "0.1.0",
   "private": true,
-  "license": "MIT",
+  "license": "Apache-2.0",
   "description": "SJE — a content-addressed job envelope for parts manufacturing, plus the reference desk app. Spec + TypeScript implementation; independent Rust implementation in crates/secure-job-envelope.",
   "type": "module",
   "sideEffects": false,

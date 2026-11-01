@@ -3,7 +3,7 @@
 > This is the frozen base spec (canonical JSON, hash, conformance ladder, archive). 0.1 adds ML-DSA-87 authorship signatures, a signed key directory, directory-attested ITAR, integer-minor-unit money, and the encrypted envelope — see docs/CLAIMS.md and SECURITY.md.
 
 Implementable draft. Media type `application/vnd.sje+json`.
-Archive name `{traveler_id}.traveler.zip`. License MIT.
+Archive name `{traveler_id}.traveler.zip`. License Apache-2.0.
 
 A traveler is the job object — one part family between a buyer and sellers —
 not a shop OS and not a marketplace. Quotes bind to `traveler_hash_quoted`,

@@ -6,7 +6,7 @@ export const Route = createFileRoute("/spec")({ component: SpecPage });
 function SpecPage() {
   return (
     <AppShell>
-      <p className="mono-label">MIT · application/vnd.sje+json</p>
+      <p className="mono-label">Apache-2.0 · application/vnd.sje+json</p>
       <h1 className="mt-3 text-4xl tracking-tight text-paper">SJE 0.1.0</h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-soft">
         Implementable draft. A traveler is the job object — not the shop OS and not a
@@ -132,7 +132,7 @@ currency: ^[A-Z]{3}$`}
           </li>
         </ul>
         <p className="mt-4 max-w-2xl border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
-          No warranty. SJE is provided as is under the MIT License — best-effort security, not a
+          No warranty. SJE is provided as is under the Apache License 2.0 — best-effort security, not a
           guarantee, and not legal, compliance, or export-control advice. Selecting NIST/CNSA 2.0
           algorithms is not certification; SJE is not SOC 2, FIPS, CNSA 2.0, ITAR, DFARS, or NIST
           800-171 compliant. Meeting your export-control and CUI obligations is your responsibility.
