@@ -11,6 +11,9 @@ export function getRouter() {
   return createRouter({
     routeTree,
     defaultErrorComponent: AppErrorComponent,
+    // The static SPA shell wraps each route in a Suspense boundary. Without a pending
+    // component the client omits that boundary and hydration fails with React #418.
+    defaultPendingComponent: () => null,
     ...(basepath ? { basepath } : {}),
   });
 }

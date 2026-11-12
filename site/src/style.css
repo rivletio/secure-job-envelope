@@ -20,6 +20,10 @@
 * {
   box-sizing: border-box;
 }
+/* Classes that set `display` (.pill, .card.grid) would otherwise defeat the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
 html {
   -webkit-text-size-adjust: 100%;
 }
