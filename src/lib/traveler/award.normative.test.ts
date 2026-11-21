@@ -74,6 +74,12 @@ describe("award signature — normative requirements (SHALL)", () => {
     const body = JSON.parse(awardSignatureBody(t)) as Record<string, unknown>;
     assert.deepEqual(Object.keys(body), ["award", "ship_to", "spec", "traveler_hash", "traveler_id"]);
     assert.equal(Object.prototype.hasOwnProperty.call(body.award as object, "sig"), false);
+    // Round-trip: a freshly buyer-signed award (not only the shipped vector) also
+    // verifies — signAward and verifyAwardSignature agree on an award we sign here.
+    const fresh = base();
+    fresh.award = { ...fresh.award!, qty: 500 };
+    fresh.award.sig = signAward(fresh, "northline-2026", northline.secretKey);
+    assert.equal(verifyAwardSignature(fresh, dir, rootPk, at)?.ok, true);
   });
 
   it("AW-2 (MUST): the directory must verify against the configured trust root, else the award is refused", () => {
@@ -105,7 +111,7 @@ describe("award signature — normative requirements (SHALL)", () => {
     assert.equal(verifyAwardSignature(redirected, dir, rootPk, at)?.ok, false);
   });
 
-  it("AW-6 (MUST): the signature binds the award decision (quote_id/qty/awarded_at/terms)", () => {
+  it("AW-6 (MUST): the signature binds the award decision (quote_id/qty/awarded_at/terms/quote_hash)", () => {
     const reqty = base();
     reqty.award = { ...reqty.award!, qty: reqty.award!.qty + 1 };
     assert.equal(verifyAwardSignature(reqty, dir, rootPk, at)?.ok, false);
@@ -117,6 +123,12 @@ describe("award signature — normative requirements (SHALL)", () => {
     const reterms = base();
     reterms.award = { ...reterms.award!, terms: { ...reterms.award!.terms, payment_terms: "Net 90" } };
     assert.equal(verifyAwardSignature(reterms, dir, rootPk, at)?.ok, false);
+
+    // quote_hash rides inside the signed award body, so tampering it directly also
+    // breaks the buyer signature (it is a signed award field like the rest).
+    const rehash = base();
+    rehash.award = { ...rehash.award!, quote_hash: "sha384:" + "0".repeat(96) };
+    assert.equal(verifyAwardSignature(rehash, dir, rootPk, at)?.ok, false);
   });
 
   it("AW-7 (MUST): the signature binds the exact revision via traveler_hash", () => {
