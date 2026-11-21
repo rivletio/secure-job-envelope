@@ -155,10 +155,13 @@ export async function openTraveler(
       throw new Error("openTraveler: envelope has no recipient entry for this keystore");
     }
     // Look up the one-time prekey secret WITHOUT consuming it, and verify+decrypt
-    // FIRST. A prekey_id is public (it travels in the signed bundle), so consuming
-    // before authentication would let anyone burn a victim's prekeys with a forged
-    // envelope — an unauthenticated forward-secrecy DoS. A spent/unknown prekey →
-    // refuse.
+    // FIRST, so an envelope that FAILS AEAD (a forgery with a random wrapped_cek) cannot
+    // burn a prekey. Honest limit: prekey_id and the prekey public key are public (they
+    // travel in the signed bundle), so a party holding the bundle CAN seal a
+    // validly-encrypted junk envelope that decrypts and consumes the prekey — one-time
+    // prekey pools are inherently exhaustible by anyone who can encrypt to them. Pool
+    // exhaustion is handled by graceful downgrade to the static 0.1 envelope (reported
+    // via `forwardSecret`), not prevented here. A spent/unknown prekey → refuse.
     const onetime = keystore.peekPrekey(r.prekey_id);
     if (!onetime) {
       throw new Error("openTraveler: one-time prekey already consumed or not held by this keystore");

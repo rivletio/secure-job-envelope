@@ -122,7 +122,10 @@ fn json_blob(field: &str, v: &Value) -> Result<(), Error> {
         return Err(err(format!("{field} must be a JSON object")));
     }
     let s = serde_json::to_string(v).map_err(|_| err(format!("{field} is not serializable")))?;
-    if s.len() > 8192 {
+    // Count UTF-16 code units (not UTF-8 bytes) to match zod's JSON.stringify(v).length,
+    // so a large non-ASCII blob is accepted/rejected identically on both sides. (The cap
+    // is on the blob's own serialization; blobs are not hashed, so there is no hash impact.)
+    if utf16_len(&s) > 8192 {
         return Err(err(format!("{field} exceeds 8 KiB")));
     }
     Ok(())

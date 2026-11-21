@@ -172,10 +172,15 @@ export const useTravelerStore = create<TravelerState>()(
         // buyer later signs commits to the exact quote (unit price, currency, lead time), not
         // just its id. The desk never signs; it only records a sign-ready award.
         const awardWithHash: Award = { ...award, quote_hash: quoteContentHash(quote) };
+        // Re-validate the merged result through the schema (as amend/importOne do, and
+        // as the MCP sje_award handler does) so a malformed award / ship-to / ops — e.g.
+        // an op code past the 32-char cap, which the dialog does not bound — cannot land
+        // unvalidated in state and then be silently dropped by sanitizeTravelers on the
+        // next reload (losing the whole job). A throw here surfaces as a toast via the
+        // award dialog's try/catch.
+        const next = parseTraveler({ ...traveler, award: awardWithHash, ship_to: shipTo, ops });
         set((s) => ({
-          travelers: s.travelers.map((p) =>
-            p.traveler_id === travelerId ? { ...p, award: awardWithHash, ship_to: shipTo, ops } : p,
-          ),
+          travelers: s.travelers.map((p) => (p.traveler_id === travelerId ? next : p)),
           audit: withAudit(s.audit, {
             act: "award",
             traveler_id: travelerId,
