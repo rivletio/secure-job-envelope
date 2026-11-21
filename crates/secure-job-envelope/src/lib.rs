@@ -197,6 +197,10 @@ pub struct Award {
     /// Optional purchase-order terms (governing law, warranty, payment).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terms: Option<AwardTerms>,
+    /// Buyer's ML-DSA-87 signature over the award decision and ship-to (excludes
+    /// this field). Lets the winning shop refuse a forged award or altered ship-to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sig: Option<Signature>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

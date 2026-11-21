@@ -40,7 +40,8 @@ stale-marks every existing quote.
 
 **The hash is integrity of the buyer-authored body, not a signature, and
 not non-repudiation.** 0.1 adds ML-DSA-87 authorship signatures over the
-canonical body, verified against a signed key directory (see SECURITY.md).
+canonical body — and a separate buyer signature over the award (award decision
++ ship-to) — verified against a signed key directory (see SECURITY.md).
 
 ## Canonical JSON
 
@@ -154,9 +155,11 @@ and check `traveler_hash` yourself — treat the archive as the document.
 These digests are **unkeyed** integrity: they detect corruption and naive
 tampering, and guarantee the archive is internally consistent, but a party that
 re-seals an archive recomputes them. Adversarial *authenticity* is the separate
-ML-DSA authorship signature, which in 0.1 signs the quoteable body — the
-lifecycle fields (award, ship_to, ops) are mutable workflow state and are not
-covered by the authorship signature. A duplicate member name resolves to the
+ML-DSA signature layer: in 0.1 the buyer signs the quoteable body **and** the
+award (the award decision + ship-to, bound to the traveler revision), so a
+re-sealed archive that forges the award or redirects the ship-to is refused by
+that signature even though its digest recomputes. `ops` and `as_built` remain
+post-award workflow state not covered by a signature. A duplicate member name resolves to the
 **last** entry (which is then digest-checked); an external tool that resolves
 duplicates as "first" may disagree, so treat a duplicate-membered archive as
 suspect.

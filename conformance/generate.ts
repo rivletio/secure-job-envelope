@@ -12,7 +12,7 @@ import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signature.ts";
 import { bytesToHex, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
-import { signTraveler, signQuote } from "../src/lib/traveler/authenticity.ts";
+import { signTraveler, signQuote, signAward } from "../src/lib/traveler/authenticity.ts";
 import { PREKEY_BUNDLE_SPEC, signPrekeyBundle, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
 import {
   kemKeypairFromSeed,
@@ -328,6 +328,38 @@ writeFileSync(
   JSON.stringify(signedTravelerVector, null, 2) + "\n",
 );
 console.log("signed traveler vector written");
+
+/* ---------- signed award vector (buyer award authorship, BEC defense) ---------- */
+// A traveler whose award + ship-to are signed by the buyer. Both implementations
+// resolve the award signature's kid to a directory entry whose org_id equals
+// buyer.org_id and verify the ML-DSA-87 signature over the canonical award body
+// {spec, traveler_id, traveler_hash, award (minus sig), ship_to}. A forged award,
+// an altered ship-to, a bumped revision, or a non-buyer signer all fail — the
+// guard against a losing bidder sealing a fake award to the winner.
+const awardTraveler: Traveler = structuredClone(l2);
+awardTraveler.traveler_id = "tvl_award0000001";
+awardTraveler.buyer = { ...awardTraveler.buyer, org_id: "org_northline" };
+const awardHash = travelerHash(awardTraveler);
+for (const q of awardTraveler.quotes ?? []) q.traveler_hash_quoted = awardHash;
+awardTraveler.signatures = [signTraveler(awardTraveler, "northline-2026", northlineKp.secretKey)];
+awardTraveler.award!.sig = signAward(awardTraveler, "northline-2026", northlineKp.secretKey);
+const signedAwardVector = {
+  note:
+    "Buyer award authorship (BEC defense). Verify the directory against root_public_key_hex, " +
+    "resolve the award sig's kid to a directory entry whose org_id equals buyer.org_id, then " +
+    "verify the ML-DSA-87 signature over the canonical award body {spec, traveler_id, " +
+    "traveler_hash, award (minus its own sig), ship_to}. A forged award, an altered ship_to, a " +
+    "bumped revision, or a non-buyer signer all fail. Evaluate at at_ms (inside the windows).",
+  root_public_key_hex: bytesToHex(rootKp.publicKey),
+  at_ms: Date.parse("2027-01-01T00:00:00.000Z"),
+  directory: directoryVector.directory,
+  traveler: awardTraveler,
+};
+writeFileSync(
+  `${here}/signatures/signed-award.json`,
+  JSON.stringify(signedAwardVector, null, 2) + "\n",
+);
+console.log("signed award vector written");
 
 /* ---------- expired-entry directory vector (validity-window enforcement) ---------- */
 // The directory itself is valid to 2030, but the org_northline signer entry

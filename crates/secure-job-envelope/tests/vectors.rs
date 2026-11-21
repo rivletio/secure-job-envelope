@@ -153,6 +153,54 @@ fn signed_traveler_vector_verifies_cross_language() {
 }
 
 #[test]
+fn signed_award_vector_verifies_cross_language() {
+    use secure_job_envelope::sign::verify_award_signature;
+    let raw = fs::read_to_string(conformance_dir().join("signatures/signed-award.json")).unwrap();
+    let v: Value = serde_json::from_str(&raw).unwrap();
+    let root_pk = v["root_public_key_hex"].as_str().unwrap();
+    let at = v["at_ms"].as_i64().unwrap();
+    let dir_json = serde_json::to_string(&v["directory"]).unwrap();
+    let traveler_json = serde_json::to_string(&v["traveler"]).unwrap();
+
+    // The buyer's award signature verifies end to end (same canonical bytes as TS).
+    assert!(
+        verify_award_signature(&traveler_json, &dir_json, root_pk, at),
+        "buyer award signature must verify"
+    );
+    // Altering the ship-to breaks the award signature (the altered-destination case).
+    let mut tampered = v["traveler"].clone();
+    tampered["ship_to"]["postal"] = serde_json::json!("00000");
+    assert!(
+        !verify_award_signature(&serde_json::to_string(&tampered).unwrap(), &dir_json, root_pk, at),
+        "an altered ship-to must fail the award signature"
+    );
+    // Changing the awarded quantity breaks it.
+    let mut reqty = v["traveler"].clone();
+    reqty["award"]["qty"] = serde_json::json!(reqty["award"]["qty"].as_i64().unwrap() + 1);
+    assert!(!verify_award_signature(&serde_json::to_string(&reqty).unwrap(), &dir_json, root_pk, at));
+    // Bumping the hashed body (revision) breaks the binding to the exact revision.
+    let mut rev = v["traveler"].clone();
+    rev["revision"] = serde_json::json!(rev["revision"].as_i64().unwrap() + 1);
+    assert!(!verify_award_signature(&serde_json::to_string(&rev).unwrap(), &dir_json, root_pk, at));
+    // An unsigned award is refused (present-but-unsigned fails closed).
+    let mut unsigned = v["traveler"].clone();
+    unsigned["award"].as_object_mut().unwrap().remove("sig");
+    assert!(
+        !verify_award_signature(&serde_json::to_string(&unsigned).unwrap(), &dir_json, root_pk, at),
+        "an unsigned award must be refused"
+    );
+    // A non-buyer signer (the award sig's kid points at a different org) is refused.
+    let mut wrong_org = v["traveler"].clone();
+    wrong_org["award"]["sig"]["kid"] = serde_json::json!("summit-2026");
+    assert!(
+        !verify_award_signature(&serde_json::to_string(&wrong_org).unwrap(), &dir_json, root_pk, at),
+        "an award signed by a non-buyer org must be refused"
+    );
+    // A broken directory (wrong root key) fails.
+    assert!(!verify_award_signature(&traveler_json, &dir_json, &"00".repeat(2592), at));
+}
+
+#[test]
 fn signed_quote_vector_verifies_cross_language() {
     use secure_job_envelope::sign::{itar_attestation_blocker, verify_quote_signature};
     let raw = fs::read_to_string(conformance_dir().join("signatures/signed-quote.json")).unwrap();

@@ -18,7 +18,13 @@ Plain statements first:
 - **`traveler_hash` is integrity of the quoteable body** — not, by itself, a
   signature. 0.1 adds ML-DSA-87 authorship signatures verified against the
   signed directory; a quote that is unsigned or fails directory verification
-  does not establish the seller's identity.
+  does not establish the seller's identity. The **buyer also signs the award**
+  (award decision + ship-to), so a forged award or redirected ship-to by a
+  non-buyer is refused, and the desk **verifies these on receive**.
+- **The trust root is operator-configured, not vendor-owned.** Verification
+  takes the root public key as a parameter; no root is baked into the format or
+  code, anyone can run a directory, and independent roots coexist. See
+  [GOVERNANCE.md](GOVERNANCE.md).
 - **Archive import is defensive**: allowlisted members, size caps,
   path-traversal refusal, and SHA-384 META.json digest cross-checks (CRC32 is
   deliberately skipped so a hostile archive is not fully inflated first).
@@ -39,7 +45,7 @@ Plain statements first:
 | CC6 Access | Local role switch. No identity, session, or MFA. | SSO / IdP, RBAC, joiner-mover-leaver, session timeout. |
 | CC6.7 Restrict data | Origin-isolated localStorage. Secret keys encrypted at rest (scrypt + AES-256-GCM keystore, unlocked in memory only); working traveler state is plaintext localStorage. | CUI boundary, full-disk/at-rest encryption for working data, DLP, media control. |
 | CC7 Monitoring | Append-only local audit of compose/quote/award/import/export, capped at 100 events, no PII in the log. | Central immutable log, alerting, retention, clock sync. |
-| CC8 Change | Hash-bound quotes; 0.1 adds ML-DSA-87 authorship signatures, verified against the signed directory in the reference library / CLI (not wired into the desk UI). Amend bumps revision and stale-marks quotes. L2 travelers lock. | Change tickets, dual control on award, signature verification in the desk, and the signing-key custody the desk does not hold (it holds only the ML-KEM decryption key, encrypted — see SECURITY). |
+| CC8 Change | Hash-bound quotes; 0.1 adds ML-DSA-87 authorship signatures (traveler, quote, and the buyer's award over the award + ship-to), verified against the signed directory — in the reference library / CLI **and on the desk** (the Authenticity panel verifies on receive). Amend bumps revision and stale-marks quotes. L2 travelers lock. | Change tickets, dual control on award, and the signing-key custody the desk does not hold (it holds only the ML-KEM decryption key, encrypted — see SECURITY). |
 | A1 Availability | This browser tab. | HA, backup, RTO/RPO, incident response. |
 | C1 Confidentiality | The sent artifact is an encrypted `.sje` (ML-KEM-1024 + AES-256-GCM), addressed via the signed directory; local working-state JSON is readable on the desk, and TLS still applies to the page itself. | Classification, NDAs, vendor review, confidentiality of working data at rest. |
 | P1 Privacy | Ship-to is stored with the traveler when awarded. Audit log omits addresses. | Minimization, retention, DSAR, subprocessors. |

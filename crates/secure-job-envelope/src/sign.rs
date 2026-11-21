@@ -16,6 +16,7 @@ use serde_json::Value;
 pub const SIG_ALG: &str = "ML-DSA-87";
 pub const DOMAIN_TRAVELER: &str = "sje-sig/traveler/0.1.0";
 pub const DOMAIN_QUOTE: &str = "sje-sig/quote/0.1.0";
+pub const DOMAIN_AWARD: &str = "sje-sig/award/0.1.0";
 pub const DOMAIN_DIRECTORY: &str = "sje-sig/directory/0.1.0";
 pub const DOMAIN_PREKEYS: &str = "sje-sig/prekeys/0.1.0";
 
@@ -181,6 +182,79 @@ pub fn verify_traveler_authorship(
         }
     }
     false
+}
+
+/// Verify the buyer's signature over an award + ship-to against the signed
+/// directory at `at_ms`. True iff the directory verifies (in-window) against
+/// `root_pk_hex`, the traveler carries an award with an ML-DSA-87 signature, the
+/// buyer names an org_id, and that signature resolves to an active, in-window
+/// directory entry whose org matches `buyer.org_id` and whose key verifies the
+/// canonical award body `{spec, traveler_id, traveler_hash, award (minus sig),
+/// ship_to}`. A party who is not the buyer — e.g. a losing bidder who can seal an
+/// envelope to the winner — cannot produce this, so a forged award or altered
+/// ship-to is refused. Mirrors the TypeScript `verifyAwardSignature`; false on a
+/// missing or unsigned award, a non-buyer signer, or any malformed input.
+pub fn verify_award_signature(
+    traveler_json: &str,
+    dir_json: &str,
+    root_pk_hex: &str,
+    at_ms: i64,
+) -> bool {
+    if !verify_directory(dir_json, root_pk_hex, at_ms) {
+        return false;
+    }
+    // Parse: validates the document and yields the traveler_hash that binds the award.
+    let Ok(t) = crate::parse_traveler(traveler_json) else {
+        return false;
+    };
+    let Some(award) = t.award.as_ref() else {
+        return false;
+    };
+    let Some(sig) = award.sig.as_ref() else {
+        return false;
+    };
+    if sig.alg != SIG_ALG {
+        return false;
+    }
+    let Some(buyer_org) = t.buyer.org_id.clone() else {
+        return false;
+    };
+    let Ok(traveler_hash) = crate::traveler_hash(&t) else {
+        return false;
+    };
+    // Build the signed body from the raw JSON (award minus its own sig, plus
+    // ship_to), so the canonical bytes match the TypeScript awardSignatureBody.
+    //
+    // Parity invariant: this reuses the RAW json for `award`/`ship_to` while TS
+    // signs over the PARSED traveler. That is only sound because parse_traveler
+    // (called above) already enforced the strict schema — no unknown keys, and no
+    // normalizing transform on these fields — so the raw and parsed values carry
+    // the same keys and the same scalar content, and canonical_json erases the one
+    // legal difference (integer-valued float vs integer rendering) identically on
+    // both sides. If any award/ship_to field ever gains a serde/zod transform or a
+    // default, this must switch to serializing the parsed struct instead.
+    let Ok(v) = serde_json::from_str::<Value>(traveler_json) else {
+        return false;
+    };
+    let mut award_value = v.get("award").cloned().unwrap_or(Value::Null);
+    if let Some(obj) = award_value.as_object_mut() {
+        obj.remove("sig");
+    }
+    let ship_to = v.get("ship_to").cloned().unwrap_or(Value::Null);
+    let body = serde_json::json!({
+        "spec": v.get("spec").cloned().unwrap_or(Value::Null),
+        "traveler_id": v.get("traveler_id").cloned().unwrap_or(Value::Null),
+        "traveler_hash": traveler_hash,
+        "award": award_value,
+        "ship_to": ship_to,
+    });
+    let Ok(canonical) = canonical_json(&body) else {
+        return false;
+    };
+    match directory_entry_by_kid(dir_json, &sig.kid, at_ms) {
+        Some((org, pk)) => org == buyer_org && verify_body(DOMAIN_AWARD, &canonical, &sig.sig, &pk),
+        None => false,
+    }
 }
 
 /// Whether an org is attested — by an active, in-window entry — to hold the ITAR
