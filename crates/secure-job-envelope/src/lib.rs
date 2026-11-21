@@ -427,7 +427,7 @@ fn write_canonical(out: &mut String, value: &Value, depth: usize) -> Result<(), 
 /// (`1e+21` vs `1e21`), so any value that would render with an exponent is
 /// refused rather than hashed ambiguously. The TypeScript implementation
 /// enforces the same rule.
-const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0; // 2^53 - 1
+pub(crate) const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0; // 2^53 - 1
 
 fn write_number(out: &mut String, n: &serde_json::Number) -> Result<(), Error> {
     if let Some(i) = n.as_i64() {

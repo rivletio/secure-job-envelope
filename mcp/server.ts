@@ -27,6 +27,7 @@ import {
 import { travelerHash } from "../src/lib/traveler/hash.ts";
 import { quoteContentHash } from "../src/lib/traveler/authenticity.ts";
 import {
+  amendMerge,
   awardedQuote,
   boundQuotes,
   levelOf,
@@ -296,20 +297,9 @@ async function handle(name: string, args: Args) {
     case "sje_amend": {
       const t = asTraveler(args.traveler);
       if (locked(t)) return fail("Traveler is locked at L2; amend refused.");
-      const patch = args.patch as Partial<Traveler>;
-      const next = parseTraveler({
-        ...t,
-        ...patch,
-        spec: t.spec,
-        traveler_id: t.traveler_id,
-        created_at: t.created_at,
-        revision: t.revision + 1,
-        quotes: t.quotes,
-        award: null,
-        ship_to: t.ship_to,
-        ops: t.ops,
-        as_built: t.as_built ?? null,
-      });
+      // Shared amendMerge (same key set as the desk store): bump the revision, pin the
+      // lifecycle fields, and drop the now-stale buyer signatures.
+      const next = amendMerge(t, args.patch as Partial<Traveler>);
       return ok({ traveler: next, ...report(next) });
     }
 
