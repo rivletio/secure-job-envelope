@@ -374,6 +374,20 @@ fn fs_envelope_vector_roundtrips_cross_language() {
         open_fs(&envelope_json, kid, &static_seed, &wrong_ot).is_none(),
         "without the one-time secret the envelope must not open (forward secrecy)"
     );
+    // An appended malformed recipient (string kid, null prekey_id) must invalidate the
+    // envelope. Previously the Rust open filtered on kid AND prekey_id (silently dropping
+    // this entry) while TS filtered on kid only (keeping it), so the same bytes opened on
+    // Rust but were rejected by TS — a cross-impl parity break plus recipient-set
+    // malleability. Both implementations now fail closed on any malformed recipient entry.
+    let mut tampered = v["envelope"].clone();
+    tampered["recipients"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({ "kid": "deadbeefdeadbeef", "prekey_id": null }));
+    assert!(
+        open_fs(&serde_json::to_string(&tampered).unwrap(), kid, &static_seed, &onetime_seed).is_none(),
+        "an appended malformed recipient must invalidate the FS envelope"
+    );
 }
 
 #[test]

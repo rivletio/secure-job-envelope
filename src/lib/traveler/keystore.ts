@@ -178,14 +178,17 @@ export type Unlocked = {
    *  publish in a signed bundle, and the new keystore blob to persist. */
   addPrekeys(n: number): { keystore: Keystore; prekeys: PublicPrekey[] };
   /** Look up a one-time prekey secret WITHOUT consuming it, so a caller can verify an
-   *  envelope actually opens before committing the single-use deletion — preventing an
-   *  unauthenticated message from burning a prekey. Returns undefined if the id is
-   *  unknown or already consumed. */
+   *  envelope actually opens before committing the single-use deletion — so an envelope
+   *  that FAILS AEAD cannot burn a prekey. (A party holding the public bundle can still
+   *  burn prekeys with a validly-encrypted junk envelope; one-time pools are inherently
+   *  exhaustible — see transport.ts.) Returns undefined if the id is unknown or already
+   *  consumed. */
   peekPrekey(prekeyId: string): Uint8Array | undefined;
   /** Delete a one-time prekey and return the new blob to persist (forward secrecy).
-   *  Call this only AFTER the envelope has been verified to open (see peekPrekey), so
-   *  a forged envelope naming a public prekey_id cannot burn it; persist the returned
-   *  blob before releasing the plaintext. */
+   *  Call this only AFTER the envelope has been verified to open (see peekPrekey), so a
+   *  forgery that FAILS AEAD cannot burn it; persist the returned blob before releasing
+   *  the plaintext. (A validly-encrypted junk envelope from anyone holding the public
+   *  bundle can still consume a prekey — pool exhaustion is expected, not prevented.) */
   consumePrekey(prekeyId: string): { keystore: Keystore; secretKey: Uint8Array | undefined };
   /** Best-effort wipe of in-memory key material; the keystore becomes unusable. */
   lock(): void;

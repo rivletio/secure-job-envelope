@@ -37,7 +37,14 @@ export function isoDateTimeMs(s: string): number | null {
   if (day < 1 || day > daysInMonth(y, mo)) return null;
   if (h > 23 || min > 59 || sec > 59) return null;
   const ms = m[7] ? Number((m[7] + "000").slice(0, 3)) : 0;
-  return Date.UTC(y, mo - 1, day, h, min, sec, ms);
+  // Build the instant WITHOUT Date.UTC's legacy two-digit-year remap (Date.UTC maps a
+  // year of 0–99 to 1900–1999). setUTCFullYear takes the year literally, so TS and the
+  // Rust civil-date math agree on the instant for every 4-digit year, sub-century ones
+  // included. (Date.UTC would make "0099-…" resolve to 1999 and diverge from Rust.)
+  const d = new Date(0);
+  d.setUTCFullYear(y, mo - 1, day);
+  d.setUTCHours(h, min, sec, ms);
+  return d.getTime();
 }
 
 /** A strict ISO calendar day `YYYY-MM-DD` (real calendar, leap-aware). */

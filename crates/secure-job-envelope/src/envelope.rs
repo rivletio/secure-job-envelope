@@ -95,10 +95,13 @@ pub fn open(envelope_json: &str, kid: &str, recipient_seed: &[u8; 64]) -> Option
         return None;
     }
     let recipients = v.get("recipients")?.as_array()?;
+    // Every recipient entry must carry a string kid; a malformed entry (e.g. an
+    // appended junk recipient) invalidates the envelope — the AAD-authenticated set is
+    // exactly the on-wire set, matching the TS verifier (no silent drop).
     let kids: Vec<&str> = recipients
         .iter()
-        .filter_map(|x| x.get("kid").and_then(Value::as_str))
-        .collect();
+        .map(|x| x.get("kid").and_then(Value::as_str))
+        .collect::<Option<Vec<_>>>()?;
     let r = recipients
         .iter()
         .find(|x| x.get("kid").and_then(Value::as_str) == Some(kid))?;
@@ -201,15 +204,18 @@ pub fn open_fs(
         return None;
     }
     let recipients = v.get("recipients")?.as_array()?;
+    // Every recipient entry must carry a string kid AND prekey_id; a malformed entry
+    // (e.g. an appended junk recipient) invalidates the envelope — the AAD-authenticated
+    // set is exactly the on-wire set, matching the TS verifier (no silent drop).
     let rset: Vec<(&str, &str)> = recipients
         .iter()
-        .filter_map(|x| {
+        .map(|x| {
             Some((
                 x.get("kid").and_then(Value::as_str)?,
                 x.get("prekey_id").and_then(Value::as_str)?,
             ))
         })
-        .collect();
+        .collect::<Option<Vec<_>>>()?;
     let r = recipients
         .iter()
         .find(|x| x.get("kid").and_then(Value::as_str) == Some(kid))?;

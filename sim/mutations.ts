@@ -262,6 +262,8 @@ export const MUTATIONS: Mutation[] = [
   },
   { name: "op-notes-null", apply: (d) => d.ops?.[0] && (d.ops[0].notes = null) },
   { name: "award-terms-null", apply: (d) => d.award && (d.award.terms = null) },
+  { name: "award-quote-hash-null", apply: (d) => d.award && (d.award.quote_hash = null) },
+  { name: "award-sig-null", apply: (d) => d.award && (d.award.sig = null) },
   // ---- explicit null on a NULLABLE field: both sides must ACCEPT (regression guard) ----
   { name: "incoterms-null-ok", apply: (d) => (d.incoterms = null) },
 ];

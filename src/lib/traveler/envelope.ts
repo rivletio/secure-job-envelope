@@ -164,10 +164,14 @@ export function openEnvelope(env: Envelope, kid: string, secretKey: Uint8Array):
   }
   const r = env.recipients.find((x) => x.kid === kid);
   if (!r) throw new Error("no recipient entry for this kid");
-  // Filter to string kids so the AAD matches the Rust verifier's filter_map
-  // byte for byte on a malformed envelope (a recipient with no kid). A legitimate
-  // envelope's recipients all carry string kids, so this is a no-op there.
-  const kids = env.recipients.map((x) => x.kid).filter((k): k is string => typeof k === "string");
+  // Every recipient entry MUST carry a string kid; a malformed entry (e.g. an
+  // appended junk recipient) invalidates the envelope, so the AAD-authenticated
+  // recipient set is exactly the on-wire set — no silent drop, and byte-identical to
+  // the Rust verifier, which likewise fails closed on a malformed entry.
+  const kids = env.recipients.map((x) => {
+    if (typeof x.kid !== "string") throw new Error("malformed recipient entry");
+    return x.kid;
+  });
   const sharedSecret = ml_kem1024.decapsulate(hexToBytes(r.kem_ct), secretKey);
   const cek = gcm(kek(sharedSecret, kid), hexToBytes(r.wrap_nonce), aadRecipient(kid)).decrypt(
     hexToBytes(r.wrapped_cek),
@@ -333,11 +337,18 @@ export function openFsEnvelope(
   }
   const r = env.recipients.find((x) => x.kid === kid);
   if (!r) throw new Error("no recipient entry for this kid");
-  // Filter to string kids to match the Rust verifier's filter_map on a malformed
-  // envelope (no-op for a well-formed one — every recipient carries a string kid).
-  const rset = env.recipients
-    .filter((x) => typeof x.kid === "string")
-    .map((x) => ({ kid: x.kid, prekey_id: x.prekey_id }));
+  // Every recipient entry MUST carry a string kid AND a string prekey_id; a malformed
+  // entry (e.g. an appended junk recipient with a null prekey_id) invalidates the
+  // envelope. This keeps the AAD-authenticated set exactly the on-wire set and
+  // byte-identical to the Rust verifier — no silent drop, no cross-impl divergence.
+  // (Previously TS filtered on kid only while Rust dropped on kid OR prekey_id, so a
+  // {kid, prekey_id:null} entry made TS reject but Rust decrypt the same bytes.)
+  const rset = env.recipients.map((x) => {
+    if (typeof x.kid !== "string" || typeof x.prekey_id !== "string") {
+      throw new Error("malformed recipient entry");
+    }
+    return { kid: x.kid, prekey_id: x.prekey_id };
+  });
   const ssOt = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_onetime), onetimeSecretKey);
   const ssId = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_static), staticSecretKey);
   const kek = fsKek(ssOt, ssId, kid, r.prekey_id);

@@ -202,7 +202,7 @@ pub struct Award {
     /// by `quote_id`. Part of the buyer-signed award body, so the award signature commits to the
     /// exact priced quote, not merely its id. A signed award must carry it; verification requires
     /// the awarded quote to be present and to hash to it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub quote_hash: Option<String>,
     pub awarded_at: String,
     #[serde(deserialize_with = "crate::de::i64_lenient")]
@@ -212,7 +212,7 @@ pub struct Award {
     pub terms: Option<AwardTerms>,
     /// Buyer's ML-DSA-87 signature over the award decision and ship-to (excludes
     /// this field). Lets the winning shop refuse a forged award or altered ship-to.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub sig: Option<Signature>,
 }
 

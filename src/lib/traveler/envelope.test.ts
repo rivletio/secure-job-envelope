@@ -96,6 +96,11 @@ describe("encrypted envelope (ML-KEM-1024 + HKDF-SHA-384 + AES-256-GCM)", () => 
     // dropped co-recipient -> also fails
     const dropped: Envelope = { ...env, recipients: [env.recipients[1]!] };
     assert.throws(() => openEnvelope(dropped, b.kid, northlineSk));
+    // appended malformed recipient (non-string kid) -> invalidates the envelope on both
+    // impls (it is NOT silently dropped from the authenticated recipient set)
+    const junk = { ...env.recipients[0]!, kid: null as unknown as string };
+    const withJunk: Envelope = { ...env, recipients: [...env.recipients, junk] };
+    assert.throws(() => openEnvelope(withJunk, b.kid, northlineSk));
   });
 });
 
@@ -230,5 +235,16 @@ describe("forward-secret envelope (sje-envelope/0.2.0)", () => {
     // dropped co-recipient -> also fails
     const dropped: FsEnvelope = { ...env, recipients: [env.recipients[1]!] };
     assert.throws(() => openFsEnvelope(dropped, b.kid, huronStaticSk, ot2Sk));
+    // appended malformed recipient (string kid, null prekey_id) -> invalidates the
+    // envelope on both impls. Previously TS kept it (filtered on kid only) while Rust
+    // dropped it (filtered on kid AND prekey_id), so the same bytes made TS reject but
+    // Rust decrypt — a parity break plus recipient-set malleability. Both now fail closed.
+    const junk = {
+      ...env.recipients[0]!,
+      kid: "deadbeefdeadbeef",
+      prekey_id: null as unknown as string,
+    };
+    const withJunk: FsEnvelope = { ...env, recipients: [...env.recipients, junk] };
+    assert.throws(() => openFsEnvelope(withJunk, b.kid, huronStaticSk, ot2Sk));
   });
 });
