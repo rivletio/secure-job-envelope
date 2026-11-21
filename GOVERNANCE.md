@@ -9,9 +9,9 @@ only as meaningful as the **root key** that signs it. So the fair question is:
 > Who holds the root key? Can anyone else run a directory, or does trusting SJE
 > mean trusting one vendor?
 
-This page answers that. It is the design (which is settled and tested) followed
-by the operational policy for the Rivlet reference directory (which is a
-deliberate **stub** — a business decision, not a code decision).
+This page answers that. It is the design (settled and tested), followed by
+Rivlet's trust-model policy: neutrality is a firm commitment, while the
+operational specifics of any Rivlet-operated root remain to be finalized.
 
 ## The trust model is root-agnostic
 
@@ -83,30 +83,49 @@ mechanisms; policy is yours:
   entries during a rotation, and capability/identity checks scan *all* of them
   order-independently (`orgHasCapability`, matching the Rust verifier).
 
-## Rivlet's role — policy stub
+## Rivlet's role
 
-> **This section is a deliberate stub for Rivlet to complete.** The design above
-> stands on its own and requires no Rivlet-operated root. The following are
-> business/policy decisions, not technical ones, and are intentionally left open
-> here so they are decided explicitly rather than by default:
->
-> - **Does Rivlet operate a reference root at all**, or does SJE ship only the
->   mechanism and leave every deployment to run its own? (The repository ships
->   **no** Rivlet root key, and nothing depends on one.)
-> - If Rivlet does operate a root: **who in Rivlet holds the key and under what
->   custody** (HSM, quorum/dual-control, recovery), the **publication endpoint
->   and cadence**, the **revocation SLA**, and the **onboarding criteria** for
->   adding an `org_id` (how identity is proven before a key is attested).
-> - **Neutrality commitment:** whether Rivlet commits, in writing, that the
->   format and verifiers will never privilege a Rivlet root over any other — i.e.
->   that a competitor or an industry consortium may run a root on equal footing.
-> - **Multi-root / consortium path:** whether a neutral body (e.g. a trade
->   association or the parties' own mutual agreement) is the intended long-term
->   home for roots in regulated settings.
->
-> Until Rivlet fills this in, the honest statement is: *SJE is root-agnostic by
-> construction; there is no Rivlet root in this repository, and trusting SJE does
-> not require trusting Rivlet.*
+The architecture above requires no Rivlet-operated root, and the repository ships
+none. Rivlet's policy on top of it:
+
+- **Neutrality is a commitment, not just a property.** SJE is root-agnostic by
+  construction, and Rivlet commits to keeping it so: the format and the reference
+  verifiers will never privilege a Rivlet-operated root over any other. Any
+  party — a customer, a competitor, or an industry consortium — may operate a
+  directory and be a root on exactly equal footing. Trusting SJE does not require
+  trusting Rivlet.
+
+- **Rivlet may operate a reference directory — as one root among many, never a
+  required one.** Where it is useful, Rivlet may run a managed, audited directory
+  that organizations can *choose* to trust, the way one chooses a certificate
+  authority or a managed-DNS provider. That choice is a convenience and a
+  commercial relationship, not a dependency of the format: a verifier configured
+  to trust a different root, or a consortium's, interoperates identically. No
+  deployment is ever obliged to point at a Rivlet root.
+
+- **Value is captured above the protocol, not by controlling it.** The spec, the
+  two reference implementations, the conformance vectors, and the verifier stay
+  open and neutral — that openness is what makes the format worth adopting. Where
+  Rivlet earns revenue is in the layers above it: operating a trusted directory
+  (uptime, revocation SLA, audit, and the identity onboarding by which an
+  `org_id` is proven to belong to a real organization before a key is attested),
+  and the desk and shop-floor tooling built on the open format. The standard is
+  free; the operation and the products are not.
+
+- **Federation and a consortium path stay open.** For regulated or multi-party
+  settings, roots may be run by the parties themselves or by a neutral body (a
+  trade association, a buyer consortium). SJE already supports multiple
+  independent and federated roots (see the tests above), and Rivlet will not
+  stand in the way of that becoming the long-term home for roots where the market
+  wants it.
+
+**Still to be finalized** (operational, not architectural — none of it changes
+the neutrality above): if and when Rivlet operates a *production* root, the
+key-custody model (HSM, quorum / dual-control, recovery), the publication
+endpoint and re-issue cadence, the revocation SLA, and the `org_id` onboarding
+criteria will be set out in a separate trust-policy before that root is used in
+production. Until then the repository ships no Rivlet root and every deployment
+configures its own.
 
 ## Proof
 
