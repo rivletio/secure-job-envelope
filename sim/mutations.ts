@@ -14,6 +14,24 @@ export type Mutation = { name: string; jsonSafe?: boolean; apply: (doc: Doc) => 
 
 const firstQuote = (d: Doc): Doc | undefined => d.quotes?.[0];
 
+// A raw numeric literal to place on the wire verbatim. `JSON.stringify` collapses a
+// JS number — `250.0` serializes as `250` — so an integer-valued-float field cannot
+// be expressed as a JS number. A mutation sets the field to this sentinel STRING;
+// `serializeDoc` below splices the bare literal back in. The marker chars (`@ #`)
+// never occur in generated travelers, so there are no false matches.
+const RAW_RE = /"@@RAW#([-0-9.eE+]+)#@@"/g;
+export function rawNumber(literal: string): string {
+  return `@@RAW#${literal}#@@`;
+}
+
+/** Serialize a (possibly mutated) doc to the exact wire bytes both implementations
+ *  see, splicing any `rawNumber` sentinels back to bare numeric literals so e.g. an
+ *  integer field can carry `250.0` on the wire. Use this everywhere the harness
+ *  turns a doc into JSON (differential + corpus), not `JSON.stringify` directly. */
+export function serializeDoc(doc: Doc): string {
+  return JSON.stringify(doc).replace(RAW_RE, "$1");
+}
+
 export const MUTATIONS: Mutation[] = [
   { name: "revision-zero", apply: (d) => (d.revision = 0) },
   { name: "revision-over", apply: (d) => (d.revision = 10_001) },
@@ -177,4 +195,73 @@ export const MUTATIONS: Mutation[] = [
   { name: "ship-country-lower", apply: (d) => d.ship_to && (d.ship_to.country = "us") },
   { name: "ship-postal-too-long", apply: (d) => d.ship_to && (d.ship_to.postal = "x".repeat(17)) },
   { name: "ship-name-untrimmed", apply: (d) => d.ship_to && (d.ship_to.name = " Dock 4 ") },
+  // ---- integer-valued floats on the wire (N.0): both sides must ACCEPT, same hash ----
+  // JS collapses 250.0 -> 250 (zod `.int()` accepts it); the Rust core's lenient
+  // integer deserializer accepts an integer-valued float too. Fixed literals (not
+  // derived from the current value) so stacking never produces e.g. "1.5.0".
+  { name: "revision-int-float", apply: (d) => (d.revision = rawNumber("1.0")) },
+  { name: "qty-target-int-float", apply: (d) => (d.part.qty.target = rawNumber("250.0")) },
+  { name: "qty-breaks-int-float", apply: (d) => (d.part.qty.breaks = [rawNumber("100.0"), rawNumber("250.0")]) },
+  { name: "lead-time-int-float", apply: (d) => firstQuote(d) && (firstQuote(d)!.lead_time_days = rawNumber("21.0")) },
+  {
+    name: "line-qty-int-float",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.lines[0].qty = rawNumber("100.0");
+    },
+  },
+  {
+    name: "money-int-float",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.lines[0].unit = rawNumber("1420.0");
+    },
+  },
+  {
+    name: "nre-int-float",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.nre = rawNumber("35000.0");
+    },
+  },
+  { name: "op-seq-int-float", apply: (d) => d.ops?.[0] && (d.ops[0].seq = rawNumber("1.0")) },
+  { name: "award-qty-int-float", apply: (d) => d.award && (d.award.qty = rawNumber("250.0")) },
+  // ---- explicit null on optional-but-not-nullable fields: both sides must REJECT ----
+  // serde Option<T> would map null->None and accept; zod `.optional()` rejects it, and
+  // the Rust core now does too (reject-null deserializer). The audit's split-brain.
+  { name: "org-id-null", apply: (d) => (d.buyer.org_id = null) },
+  { name: "buyer-itar-null", apply: (d) => (d.buyer.itar = null) },
+  { name: "certs-null", apply: (d) => (d.buyer.certs = null) },
+  { name: "thickness-null", apply: (d) => (d.part.material.thickness_mm = null) },
+  { name: "part-notes-null", apply: (d) => (d.part.notes = null) },
+  { name: "breaks-null", apply: (d) => (d.part.qty.breaks = null) },
+  { name: "processes-null", apply: (d) => (d.part.processes = null) },
+  { name: "traveler-itar-null", apply: (d) => (d.itar = null) },
+  { name: "signatures-null", apply: (d) => (d.signatures = null) },
+  { name: "need-by-feasible-null", apply: (d) => firstQuote(d) && (firstQuote(d)!.need_by_feasible = null) },
+  {
+    name: "nre-null",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.nre = null;
+    },
+  },
+  {
+    name: "freight-null",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.freight_estimate = null;
+    },
+  },
+  {
+    name: "tax-excluded-null",
+    apply: (d) => {
+      const q = firstQuote(d);
+      if (q) q.pricing.tax_excluded = null;
+    },
+  },
+  { name: "op-notes-null", apply: (d) => d.ops?.[0] && (d.ops[0].notes = null) },
+  { name: "award-terms-null", apply: (d) => d.award && (d.award.terms = null) },
+  // ---- explicit null on a NULLABLE field: both sides must ACCEPT (regression guard) ----
+  { name: "incoterms-null-ok", apply: (d) => (d.incoterms = null) },
 ];

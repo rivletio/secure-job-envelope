@@ -93,6 +93,36 @@ hash string. Chosen pre-release so no deployed hashes ever migrate.
 Both reference implementations must reproduce the golden vector
 (`crates/secure-job-envelope/tests/golden.json`) exactly.
 
+### Parsing (wire bytes → document)
+
+Serialization is only half of cross-language byte equality; the two parsers must
+also **accept and reject the same wire documents**. Two rules are easy to get
+subtly wrong because the natural default differs between a zod schema and a serde
+struct:
+
+1. **Integer-valued floats are accepted into integer fields.** An integer field
+   accepts an integer or an integer-valued float — `250.0` and `1.0` parse exactly
+   as `250` and `1` — because `250.0 === 250` in JavaScript (so `JSON.parse`
+   collapses it and zod `.int()` accepts it) and the canonicalizer already renders
+   `10.0` as `10`. The Rust core, whose fields are `i64`, carries a lenient integer
+   deserializer (`de.rs`) that accepts an integer-valued float while still refusing a
+   fractional value (`250.5`) or one outside ±(2^53−1). A document with `{"qty":250.0}`
+   therefore parses on both sides and hashes identically to `{"qty":250}`.
+
+2. **An explicit `null` is allowed only on the explicitly-nullable fields.** The five
+   fields `need_by`, `incoterms`, `ship_to`, `award`, and `as_built` accept an explicit
+   `null` and treat it as absent (zod `.nullable()`; JSON Schema `["…","null"]`). Every
+   other optional field accepts **absence** but **refuses an explicit `null`** — a
+   `null` there is a malformed document, refused by both implementations rather than
+   silently coerced to absent. (serde's `Option<T>` maps `null`→`None` by default, so
+   the Rust core refuses it explicitly via `de.rs` to match zod `.optional()` and the
+   published JSON Schema.) This closes a split where one implementation would accept a
+   `null`-carrying document the other refused.
+
+Both rules are held across the two implementations by the seeded differential, the
+committed fuzz corpus, and the conformance vectors (`travelers/l0-intfloat.json`;
+`travelers/reject/*-null.json`).
+
 ## Conformance ladder
 
 | Level | Name | Meaning |

@@ -14,6 +14,7 @@ use sha2::{Digest, Sha384};
 
 pub mod envelope;
 pub mod sign;
+mod de;
 mod validate;
 
 pub const SPEC: &str = "sje/0.1.0";
@@ -39,18 +40,18 @@ pub enum Error {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Org {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub org_id: Option<String>,
     pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub city: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub region: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub contact: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub certs: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub itar: Option<bool>,
 }
 
@@ -58,17 +59,18 @@ pub struct Org {
 #[serde(deny_unknown_fields)]
 pub struct Material {
     pub spec: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub form: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub thickness_mm: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Qty {
+    #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub target: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::opt_vec_i64")]
     pub breaks: Option<Vec<i64>>,
 }
 
@@ -77,27 +79,29 @@ pub struct Qty {
 pub struct Part {
     pub family: String,
     pub part_number: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub description: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub drawing_rev: Option<String>,
     pub material: Material,
     pub qty: Qty,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub processes: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub finish: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub tolerances: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PriceLine {
+    #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub qty: i64,
     /// Integer count of the currency's minor unit (e.g. cents for USD).
+    #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub unit: i64,
 }
 
@@ -105,12 +109,12 @@ pub struct PriceLine {
 #[serde(deny_unknown_fields)]
 pub struct Pricing {
     pub currency: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::opt_i64")]
     pub nre: Option<i64>,
     pub lines: Vec<PriceLine>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::opt_i64")]
     pub freight_estimate: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub tax_excluded: Option<bool>,
 }
 
@@ -118,10 +122,10 @@ pub struct Pricing {
 #[serde(deny_unknown_fields)]
 pub struct QuoteException {
     pub code: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub on: Option<String>,
     pub proposal: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::opt_i64")]
     pub price_delta: Option<i64>,
 }
 
@@ -141,17 +145,18 @@ pub struct Quote {
     pub traveler_hash_quoted: String,
     pub created_at: String,
     pub valid_until: String,
+    #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub lead_time_days: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub need_by_feasible: Option<bool>,
     pub pricing: Pricing,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub assumptions: Option<Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub exceptions: Option<Vec<QuoteException>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub capacity: Option<Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub sig: Option<Signature>,
 }
 
@@ -160,7 +165,7 @@ pub struct Quote {
 pub struct ShipTo {
     pub name: String,
     pub line1: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub line2: Option<String>,
     pub city: String,
     pub region: String,
@@ -171,20 +176,21 @@ pub struct ShipTo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Op {
+    #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub seq: i64,
     pub code: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AwardTerms {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub governing_law: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub warranty: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub payment_terms: Option<String>,
 }
 
@@ -193,9 +199,10 @@ pub struct AwardTerms {
 pub struct Award {
     pub quote_id: String,
     pub awarded_at: String,
+    #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub qty: i64,
     /// Optional purchase-order terms (governing law, warranty, payment).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub terms: Option<AwardTerms>,
 }
 
@@ -204,27 +211,31 @@ pub struct Award {
 pub struct Traveler {
     pub spec: String,
     pub traveler_id: String,
+    #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub revision: i64,
     pub created_at: String,
     pub buyer: Org,
     pub part: Part,
+    // need_by / incoterms / ship_to / award / as_built are the five explicitly-nullable
+    // fields (zod `.nullable()`, JSON Schema `["…","null"]`): an explicit `null` is
+    // accepted and maps to `None`, so they stay plain `#[serde(default)]`.
     #[serde(default)]
     pub need_by: Option<String>,
     #[serde(default)]
     pub incoterms: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::de::present_some")]
     pub itar: Option<bool>,
     #[serde(default)]
     pub ship_to: Option<ShipTo>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::de::present_some")]
     pub ops: Option<Vec<Op>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::de::present_some")]
     pub quotes: Option<Vec<Quote>>,
     #[serde(default)]
     pub award: Option<Award>,
     #[serde(default)]
     pub as_built: Option<Value>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::de::present_some")]
     pub signatures: Option<Vec<Signature>>,
 }
 
@@ -973,5 +984,185 @@ mod tests {
             bound_quotes(&make("2026-09-09T00:00:00.000Z", "2039-01-01T00:00:00.000Z")).len(),
             1
         );
+    }
+
+    // ---- cross-implementation parity: integer-valued floats & null-on-optional ----
+    // (see de.rs; the TypeScript reference reaches the same verdicts, pinned by the
+    //  differential and the conformance vectors.)
+
+    #[test]
+    fn integer_valued_float_parses_into_integer_fields_and_hashes_like_the_integer() {
+        // zod `z.number().int()` accepts 250.0 (in JS 250.0 === 250); the Rust core
+        // must accept an integer-valued float into its i64 fields too, and hash it
+        // identically to the all-integer form. Without the lenient deserializer serde
+        // refuses a float token for i64 and the two implementations split.
+        let floats = parse_traveler(
+            r#"{
+          "spec":"sje/0.1.0",
+          "traveler_id":"tvl_intfloat01",
+          "revision":1.0,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":250.0,"breaks":[100.0,250.0]}},
+          "itar":false
+        }"#,
+        )
+        .unwrap();
+        assert_eq!(floats.revision, 1);
+        assert_eq!(floats.part.qty.target, 250);
+        assert_eq!(floats.part.qty.breaks.as_deref(), Some(&[100i64, 250][..]));
+        let ints = parse_traveler(
+            r#"{
+          "spec":"sje/0.1.0",
+          "traveler_id":"tvl_intfloat01",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":250,"breaks":[100,250]}},
+          "itar":false
+        }"#,
+        )
+        .unwrap();
+        assert_eq!(traveler_hash(&floats).unwrap(), traveler_hash(&ints).unwrap());
+    }
+
+    #[test]
+    fn integer_valued_float_in_optional_integer_fields_is_accepted() {
+        // Optional i64 fields (nre / freight_estimate) and the award qty must accept an
+        // integer-valued float the same way, and still bind the quote (parity L1/L2).
+        let json = r#"{
+          "spec":"sje/0.1.0",
+          "traveler_id":"tvl_intfloat02",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
+          "itar":false,
+          "quotes":[{
+            "quote_id":"qot_intfloat01",
+            "seller":{"name":"Huron Precision","itar":true},
+            "traveler_hash_quoted":"HASH",
+            "created_at":"2026-09-09T00:00:00.000Z",
+            "valid_until":"2039-01-01T00:00:00.000Z",
+            "lead_time_days":12.0,
+            "pricing":{"currency":"USD","nre":35000.0,"freight_estimate":500.0,"lines":[{"qty":50.0,"unit":29.0}]}
+          }]
+        }"#;
+        let hashless: Traveler = serde_json::from_str(&json.replace(
+            "HASH",
+            "sha384:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ))
+        .unwrap();
+        let h = traveler_hash(&hashless).unwrap();
+        let t = parse_traveler(&json.replace("HASH", &h)).unwrap();
+        assert_eq!(t.quotes.as_ref().unwrap()[0].lead_time_days, 12);
+        assert_eq!(t.quotes.as_ref().unwrap()[0].pricing.nre, Some(35000));
+        assert_eq!(bound_quotes(&t).len(), 1, "an integer-valued-float quote still binds");
+    }
+
+    #[test]
+    fn fractional_or_out_of_range_float_is_rejected_for_integer_fields() {
+        // A non-integer value is refused (zod `.int()` refuses it too)...
+        assert!(parse_traveler(
+            r#"{
+          "spec":"sje/0.1.0","traveler_id":"tvl_intfloat03","revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z","buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":250.5}},
+          "itar":false
+        }"#
+        )
+        .is_err());
+        // ...and so is an integer-valued float beyond the safe-integer range (2^53).
+        assert!(parse_traveler(
+            r#"{
+          "spec":"sje/0.1.0","traveler_id":"tvl_intfloat04","revision":9007199254740992.0,
+          "created_at":"2026-09-08T15:12:00.000Z","buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
+          "itar":false
+        }"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn explicit_null_on_non_nullable_optional_is_rejected() {
+        // serde Option<T> maps null->None and would accept; zod `.optional()` rejects
+        // an explicit null. The Rust core must reject it on every non-nullable optional
+        // so the two implementations agree (a mix of hashed-body and lifecycle fields).
+        let base = r#"{
+          "spec":"sje/0.1.0",
+          "traveler_id":"tvl_nullfield1",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"FIELD},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
+          "itar":false
+        }"#;
+        for patch in [r#","org_id":null"#, r#","itar":null"#, r#","certs":null"#, r#","contact":null"#] {
+            assert!(parse_traveler(&base.replace("FIELD", patch)).is_err(), "buyer{patch} must be refused");
+        }
+        // top-level and nested non-nullable optionals too
+        let top = base.replace("FIELD", "");
+        assert!(parse_traveler(&top.replace(r#""itar":false"#, r#""itar":null"#)).is_err());
+        assert!(parse_traveler(&top.replace(r#""itar":false"#, r#""itar":false,"signatures":null"#)).is_err());
+        assert!(parse_traveler(&top.replace(r#""qty":{"target":50}"#, r#""qty":{"target":50,"breaks":null}"#)).is_err());
+        assert!(parse_traveler(&top.replace(r#""qty":{"target":50}}"#, r#""qty":{"target":50},"notes":null}"#)).is_err());
+    }
+
+    #[test]
+    fn explicit_null_in_a_quote_is_rejected() {
+        // The audit's need_by_feasible:null split-brain: serde accepted and BOUND the
+        // quote (L1) while zod refused the whole traveler. Both must now refuse.
+        let base = r#"{
+          "spec":"sje/0.1.0",
+          "traveler_id":"tvl_nullquote1",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
+          "itar":false,
+          "quotes":[{
+            "quote_id":"qot_nullq00001",
+            "seller":{"name":"Huron Precision","itar":true},
+            "traveler_hash_quoted":"sha384:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "created_at":"2026-09-09T00:00:00.000Z",
+            "valid_until":"2026-09-30T00:00:00.000Z",
+            "lead_time_days":12,PATCH
+            "pricing":{"currency":"USD"MONEY,"lines":[{"qty":50,"unit":29}]}
+          }]
+        }"#;
+        let clean = base.replace("PATCH", "").replace("MONEY", "");
+        assert!(parse_traveler(&clean).is_ok(), "the base quote must otherwise parse");
+        assert!(parse_traveler(&base.replace("PATCH", r#""need_by_feasible":null,"#).replace("MONEY", "")).is_err());
+        assert!(parse_traveler(&base.replace("PATCH", "").replace("MONEY", r#","nre":null"#)).is_err());
+    }
+
+    #[test]
+    fn explicit_null_on_nullable_fields_is_accepted() {
+        // The five explicitly-nullable fields (zod `.nullable()`, JSON Schema
+        // `["…","null"]`) accept an explicit null and treat it as absent — this must
+        // NOT regress when the non-nullable optionals start rejecting null.
+        let t = parse_traveler(
+            r#"{
+          "spec":"sje/0.1.0",
+          "traveler_id":"tvl_nullok0001",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
+          "need_by":null,
+          "incoterms":null,
+          "itar":false,
+          "ship_to":null,
+          "award":null,
+          "as_built":null
+        }"#,
+        )
+        .unwrap();
+        assert!(t.need_by.is_none());
+        assert!(t.incoterms.is_none());
+        assert!(t.ship_to.is_none());
+        assert!(t.award.is_none());
+        assert!(t.as_built.is_none());
     }
 }

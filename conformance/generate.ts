@@ -190,6 +190,35 @@ for (const [file, p] of [
   expected[file] = { traveler_hash: travelerHash(parsed), level: levelOf(parsed).code };
   writeFileSync(`${here}/travelers/${file}`, JSON.stringify(p, null, 2) + "\n");
 }
+
+// Integer-valued floats on the wire (revision 1.0, qty.target 250.0, breaks [100.0,
+// 250.0]). Both implementations MUST accept these — JS collapses 250.0->250, and the
+// Rust core's lenient integer deserializer accepts an integer-valued float — and hash
+// them identically to the all-integer form (the canonicalizer renders N.0 as N). See
+// docs/SPEC.md §Canonical JSON / parsing. Authored as literal text because
+// JSON.stringify of a JS number would collapse the `.0`.
+const intFloatJson = `{
+  "spec": "sje/0.1.0",
+  "traveler_id": "tvl_conformintf",
+  "revision": 1.0,
+  "created_at": "2026-09-16T12:00:00.000Z",
+  "buyer": { "name": "Northline Equipment" },
+  "part": {
+    "family": "CNC bracket",
+    "part_number": "NL-BRK-4410",
+    "material": { "spec": "6061-T6" },
+    "qty": { "target": 250.0, "breaks": [100.0, 250.0] }
+  },
+  "itar": false
+}
+`;
+writeFileSync(`${here}/travelers/l0-intfloat.json`, intFloatJson);
+const intFloatParsed = parseTraveler(JSON.parse(intFloatJson));
+expected["l0-intfloat.json"] = {
+  traveler_hash: travelerHash(intFloatParsed),
+  level: levelOf(intFloatParsed).code,
+};
+
 writeFileSync(`${here}/travelers/expected.json`, JSON.stringify(expected, null, 2) + "\n");
 
 // sanity: golden vector must still hold
