@@ -131,6 +131,30 @@ export function parseQuote(data: unknown): Quote {
   return r.data as Quote;
 }
 
+/** Apply an amend patch to a traveler and re-validate it — shared by the desk store
+ *  and the MCP sje_amend handler so both bump the revision and force the SAME key set.
+ *  A patch may only change the quoteable body: identity, quotes, award, ship-to, ops,
+ *  and as_built are pinned so a patch can't inject lifecycle state, and the buyer
+ *  signatures — necessarily invalid once the revision bump moves `traveler_hash` — are
+ *  dropped rather than carried forward stale. Throws (via parseTraveler) on a malformed
+ *  result. Caller is responsible for the lock check (an amend of a locked traveler). */
+export function amendMerge(current: Traveler, patch: Partial<Traveler>): Traveler {
+  return parseTraveler({
+    ...current,
+    ...patch,
+    spec: current.spec,
+    traveler_id: current.traveler_id,
+    created_at: current.created_at,
+    revision: current.revision + 1,
+    quotes: current.quotes,
+    award: null,
+    ship_to: current.ship_to,
+    ops: current.ops,
+    as_built: current.as_built ?? null,
+    signatures: undefined,
+  });
+}
+
 function formatZod(err: { issues: { path: PropertyKey[]; message: string }[] }, kind: string): string {
   const issue = err.issues[0];
   if (!issue) return `Invalid ${kind}`;

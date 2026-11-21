@@ -1,11 +1,15 @@
 import { boundQuotes } from "./conformance.ts";
+import { isoDateTimeMs } from "./datetime.ts";
 import { pricedLine } from "./format.ts";
 import { travelerHash } from "./hash.ts";
 import type { Traveler, Quote, Shop } from "./types.ts";
 
 export function isQuoteExpired(quote: Quote, now = new Date()): boolean {
-  const t = Date.parse(quote.valid_until);
-  if (Number.isNaN(t)) return true;
+  // Strict shared datetime parse (== Rust rfc3339_millis), not lenient Date.parse, so
+  // quote expiry reads the same instant as the rest of the core; fail closed (treat an
+  // unparseable valid_until as expired).
+  const t = isoDateTimeMs(quote.valid_until);
+  if (t === null) return true;
   return now.getTime() > t;
 }
 

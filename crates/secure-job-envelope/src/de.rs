@@ -23,10 +23,7 @@ use std::fmt;
 
 use serde::de::{self, Deserialize, Deserializer, Visitor};
 
-/// 2^53 − 1, the largest integer exactly representable in an IEEE-754 double (and in
-/// JavaScript). An integer-valued float is accepted only within ±this, matching the
-/// canonical numeric range; a value's own field bound is enforced later by `validate`.
-const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+use crate::MAX_SAFE_INTEGER;
 
 struct LenientI64;
 

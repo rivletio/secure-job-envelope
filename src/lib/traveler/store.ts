@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { levelOf, parseTraveler, parseQuote } from "./conformance.ts";
+import { amendMerge, levelOf, parseTraveler, parseQuote } from "./conformance.ts";
 import { seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote } from "./guards.ts";
 import { quoteContentHash } from "./authenticity.ts";
@@ -72,6 +72,33 @@ export function sanitizeTravelers(list: unknown): Traveler[] {
       return [];
     }
   });
+}
+
+const AUDIT_ACTS = new Set<AuditAct>([
+  "compose",
+  "quote",
+  "award",
+  "import",
+  "export",
+  "amend",
+  "reset",
+]);
+
+/** Rehydrate the audit log defensively, like sanitizeTravelers: keep only well-formed
+ *  events so a hand-edited or schema-drifted localStorage blob cannot crash the Trust
+ *  route (which reads `ev.at` / `ev.hash` as strings) on first render. */
+export function sanitizeAudit(list: unknown): AuditEvent[] {
+  if (!Array.isArray(list)) return [];
+  return list.filter(
+    (e): e is AuditEvent =>
+      typeof e === "object" &&
+      e !== null &&
+      typeof (e as AuditEvent).at === "string" &&
+      AUDIT_ACTS.has((e as AuditEvent).act) &&
+      ((e as AuditEvent).traveler_id === undefined ||
+        typeof (e as AuditEvent).traveler_id === "string") &&
+      ((e as AuditEvent).hash === undefined || typeof (e as AuditEvent).hash === "string"),
+  );
 }
 
 /** localStorage that never throws: a quota-exceeded write, a blocked or absent
@@ -192,20 +219,9 @@ export const useTravelerStore = create<TravelerState>()(
         set((s) => {
           const current = s.travelers.find((p) => p.traveler_id === travelerId);
           if (!current || executable(current)) return s;
-          // Re-validate the merged result through the schema (as the MCP amend
-          // does) so a malformed patch cannot land unvalidated in state.
-          const next = parseTraveler({
-            ...current,
-            ...patch,
-            traveler_id: current.traveler_id,
-            spec: current.spec,
-            created_at: current.created_at,
-            revision: current.revision + 1,
-            quotes: current.quotes,
-            award: null,
-            ship_to: current.ship_to,
-            ops: current.ops,
-          });
+          // Shared with the MCP sje_amend handler: re-validate through the schema,
+          // force the same key set, and drop the now-stale buyer signatures.
+          const next = amendMerge(current, patch);
           return {
             travelers: s.travelers.map((p) => (p.traveler_id === travelerId ? next : p)),
             audit: withAudit(s.audit, {
@@ -260,7 +276,7 @@ export const useTravelerStore = create<TravelerState>()(
           travelers: Array.isArray(p.travelers)
             ? sanitizeTravelers(p.travelers)
             : current.travelers,
-          audit: Array.isArray(p.audit) ? p.audit : [],
+          audit: sanitizeAudit(p.audit),
           hydrated: false,
         };
       },
