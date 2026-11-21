@@ -22,6 +22,7 @@ export const SIG_ALG = "ML-DSA-87" as const;
 export const SIG_DOMAIN = {
   traveler: "sje-sig/traveler/0.1.0",
   quote: "sje-sig/quote/0.1.0",
+  award: "sje-sig/award/0.1.0",
   directory: "sje-sig/directory/0.1.0",
   prekeys: "sje-sig/prekeys/0.1.0",
 } as const;

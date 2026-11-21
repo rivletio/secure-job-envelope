@@ -3,6 +3,7 @@ import { Download, FileJson, Lock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { AuthenticityPanel } from "@/components/authenticity-panel";
 import { AwardDialog } from "@/components/award-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SealDialog } from "@/components/seal-dialog";
@@ -292,6 +293,7 @@ function TravelerPage() {
             <Separator className="my-4" />
             <Checklist infoCode={info.code} missing={info.missing} />
           </div>
+          <AuthenticityPanel traveler={traveler} />
         </aside>
       </div>
 

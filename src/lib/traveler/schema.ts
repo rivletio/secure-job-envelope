@@ -200,6 +200,7 @@ export const travelerSchema = z
           })
           .strict()
           .optional(),
+        sig: signature.optional(),
       })
       .strict()
       .nullable()

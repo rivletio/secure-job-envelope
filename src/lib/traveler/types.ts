@@ -123,6 +123,10 @@ export type Award = {
   /** Optional purchase-order terms. An award carrying terms is closer to a PO
    *  (governing law, warranty, payment); still not a contract by itself. */
   terms?: AwardTerms;
+  /** Buyer's ML-DSA-87 signature over the award decision and ship-to, bound to the
+   *  exact traveler revision (excludes this field). Lets the winning shop refuse a
+   *  forged award or altered ship-to that a non-buyer sealed to them. */
+  sig?: Signature;
 };
 
 export type Traveler = {

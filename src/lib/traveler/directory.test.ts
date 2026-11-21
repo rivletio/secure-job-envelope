@@ -114,3 +114,64 @@ describe("directory cross-implementation parity hardening", () => {
     assert.equal(orgHasCapability(revoked, "org_acme", "itar", when), false);
   });
 });
+
+describe("trust-root governance — vendor neutrality (GOVERNANCE.md)", () => {
+  // The verifier is handed the root public key as a parameter (verifyDirectory's
+  // rootPublicKeyHex). No root is baked into the format or the code, so the trust
+  // model is root-agnostic: anyone can operate a directory, a verifier trusts
+  // whichever root(s) it was configured with out-of-band, and independent roots
+  // coexist (federation). This test pins that property so no later change can
+  // silently privilege one root.
+  const when = new Date("2027-01-01T00:00:00.000Z");
+  const dirFor = (root: ReturnType<typeof keypairFromSeed>, orgKeyHex: string): Directory => {
+    const body: Directory = {
+      spec: DIRECTORY_SPEC,
+      issued_at: "2026-01-01T00:00:00.000Z",
+      valid_until: "2030-01-01T00:00:00.000Z",
+      root_kid: "root",
+      entries: [
+        {
+          org_id: "org_acme",
+          kid: "acme-2026",
+          alg: "ML-DSA-87",
+          public_key: orgKeyHex,
+          valid_from: "2026-01-01T00:00:00.000Z",
+          valid_until: "2030-01-01T00:00:00.000Z",
+          status: "active",
+        },
+      ],
+    };
+    return { ...body, sig: signDirectory(body, root.secretKey) };
+  };
+
+  it("lets two independent roots each operate a directory, trusted only under their own key", () => {
+    const rootA = keypairFromSeed(new Uint8Array(32).fill(0xa1));
+    const rootB = keypairFromSeed(new Uint8Array(32).fill(0xb2));
+    const pkA = bytesToHex(rootA.publicKey);
+    const pkB = bytesToHex(rootB.publicKey);
+    assert.notEqual(pkA, pkB);
+
+    // Each root publishes its own directory (here, even binding the same org to a
+    // different key — the two roots are independent naming authorities).
+    const dirA = dirFor(rootA, "aa".repeat(1312));
+    const dirB = dirFor(rootB, "bb".repeat(1312));
+
+    // Each directory verifies under its own root…
+    assert.equal(verifyDirectory(dirA, pkA, when), true);
+    assert.equal(verifyDirectory(dirB, pkB, when), true);
+    // …and NOT under the other root. No root is globally privileged; trust is
+    // exactly the configured root key, nothing more.
+    assert.equal(verifyDirectory(dirA, pkB, when), false);
+    assert.equal(verifyDirectory(dirB, pkA, when), false);
+  });
+
+  it("makes the configured root the sole arbiter — swapping it changes which directory is authoritative", () => {
+    const incumbent = keypairFromSeed(new Uint8Array(32).fill(0xc3));
+    const challenger = keypairFromSeed(new Uint8Array(32).fill(0xd4));
+    const dir = dirFor(incumbent, "cc".repeat(1312));
+    // A verifier that trusts the incumbent accepts it; one that trusts a different
+    // root rejects the very same bytes. There is no appeal to a built-in authority.
+    assert.equal(verifyDirectory(dir, bytesToHex(incumbent.publicKey), when), true);
+    assert.equal(verifyDirectory(dir, bytesToHex(challenger.publicKey), when), false);
+  });
+});

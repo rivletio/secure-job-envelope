@@ -112,18 +112,27 @@ npm run example:signatures
 ```
 
 [`examples/signed-traveler.ts`](../examples/signed-traveler.ts) publishes a signed
-key directory that binds `org_northline` to a signing key, has the buyer sign the
-quoteable body (ML-DSA-87), and then verifies it:
+key directory binding `org_northline` (the buyer) and `org_summitfab` (a competing
+bidder) to signing keys, has the buyer sign the quoteable body **and the award**
+(ML-DSA-87), and then verifies both:
 
 - a genuine signature **verifies** and reports the author org;
 - a one-field tamper no longer verifies;
 - a signature whose key's org does not match the body's author org is **refused**
-  (authorship must bind to an org — a missing `org_id` is a hard failure).
+  (authorship must bind to an org — a missing `org_id` is a hard failure);
+- the buyer's **award signature** (award decision + ship-to) verifies, while a
+  redirected ship-to and a losing bidder's forged award — the latter sealed to the
+  winner with the bidder's *own* key — are both **refused**: a non-buyer cannot
+  produce the buyer's award signature. This closes the business-email-compromise
+  gap — anyone holding a recipient's public key can seal an envelope to them, so an
+  award or ship-to that the buyer did not sign is not trusted.
 
 Signing lives in the library / CLI / server. The browser desk only ever
 *verifies* — it must never hold ML-DSA signing keys (see
-[SECURITY.md](../SECURITY.md)). In 0.1 the authorship signature covers the
-quoteable body; wiring verify-on-receive into the live exchange is on the roadmap.
+[SECURITY.md](../SECURITY.md)). In 0.1 the buyer signs the quoteable body and,
+separately, the award (award decision + ship-to); the desk **verifies both on
+receive** — the **Authenticity** panel on a traveler checks them against the trust
+anchor loaded in **Keys**.
 
 ---
 

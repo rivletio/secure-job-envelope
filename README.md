@@ -43,6 +43,7 @@ This repo contains:
 | `docs/CLAIMS.md` | The claims register: every written security claim mapped to the test that proves it |
 | `docs/ENVELOPE-DRAFT.md` | 0.1 draft: post-quantum encrypted envelope (`.sje`) |
 | `TRUST.md` | Honest SOC 2 TSC mapping: what this gives you, what it does not |
+| `GOVERNANCE.md` | The trust root and vendor neutrality: who can run a directory, and why trusting SJE does not mean trusting one vendor |
 | `SECURITY.md` | Threat model and how to report issues |
 
 Hashing is **SHA-384** — selected for post-quantum collision margins (see
@@ -115,7 +116,9 @@ plus the TypeScript↔Rust differential for integer money and award terms (see
   authorship signatures over the canonical body, verified against a signed key
   directory: a signature whose key's org does not match the body's `org_id`
   fails verification. (The hash itself is still integrity, not a signature;
-  authorship is the separate signature.)
+  authorship is the separate signature.) The **buyer also signs the award** (the
+  award decision + ship-to), so a forged award or a redirected ship-to sealed to
+  the winner by a non-buyer is refused — and the desk **verifies on receive**.
 - **Identity via the directory.** `org_id` is bound to a key in the signed
   directory. There is still no multi-tenant access-control layer — that sits
   above the format.

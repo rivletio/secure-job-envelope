@@ -31,17 +31,26 @@ What the format defends, by design:
   full-bytes `traveler_json_sha384` digest is **required** (not optional): since
   `traveler_hash` covers only the quoteable body, this digest is what detects
   tampering of the non-quoteable lifecycle fields (award, ship_to, ops). These
-  digests are *unkeyed* integrity (they catch corruption and naive tampering);
-  adversarial authenticity is the ML-DSA authorship signature, which in 0.1 signs
-  the quoteable body but not the lifecycle fields — see `docs/CLAIMS.md` G7.
+  digests are *unkeyed* integrity (they catch corruption and naive tampering),
+  so a party that re-seals an archive recomputes them; adversarial authenticity
+  is the ML-DSA signature layer — the buyer signs the quoteable body **and** the
+  award (award + ship-to), so a re-sealed archive that forges the award or
+  redirects the ship-to fails that signature even though its digest recomputes.
+  `ops` / `as_built` remain unsigned post-award execution state — see
+  `docs/CLAIMS.md` G7.
 - **ID generation** uses `crypto.getRandomValues` with rejection sampling
   (no modulo bias); there is no non-cryptographic fallback.
 - **Party authentication (0.1).** ML-DSA-87 (FIPS 204) authorship signatures
   bind a traveler/quote to a key in a signed directory; a signature whose
   key's `org_id` differs from the body's — or that names no org at all — is
-  refused. Signature verification lives in the reference library (and is
-  available to CLI / MCP consumers); it is not wired into the browser desk UI,
-  which never holds signing keys and never signs.
+  refused. The buyer additionally **signs the award** — the award decision and
+  ship-to, bound to the exact traveler revision — so a forged award or a
+  redirected ship-to sealed to the winner by a non-buyer no longer verifies,
+  closing the business-email-compromise gap (see `docs/CLAIMS.md` PQ11, G7).
+  Signature verification lives in the reference library (and is available to
+  CLI / MCP consumers) **and the browser desk verifies on receive** (the
+  Authenticity panel on a traveler); the desk still never holds signing keys
+  and never signs.
 - **Confidentiality (0.1).** The encrypted envelope (ML-KEM-1024 +
   HKDF-SHA-384 + AES-256-GCM) is designed to keep payloads confidential in
   transit and at rest against a harvest-now-decrypt-later adversary, subject to
@@ -109,7 +118,8 @@ in [docs/CLAIMS.md](docs/CLAIMS.md); the shared vector corpus lives in
   security. This was fixed **before first release** to avoid a later hash
   migration.
 - **Signatures (0.1): implemented; algorithms from the CNSA 2.0 Category 5 suite.** **ML-DSA-87
-  (FIPS 204)** authorship signatures over the domain-separated canonical body,
+  (FIPS 204)** authorship signatures over the domain-separated canonical body
+  (and the buyer's separate award signature over the award decision + ship-to),
   verified against a signed key directory (org_id → key, with attested
   capabilities including ITAR). Every signature carries its `alg`; verifiers
   reject schemes they do not accept. SLH-DSA (FIPS 205) — hash-based, the most

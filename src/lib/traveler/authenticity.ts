@@ -8,7 +8,7 @@
  *  only ever *verifies* — it must not hold ML-DSA private keys (see SECURITY).
  */
 import { canonicalJson } from "./canonical.ts";
-import { quoteableBody } from "./hash.ts";
+import { quoteableBody, travelerHash } from "./hash.ts";
 import { SIG_ALG, SIG_DOMAIN, signBody, verifyBody } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
 import { entryByKid, orgHasCapability, verifyDirectory, type Directory } from "./directory.ts";
@@ -32,6 +32,28 @@ export function signTraveler(t: Traveler, kid: string, secretKey: Uint8Array): S
 
 export function signQuote(q: Quote, kid: string, secretKey: Uint8Array): Signature {
   return { alg: SIG_ALG, kid, sig: signBody(SIG_DOMAIN.quote, quoteSignatureBody(q), secretKey) };
+}
+
+/** Exact bytes the buyer signs to authorize an award: the award decision and the
+ *  ship-to, bound to the exact traveler revision via `traveler_hash` (and excluding
+ *  the award's own signature). A party who is not the buyer — e.g. a losing bidder
+ *  who can seal an envelope to the winner — cannot produce this, so a forged award
+ *  or an altered ship-to no longer verifies. Throws if there is no award. */
+export function awardSignatureBody(t: Traveler): string {
+  if (!t.award) throw new Error("no award to sign");
+  const { sig: _omit, ...award } = t.award;
+  void _omit;
+  return canonicalJson({
+    spec: t.spec,
+    traveler_id: t.traveler_id,
+    traveler_hash: travelerHash(t),
+    award,
+    ship_to: t.ship_to ?? null,
+  });
+}
+
+export function signAward(t: Traveler, kid: string, secretKey: Uint8Array): Signature {
+  return { alg: SIG_ALG, kid, sig: signBody(SIG_DOMAIN.award, awardSignatureBody(t), secretKey) };
 }
 
 export type SigCheck = { kid: string; ok: boolean; org_id?: string; reason?: string };
@@ -124,6 +146,50 @@ export function verifyQuoteSignature(
     return { kid: q.sig.kid, ok: false, reason: "quote body is not canonicalizable" };
   }
   return checkSig(SIG_DOMAIN.quote, body, q.sig, q.seller.org_id, dir, when);
+}
+
+/** Verify the buyer's signature over the award + ship-to. Returns:
+ *  - `undefined` if the traveler carries no award (nothing to check);
+ *  - a failing check if an award is present but unsigned, or signed by an org
+ *    other than the buyer, or over a changed award / ship-to / revision;
+ *  - a passing check only when the buyer (as named by the traveler and bound
+ *    through the directory) signed exactly this award and ship-to.
+ *  An award present without a valid buyer signature is an authenticity failure,
+ *  not a silent accept — this is the guard against a forged award or a redirected
+ *  ship-to sealed to the winner by a non-buyer. */
+export function verifyAwardSignature(
+  t: Traveler,
+  dir: Directory,
+  rootPublicKeyHex: string,
+  at?: Date,
+): SigCheck | undefined {
+  if (!t.award) return undefined;
+  const when = at ?? new Date();
+  if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
+    return { kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" };
+  }
+  if (!t.award.sig) {
+    return { kid: "", ok: false, reason: "award is present but not signed by the buyer" };
+  }
+  // Fail closed if the award body cannot be canonicalized (a hostile number in an
+  // opaque field would otherwise throw out of canonicalJson here).
+  let body: string;
+  try {
+    body = awardSignatureBody(t);
+  } catch {
+    return { kid: t.award.sig.kid, ok: false, reason: "award body is not canonicalizable" };
+  }
+  return checkSig(SIG_DOMAIN.award, body, t.award.sig, t.buyer.org_id, dir, when);
+}
+
+/** True iff the traveler has an award and it carries a valid buyer signature. */
+export function awardIsAuthentic(
+  t: Traveler,
+  dir: Directory,
+  rootPublicKeyHex: string,
+  at?: Date,
+): boolean {
+  return verifyAwardSignature(t, dir, rootPublicKeyHex, at)?.ok === true;
 }
 
 /** ITAR gate elevated to directory attestation (caveat 3): an ITAR traveler's
