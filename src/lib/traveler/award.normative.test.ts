@@ -69,6 +69,12 @@ describe("award signature — normative requirements (SHALL)", () => {
     const body = JSON.parse(awardSignatureBody(t)) as Record<string, unknown>;
     assert.deepEqual(Object.keys(body), ["award", "ship_to", "spec", "traveler_hash", "traveler_id"]);
     assert.equal(Object.prototype.hasOwnProperty.call(body.award as object, "sig"), false);
+    // Round-trip: a freshly buyer-signed award (not only the shipped vector) also
+    // verifies — signAward and verifyAwardSignature agree on an award we sign here.
+    const fresh = base();
+    fresh.award = { ...fresh.award!, qty: 500 };
+    fresh.award.sig = signAward(fresh, "northline-2026", northline.secretKey);
+    assert.equal(verifyAwardSignature(fresh, dir, rootPk, at)?.ok, true);
   });
 
   it("AW-2 (MUST): the directory must verify against the configured trust root, else the award is refused", () => {
