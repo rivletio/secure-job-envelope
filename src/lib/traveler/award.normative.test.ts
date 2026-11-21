@@ -39,6 +39,11 @@ import type { Traveler, Signature } from "./types.ts";
  *         another domain MUST NOT verify as an award (no cross-context replay).
  *   AW-12 A traveler with no award yields "nothing to verify" (undefined), which is
  *         distinct from an authenticity failure.
+ *   AW-13 The signature MUST bind the awarded quote's priced content via `quote_hash`: a swapped
+ *         unit price on the awarded quote (even an unsigned quote) MUST fail — completeness beyond
+ *         the BEC core, closing the absent/unsigned-quote gap.
+ *   AW-14 The awarded quote MUST be present to verify — a stripped awarded quote is a hard failure.
+ *   AW-15 A signed award MUST carry a `quote_hash` — an award signed without one is refused.
  */
 
 const vec = JSON.parse(
@@ -168,5 +173,36 @@ describe("award signature — normative requirements (SHALL)", () => {
     const noAward = { ...base(), award: null };
     assert.equal(verifyAwardSignature(noAward, dir, rootPk, at), undefined);
     assert.equal(awardIsAuthentic(noAward, dir, rootPk, at), false);
+  });
+
+  it("AW-13 (MUST): the signature binds the awarded quote's priced content — a swapped unit price is refused", () => {
+    // The awarded quote (qot_conform01) is present and unsigned — the exact gap case.
+    const swapped = base();
+    const q = swapped.quotes!.find((x) => x.quote_id === swapped.award!.quote_id)!;
+    q.pricing.lines[0].unit = q.pricing.lines[0].unit + 1;
+    const check = verifyAwardSignature(swapped, dir, rootPk, at);
+    assert.equal(check?.ok, false);
+    assert.match(check?.reason ?? "", /quote content does not match|quote_hash/);
+    assert.equal(awardIsAuthentic(swapped, dir, rootPk, at), false);
+  });
+
+  it("AW-14 (MUST, hard fail): the awarded quote must be present — a stripped awarded quote is refused", () => {
+    const stripped = { ...base(), quotes: [] };
+    const check = verifyAwardSignature(stripped, dir, rootPk, at);
+    assert.equal(check?.ok, false);
+    assert.match(check?.reason ?? "", /not present/);
+  });
+
+  it("AW-15 (MUST): a signed award must carry a quote_hash — an award signed without one is refused", () => {
+    const t = base();
+    const { quote_hash: _omit, ...awardNoHash } = t.award!;
+    void _omit;
+    // Re-sign the award body WITHOUT a quote_hash, with the real buyer key: the buyer signature
+    // verifies over that body, but the binding is missing, so the award is refused.
+    t.award = { ...awardNoHash, sig: undefined };
+    t.award.sig = signAward(t, "northline-2026", northline.secretKey);
+    const check = verifyAwardSignature(t, dir, rootPk, at);
+    assert.equal(check?.ok, false);
+    assert.match(check?.reason ?? "", /quote_hash/);
   });
 });

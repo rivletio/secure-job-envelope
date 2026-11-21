@@ -44,9 +44,12 @@ What the format defends, by design:
   bind a traveler/quote to a key in a signed directory; a signature whose
   key's `org_id` differs from the body's — or that names no org at all — is
   refused. The buyer additionally **signs the award** — the award decision and
-  ship-to, bound to the exact traveler revision — so a forged award or a
-  redirected ship-to sealed to the winner by a non-buyer no longer verifies,
-  closing the business-email-compromise gap (see `docs/CLAIMS.md` PQ11, G7).
+  ship-to, bound to the exact traveler revision, and binding the awarded quote's
+  priced content via `quote_hash` — so a forged award or a redirected ship-to
+  sealed to the winner by a non-buyer no longer verifies, closing the
+  business-email-compromise gap; and because the award commits to the awarded
+  quote's content hash, a swapped unit price on that quote — even an unsigned one —
+  is refused too (see `docs/CLAIMS.md` PQ11, G7).
   Signature verification lives in the reference library (and is available to
   CLI / MCP consumers) **and the browser desk verifies on receive** (the
   Authenticity panel on a traveler); the desk still never holds signing keys

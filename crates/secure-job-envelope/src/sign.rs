@@ -12,6 +12,7 @@ use ml_dsa::{
     EncodedSignature, EncodedVerifyingKey, MlDsa87, Signature, SigningKey, VerifyingKey, B32,
 };
 use serde_json::Value;
+use sha2::{Digest, Sha384};
 
 pub const SIG_ALG: &str = "ML-DSA-87";
 pub const DOMAIN_TRAVELER: &str = "sje-sig/traveler/0.1.0";
@@ -192,8 +193,13 @@ pub fn verify_traveler_authorship(
 /// canonical award body `{spec, traveler_id, traveler_hash, award (minus sig),
 /// ship_to}`. A party who is not the buyer — e.g. a losing bidder who can seal an
 /// envelope to the winner — cannot produce this, so a forged award or altered
-/// ship-to is refused. Mirrors the TypeScript `verifyAwardSignature`; false on a
-/// missing or unsigned award, a non-buyer signer, or any malformed input.
+/// ship-to is refused. The award body includes `award.quote_hash`, and this verifier
+/// additionally requires that binding to hold: the awarded quote MUST be present in
+/// `quotes` and still hash to the signed `quote_hash`, so an absent or unsigned awarded
+/// quote cannot have its priced content swapped under a still-valid award signature (a
+/// stripped awarded quote is a hard failure). Mirrors the TypeScript `verifyAwardSignature`;
+/// false on a missing or unsigned award, a non-buyer signer, an absent/mismatched awarded
+/// quote, or any malformed input.
 pub fn verify_award_signature(
     traveler_json: &str,
     dir_json: &str,
@@ -251,10 +257,41 @@ pub fn verify_award_signature(
     let Ok(canonical) = canonical_json(&body) else {
         return false;
     };
-    match directory_entry_by_kid(dir_json, &sig.kid, at_ms) {
-        Some((org, pk)) => org == buyer_org && verify_body(DOMAIN_AWARD, &canonical, &sig.sig, &pk),
-        None => false,
+    let Some((org, pk)) = directory_entry_by_kid(dir_json, &sig.kid, at_ms) else {
+        return false;
+    };
+    if !(org == buyer_org && verify_body(DOMAIN_AWARD, &canonical, &sig.sig, &pk)) {
+        return false;
     }
+    // Quote-content binding: the signed award body includes `quote_hash` (it rides inside
+    // `award`), so the buyer committed to the exact priced quote. Now require that binding to
+    // hold: a signed award MUST carry a quote_hash, the awarded quote MUST be present in
+    // `quotes`, and it MUST still hash to the signed value — otherwise an absent or unsigned
+    // awarded quote could have its price swapped under a still-valid award signature. The quote
+    // content hash is `sha384:` + hex of canonical(quote minus its own `sig`) — the same bytes
+    // the seller signs, built from the RAW json under the same parity invariant as the award body
+    // above (and as `verify_quote_signature`), so it matches the TypeScript `quoteContentHash`.
+    let Some(quote_hash) = award.quote_hash.as_deref() else {
+        return false;
+    };
+    let Some(quotes) = v.get("quotes").and_then(Value::as_array) else {
+        return false;
+    };
+    let Some(awarded) = quotes
+        .iter()
+        .find(|q| q.get("quote_id").and_then(Value::as_str) == Some(award.quote_id.as_str()))
+    else {
+        return false;
+    };
+    let mut awarded_body = awarded.clone();
+    if let Some(obj) = awarded_body.as_object_mut() {
+        obj.remove("sig");
+    }
+    let Ok(canon_quote) = canonical_json(&awarded_body) else {
+        return false;
+    };
+    let computed = format!("sha384:{}", hex::encode(Sha384::digest(canon_quote.as_bytes())));
+    computed == quote_hash
 }
 
 /// Whether an org is attested — by an active, in-window entry — to hold the ITAR

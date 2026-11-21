@@ -25,6 +25,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { travelerHash } from "../src/lib/traveler/hash.ts";
+import { quoteContentHash } from "../src/lib/traveler/authenticity.ts";
 import {
   awardedQuote,
   boundQuotes,
@@ -364,6 +365,7 @@ async function handle(name: string, args: Args) {
       if (!Array.isArray(ops) || ops.length === 0) return fail("List at least one op.");
       const award: Award = {
         quote_id: quote.quote_id,
+        quote_hash: quoteContentHash(quote),
         awarded_at: isoNow(),
         qty: Number(args.qty),
         ...(args.terms ? { terms: args.terms as Award["terms"] } : {}),

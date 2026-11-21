@@ -111,4 +111,35 @@ describe("award authenticity (buyer signs the award + ship-to)", () => {
     const t = parseTraveler(vec.traveler);
     assert.equal(verifyAwardSignature(t, dir, "00".repeat(2592), at)?.ok, false);
   });
+
+  it("binds the awarded quote's priced content — a swapped unit price is refused (completeness)", () => {
+    // The awarded quote (qot_conform01) is present and UNSIGNED — the exact gap case. Swapping
+    // its unit price leaves the buyer's award signature valid over the body, but the quote no
+    // longer hashes to the buyer-signed award.quote_hash, so the award is refused.
+    const t = parseTraveler(vec.traveler);
+    const swapped = structuredClone(t);
+    const q = swapped.quotes!.find((x) => x.quote_id === swapped.award!.quote_id)!;
+    q.pricing.lines[0].unit = q.pricing.lines[0].unit + 1;
+    const check = verifyAwardSignature(swapped, dir, rootPk, at);
+    assert.equal(check?.ok, false);
+    assert.match(check?.reason ?? "", /quote content does not match|quote_hash/);
+    assert.equal(awardIsAuthentic(swapped, dir, rootPk, at), false);
+  });
+
+  it("hard-fails when the awarded quote is stripped from the traveler", () => {
+    // A stripped awarded quote leaves nothing to re-verify the priced content against.
+    const t = parseTraveler(vec.traveler);
+    const stripped: Traveler = { ...structuredClone(t), quotes: [] };
+    const check = verifyAwardSignature(stripped, dir, rootPk, at);
+    assert.equal(check?.ok, false);
+    assert.match(check?.reason ?? "", /not present/);
+  });
+
+  it("refuses a signed award whose quote_hash was tampered (it is inside the signed body)", () => {
+    const t = parseTraveler(vec.traveler);
+    const tampered = structuredClone(t);
+    tampered.award!.quote_hash = "sha384:" + "0".repeat(96);
+    // quote_hash rides inside the signed award body, so changing it breaks the buyer signature.
+    assert.equal(verifyAwardSignature(tampered, dir, rootPk, at)?.ok, false);
+  });
 });

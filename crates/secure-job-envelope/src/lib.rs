@@ -198,6 +198,12 @@ pub struct AwardTerms {
 #[serde(deny_unknown_fields)]
 pub struct Award {
     pub quote_id: String,
+    /// Content hash (`sha384:` + hex of the awarded quote's signature body) of the quote named
+    /// by `quote_id`. Part of the buyer-signed award body, so the award signature commits to the
+    /// exact priced quote, not merely its id. A signed award must carry it; verification requires
+    /// the awarded quote to be present and to hash to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quote_hash: Option<String>,
     pub awarded_at: String,
     #[serde(deserialize_with = "crate::de::i64_lenient")]
     pub qty: i64,

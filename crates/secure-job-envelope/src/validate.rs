@@ -333,6 +333,11 @@ fn award(a: &Award) -> Result<(), Error> {
     if !id_ok(&a.quote_id) {
         return Err(err("invalid award.quote_id"));
     }
+    if let Some(h) = &a.quote_hash {
+        if !hash_ok(h) {
+            return Err(err("award.quote_hash is not a sha384 hash"));
+        }
+    }
     if !datetime_ok(&a.awarded_at) {
         return Err(err("award.awarded_at is not a canonical datetime"));
     }

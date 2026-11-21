@@ -125,7 +125,9 @@ bidder) to signing keys, has the buyer sign the quoteable body **and the award**
   winner with the bidder's *own* key — are both **refused**: a non-buyer cannot
   produce the buyer's award signature. This closes the business-email-compromise
   gap — anyone holding a recipient's public key can seal an envelope to them, so an
-  award or ship-to that the buyer did not sign is not trusted.
+  award or ship-to that the buyer did not sign is not trusted;
+- the award also **binds the awarded quote's priced content** (via `quote_hash`), so a
+  swapped unit price on the awarded quote — even an unsigned one — is **refused**.
 
 Signing lives in the library / CLI / server. The browser desk only ever
 *verifies* — it must never hold ML-DSA signing keys (see
