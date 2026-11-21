@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { levelOf, parseTraveler, parseQuote } from "./conformance.ts";
 import { seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote } from "./guards.ts";
+import { quoteContentHash } from "./authenticity.ts";
 import { travelerHash } from "./hash.ts";
 import { isoNow } from "./ids.ts";
 import { SHOPS, shopById } from "./network.ts";
@@ -167,9 +168,13 @@ export const useTravelerStore = create<TravelerState>()(
         if (!shipTo.name.trim() || !shipTo.line1.trim() || !shipTo.city.trim() || !shipTo.country) {
           throw new Error("Ship-to is incomplete.");
         }
+        // Bind the awarded quote's priced content into the award record, so the award the
+        // buyer later signs commits to the exact quote (unit price, currency, lead time), not
+        // just its id. The desk never signs; it only records a sign-ready award.
+        const awardWithHash: Award = { ...award, quote_hash: quoteContentHash(quote) };
         set((s) => ({
           travelers: s.travelers.map((p) =>
-            p.traveler_id === travelerId ? { ...p, award, ship_to: shipTo, ops } : p,
+            p.traveler_id === travelerId ? { ...p, award: awardWithHash, ship_to: shipTo, ops } : p,
           ),
           audit: withAudit(s.audit, {
             act: "award",

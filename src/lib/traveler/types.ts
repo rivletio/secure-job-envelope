@@ -118,6 +118,11 @@ export type AwardTerms = {
 
 export type Award = {
   quote_id: string;
+  /** Content hash (`sha384:` + hex of the awarded quote's signature body) of the quote named
+   *  by `quote_id`. Part of the buyer-signed award body, so the award signature commits to the
+   *  exact priced quote (unit price, currency, lead time), not merely its id. A signed award
+   *  must carry this; verification requires the awarded quote to be present and to hash to it. */
+  quote_hash?: string;
   awarded_at: string;
   qty: number;
   /** Optional purchase-order terms. An award carrying terms is closer to a PO

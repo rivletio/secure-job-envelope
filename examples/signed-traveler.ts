@@ -21,6 +21,7 @@ import {
   verifyTravelerSignatures,
   signAward,
   verifyAwardSignature,
+  quoteContentHash,
 } from "../src/lib/traveler/authenticity.ts";
 import {
   signDirectory,
@@ -29,8 +30,9 @@ import {
   type DirectoryEntry,
 } from "../src/lib/traveler/directory.ts";
 import { parseTraveler } from "../src/lib/traveler/conformance.ts";
+import { travelerHash } from "../src/lib/traveler/hash.ts";
 import { bytesToHex } from "../src/lib/traveler/bytes.ts";
-import type { Traveler } from "../src/lib/traveler/types.ts";
+import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
 const step = (n: number, s: string) => console.log(`\n[${n}] ${s}`);
 const note = (s: string) => console.log(`    ${s}`);
@@ -98,10 +100,23 @@ const w = verifyTravelerSignatures(wrongOrg, directory, rootPublicKeyHex, AT);
 note(`verified=${w.some((c) => c.ok)} · reason=${w[0]?.reason}`);
 assert.ok(!w.some((c) => c.ok));
 
-/* 5. The buyer awards and SIGNS the award (award decision + ship-to). */
-step(5, "Buyer signs the award (award + ship-to); the verifier accepts it");
+/* 5. The buyer awards and SIGNS the award — bound to the awarded quote's priced content. */
+step(5, "Buyer signs the award (award + ship-to), bound to the awarded quote; the verifier accepts it");
+// The awarded quote must be on the traveler so the award can bind its priced content via
+// award.quote_hash (the hash of the quote the buyer actually chose). It is unsigned here — the
+// exact case the binding protects: without it, this price could be swapped undetected.
+const awardedQuote: Quote = {
+  quote_id: "qot_summitwin01",
+  seller: { org_id: "org_summitfab", name: "Summit Fabrication", city: "Sparks", region: "NV" },
+  traveler_hash_quoted: travelerHash(signed),
+  created_at: "2026-09-16T12:00:00.000Z",
+  valid_until: "2039-01-01T00:00:00.000Z",
+  lead_time_days: 21,
+  pricing: { currency: "USD", nre: 35000, lines: [{ qty: 250, unit: 1420 }] },
+};
 const awarded: Traveler = {
   ...signed,
+  quotes: [awardedQuote],
   ship_to: {
     name: "Northline Equipment — Dock 4",
     line1: "1800 Industrial Way",
@@ -112,6 +127,7 @@ const awarded: Traveler = {
   },
   award: {
     quote_id: "qot_summitwin01",
+    quote_hash: quoteContentHash(awardedQuote),
     awarded_at: "2026-09-17T09:00:00.000Z",
     qty: 250,
     terms: { payment_terms: "Net 30" },
@@ -141,7 +157,15 @@ const f = verifyAwardSignature(forged, directory, rootPublicKeyHex, AT);
 note(`award verified=${f?.ok} · reason=${f?.reason}`);
 assert.ok(!f?.ok);
 
+/* 8. A swapped unit price on the awarded quote is refused (the award binds its content). */
+step(8, "A swapped unit price on the awarded quote is refused");
+const swapped: Traveler = structuredClone(awarded);
+swapped.quotes![0].pricing.lines[0].unit = 1; // undercut the awarded price after the fact
+const s = verifyAwardSignature(swapped, directory, rootPublicKeyHex, AT);
+note(`award verified=${s?.ok} · reason=${s?.reason}`);
+assert.ok(!s?.ok);
+
 console.log(
-  "\n=== DONE — authorship and the buyer's award proven; tamper, org-mismatch, " +
-    "redirected ship-to, and a bidder's forged award all refused. ===",
+  "\n=== DONE — authorship and the buyer's award proven; tamper, org-mismatch, redirected " +
+    "ship-to, a bidder's forged award, and a swapped awarded-quote price all refused. ===",
 );

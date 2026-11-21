@@ -190,6 +190,7 @@ export const travelerSchema = z
     award: z
       .object({
         quote_id: z.string().regex(TRAVELER_ID_RE),
+        quote_hash: z.string().regex(HASH_RE).optional(),
         awarded_at: isoDt,
         qty: z.number().int().min(1).max(1_000_000),
         terms: z

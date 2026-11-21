@@ -8,7 +8,7 @@
  *  only ever *verifies* — it must not hold ML-DSA private keys (see SECURITY).
  */
 import { canonicalJson } from "./canonical.ts";
-import { quoteableBody, travelerHash } from "./hash.ts";
+import { quoteableBody, travelerHash, sha384Hex } from "./hash.ts";
 import { SIG_ALG, SIG_DOMAIN, signBody, verifyBody } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
 import { entryByKid, orgHasCapability, verifyDirectory, type Directory } from "./directory.ts";
@@ -24,6 +24,14 @@ export function quoteSignatureBody(q: Quote): string {
   const { sig: _omit, ...rest } = q;
   void _omit;
   return canonicalJson(rest);
+}
+
+/** The awarded quote's content hash: `sha384:` + hex of the exact bytes the seller signs
+ *  (the quote minus its own signature). This is what the buyer's award signature commits to
+ *  via `award.quote_hash`, so the award binds the quote's priced content (unit price, currency,
+ *  lead time, …), not merely its `quote_id`. Mirrors the Rust hash in `verify_award_signature`. */
+export function quoteContentHash(q: Quote): string {
+  return sha384Hex(quoteSignatureBody(q));
 }
 
 export function signTraveler(t: Traveler, kid: string, secretKey: Uint8Array): Signature {
@@ -148,15 +156,21 @@ export function verifyQuoteSignature(
   return checkSig(SIG_DOMAIN.quote, body, q.sig, q.seller.org_id, dir, when);
 }
 
-/** Verify the buyer's signature over the award + ship-to. Returns:
+/** Verify the buyer's signature over the award + ship-to, and that it commits to the
+ *  awarded quote's priced content. Returns:
  *  - `undefined` if the traveler carries no award (nothing to check);
  *  - a failing check if an award is present but unsigned, or signed by an org
- *    other than the buyer, or over a changed award / ship-to / revision;
+ *    other than the buyer, or over a changed award / ship-to / revision, or whose
+ *    `quote_hash` does not bind the awarded quote actually present on the traveler;
  *  - a passing check only when the buyer (as named by the traveler and bound
- *    through the directory) signed exactly this award and ship-to.
+ *    through the directory) signed exactly this award and ship-to, AND the awarded
+ *    quote is present and still hashes to the buyer-signed `quote_hash`.
  *  An award present without a valid buyer signature is an authenticity failure,
  *  not a silent accept — this is the guard against a forged award or a redirected
- *  ship-to sealed to the winner by a non-buyer. */
+ *  ship-to sealed to the winner by a non-buyer. The `quote_hash` binding closes the
+ *  completeness gap: the award commits to the exact priced quote (unit price, currency,
+ *  lead time), so a swapped price on the awarded quote — even an unsigned one — is refused.
+ *  A stripped awarded quote is a hard failure (its priced content cannot be re-verified). */
 export function verifyAwardSignature(
   t: Traveler,
   dir: Directory,
@@ -179,7 +193,40 @@ export function verifyAwardSignature(
   } catch {
     return { kid: t.award.sig.kid, ok: false, reason: "award body is not canonicalizable" };
   }
-  return checkSig(SIG_DOMAIN.award, body, t.award.sig, t.buyer.org_id, dir, when);
+  const sigCheck = checkSig(SIG_DOMAIN.award, body, t.award.sig, t.buyer.org_id, dir, when);
+  if (!sigCheck.ok) return sigCheck;
+  // The buyer's signature is valid over the award body, which includes `award.quote_hash`
+  // (it rides inside `award`). Now enforce that it actually binds the priced quote: a signed
+  // award MUST carry a quote_hash, the awarded quote MUST be present, and it MUST still hash
+  // to the signed value. Without this, an absent or unsigned awarded quote could have its
+  // price swapped while the award signature still verified.
+  const quoteHash = t.award.quote_hash;
+  if (!quoteHash) {
+    return { ...sigCheck, ok: false, reason: "signed award does not bind a quote_hash" };
+  }
+  const quoteId = t.award.quote_id;
+  const awarded = (t.quotes ?? []).find((q) => q.quote_id === quoteId);
+  if (!awarded) {
+    return {
+      ...sigCheck,
+      ok: false,
+      reason: `awarded quote ${quoteId} is not present to verify its priced content`,
+    };
+  }
+  let computed: string;
+  try {
+    computed = quoteContentHash(awarded);
+  } catch {
+    return { ...sigCheck, ok: false, reason: "awarded quote body is not canonicalizable" };
+  }
+  if (computed !== quoteHash) {
+    return {
+      ...sigCheck,
+      ok: false,
+      reason: "awarded quote content does not match the buyer-signed quote_hash",
+    };
+  }
+  return sigCheck;
 }
 
 /** True iff the traveler has an award and it carries a valid buyer signature. */

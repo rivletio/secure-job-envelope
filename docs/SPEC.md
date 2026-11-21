@@ -156,9 +156,10 @@ These digests are **unkeyed** integrity: they detect corruption and naive
 tampering, and guarantee the archive is internally consistent, but a party that
 re-seals an archive recomputes them. Adversarial *authenticity* is the separate
 ML-DSA signature layer: in 0.1 the buyer signs the quoteable body **and** the
-award (the award decision + ship-to, bound to the traveler revision), so a
-re-sealed archive that forges the award or redirects the ship-to is refused by
-that signature even though its digest recomputes. `ops` and `as_built` remain
+award (the award decision + ship-to, bound to the traveler revision, and binding
+the awarded quote's priced content via `quote_hash`), so a re-sealed archive that
+forges the award, redirects the ship-to, or swaps the awarded quote's price is
+refused by that signature even though its digest recomputes. `ops` and `as_built` remain
 post-award workflow state not covered by a signature. A duplicate member name resolves to the
 **last** entry (which is then digest-checked); an external tool that resolves
 duplicates as "first" may disagree, so treat a duplicate-membered archive as
@@ -179,7 +180,10 @@ suspect.
   had no governing law, warranty, inspection, payment terms, or
   battle-of-the-forms handling; 0.1 lets an award carry optional commercial
   terms (governing law, warranty, payment), though an award is still not a
-  contract by itself.
+  contract by itself. An award also records `quote_hash` — the content hash of
+  the quote it names — so the buyer's award signature commits to the exact priced
+  quote (unit price, currency, lead time), and verification requires that quote to
+  be present on the traveler and unchanged.
 - Incoterms 2020 `FOB` is for sea/inland waterway with a named port; US
   domestic shops usually mean UCC F.O.B. origin/destination. The field is a
   free-form string in 0.1.

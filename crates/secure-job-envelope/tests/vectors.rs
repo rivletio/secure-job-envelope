@@ -196,6 +196,32 @@ fn signed_award_vector_verifies_cross_language() {
         !verify_award_signature(&serde_json::to_string(&wrong_org).unwrap(), &dir_json, root_pk, at),
         "an award signed by a non-buyer org must be refused"
     );
+    // The hardening: a swapped unit price on the awarded quote breaks the award signature,
+    // because the awarded quote no longer hashes to the buyer-signed award.quote_hash — even
+    // though that quote is unsigned here. This is the completeness gap the binding closes.
+    let mut swapped = v["traveler"].clone();
+    {
+        let qid = swapped["award"]["quote_id"].as_str().unwrap().to_string();
+        let quotes = swapped["quotes"].as_array_mut().unwrap();
+        let q = quotes
+            .iter_mut()
+            .find(|q| q["quote_id"].as_str() == Some(&qid))
+            .unwrap();
+        let unit = q["pricing"]["lines"][0]["unit"].as_i64().unwrap();
+        q["pricing"]["lines"][0]["unit"] = serde_json::json!(unit + 1);
+    }
+    assert!(
+        !verify_award_signature(&serde_json::to_string(&swapped).unwrap(), &dir_json, root_pk, at),
+        "a swapped unit price on the awarded quote must fail the award signature"
+    );
+    // Hard failure: stripping the awarded quote from `quotes` leaves nothing to re-verify the
+    // priced content against, so the award is refused (not a soft 'unavailable' accept).
+    let mut stripped = v["traveler"].clone();
+    stripped["quotes"] = serde_json::json!([]);
+    assert!(
+        !verify_award_signature(&serde_json::to_string(&stripped).unwrap(), &dir_json, root_pk, at),
+        "a stripped awarded quote must fail the award signature (hard fail)"
+    );
     // A broken directory (wrong root key) fails.
     assert!(!verify_award_signature(&traveler_json, &dir_json, &"00".repeat(2592), at));
 }
