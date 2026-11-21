@@ -224,6 +224,15 @@ pub fn verify_award_signature(
     };
     // Build the signed body from the raw JSON (award minus its own sig, plus
     // ship_to), so the canonical bytes match the TypeScript awardSignatureBody.
+    //
+    // Parity invariant: this reuses the RAW json for `award`/`ship_to` while TS
+    // signs over the PARSED traveler. That is only sound because parse_traveler
+    // (called above) already enforced the strict schema — no unknown keys, and no
+    // normalizing transform on these fields — so the raw and parsed values carry
+    // the same keys and the same scalar content, and canonical_json erases the one
+    // legal difference (integer-valued float vs integer rendering) identically on
+    // both sides. If any award/ship_to field ever gains a serde/zod transform or a
+    // default, this must switch to serializing the parsed struct instead.
     let Ok(v) = serde_json::from_str::<Value>(traveler_json) else {
         return false;
     };

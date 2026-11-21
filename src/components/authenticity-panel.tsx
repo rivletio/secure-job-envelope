@@ -43,8 +43,13 @@ export function AuthenticityPanel({ traveler }: { traveler: Traveler }) {
     if (award !== undefined) {
       if (award.ok) {
         out.push({ label: "Award", status: "ok", detail: `Buyer-signed by ${award.org_id}` });
-      } else if (/not signed/.test(award.reason ?? "")) {
-        out.push({ label: "Award", status: "warn", detail: "Not signed by the buyer" });
+      } else if (!traveler.award?.sig) {
+        // Present-but-unsigned (the exact condition verifyAwardSignature fails on):
+        // a caution, not an invalid signature. Keyed off the award itself, not the
+        // human-readable reason string, so the branch can't drift if that text changes.
+        // The explicit wording distinguishes a stripped/absent award signature from a
+        // merely-unsigned quote — an unsigned award is not buyer-authorized.
+        out.push({ label: "Award", status: "warn", detail: "Unsigned — not buyer-authorized" });
       } else {
         out.push({ label: "Award", status: "bad", detail: award.reason ?? "Signature invalid" });
       }
@@ -85,7 +90,7 @@ export function AuthenticityPanel({ traveler }: { traveler: Traveler }) {
               <StatusIcon status={r.status} />
               <span>
                 <span className="font-medium">{r.label}:</span>{" "}
-                <span className={cn(r.status === "bad" && "text-warn")}>{r.detail}</span>
+                <span className={cn(r.status === "bad" && "text-danger")}>{r.detail}</span>
               </span>
             </li>
           ))}
@@ -96,7 +101,12 @@ export function AuthenticityPanel({ traveler }: { traveler: Traveler }) {
 }
 
 function StatusIcon({ status }: { status: Status }) {
-  if (status === "ok") return <ShieldCheck className="mt-0.5 size-4 shrink-0 text-accent" />;
-  if (status === "bad") return <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warn" />;
-  return <ShieldQuestion className="mt-0.5 size-4 shrink-0 text-muted-foreground" />;
+  // The desk's semantic status tokens: ok = --color-ok (blue, the app's success
+  // signal), warn = --color-warn (amber caution), bad = --color-danger (the same
+  // red-orange the quote/award dialogs use for errors). Verified must not reuse
+  // --color-accent, which is identical to --color-danger — a verified signature
+  // can't look like an error.
+  if (status === "ok") return <ShieldCheck className="mt-0.5 size-4 shrink-0 text-ok" />;
+  if (status === "bad") return <ShieldAlert className="mt-0.5 size-4 shrink-0 text-danger" />;
+  return <ShieldQuestion className="mt-0.5 size-4 shrink-0 text-warn" />;
 }
