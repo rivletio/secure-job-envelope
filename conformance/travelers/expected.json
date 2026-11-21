@@ -18,5 +18,9 @@
   "l2-awarded.json": {
     "traveler_hash": "sha384:cf5e363e7740a04383b82d5e5143e6224e3990ac319644d7a4cdd5a2de64fcdab5302530fca5c6b4df91e0312f7f841f",
     "level": "L2"
+  },
+  "l0-intfloat.json": {
+    "traveler_hash": "sha384:31d3b3fa0e58cea81ab7c599c93cbced2c07942ee0fc748eff145b2523915da2f1d82345d6da0994b7d8b0c27af2b162",
+    "level": "L0"
   }
 }

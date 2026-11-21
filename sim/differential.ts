@@ -16,7 +16,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Rng } from "./rng.ts";
 import { genPlan, genTraveler } from "./generate.ts";
-import { MUTATIONS, type Doc } from "./mutations.ts";
+import { MUTATIONS, serializeDoc, type Doc } from "./mutations.ts";
 import { diffVerdicts, rustVerdict, tsVerdict, type Verdict } from "./verdict.ts";
 
 type Args = { seeds: number; start: number; bin: string; corpus?: string; quiet: boolean };
@@ -64,7 +64,7 @@ function main() {
       for (const m of chosen) m.apply(doc);
     }
 
-    const json = JSON.stringify(doc);
+    const json = serializeDoc(doc);
     let ts: Verdict;
     try {
       ts = tsVerdict(JSON.parse(json));

@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Rng } from "./rng.ts";
 import { genPlan, genTraveler } from "./generate.ts";
-import { MUTATIONS } from "./mutations.ts";
+import { MUTATIONS, serializeDoc } from "./mutations.ts";
 import { tsVerdict } from "./verdict.ts";
 
 const count = Number(process.argv[2] ?? 400);
@@ -28,7 +28,7 @@ for (let i = 1; i <= count; i++) {
   const rng = new Rng(1_000_000 + i);
   const doc = structuredClone(genTraveler(rng, genPlan(rng))) as Record<string, any>;
   if (rng.bool(0.5)) rng.pick(jsonSafe).apply(doc);
-  const json = JSON.stringify(doc);
+  const json = serializeDoc(doc);
   travelers.push(json);
   expected.push(JSON.stringify(tsVerdict(JSON.parse(json))));
 }
