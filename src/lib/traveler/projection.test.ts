@@ -5,7 +5,7 @@ import { quoteContentHash, signAward, signTraveler, verificationReport } from ".
 import { levelOf, parseTraveler } from "./conformance.ts";
 import type { Directory } from "./directory.ts";
 import { travelerHash } from "./hash.ts";
-import { projectForRecipient } from "./projection.ts";
+import { projectForRecipient, withheldSummary } from "./projection.ts";
 import { keypairFromSeed } from "./signature.ts";
 import type { Quote, Traveler } from "./types.ts";
 
@@ -110,6 +110,17 @@ describe("per-recipient projection", () => {
     const p = projectForRecipient(draft, "org_huron");
     assert.deepEqual(p.traveler.ship_to, awarded.ship_to);
     assert.deepEqual(p.traveler.ops, awarded.ops);
+  });
+
+  it("says what it left out in counts, and nothing when it left nothing out", () => {
+    assert.equal(withheldSummary({ quotes: 0, award: false }), null);
+    assert.equal(withheldSummary(projectForRecipient(awarded, "org_northline").withheld), null);
+    assert.equal(withheldSummary({ quotes: 1, award: false }), "1 quote that is neither the recipient's nor yours");
+    assert.equal(
+      withheldSummary(projectForRecipient(awarded, "org_huron").withheld),
+      "2 quotes that are neither the recipient's nor yours, and the award, with its ship-to, ops and as-built data",
+    );
+    assert.equal(withheldSummary({ quotes: 0, award: true }), "the award, with its ship-to, ops and as-built data");
   });
 
   it("never mutates what it was given", () => {

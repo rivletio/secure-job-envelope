@@ -38,7 +38,8 @@ import {
   type FsEnvelope,
   type FsSealRecipient,
 } from "./envelope.ts";
-import { verifyDirectory, type Directory } from "./directory.ts";
+import { orgHasCapability, verifyDirectory, type Directory } from "./directory.ts";
+import { projectForRecipient } from "./projection.ts";
 import { prekeyBundleShapeError, verifyPrekeyBundle, type PrekeyBundle } from "./prekeys.ts";
 import type { Keystore, Unlocked } from "./keystore.ts";
 import { MAX_ENVELOPE_JSON_BYTES, type Traveler } from "./types.ts";
@@ -73,8 +74,41 @@ export type SealOptions = {
    *  travelers to an 8-prekey bundle loses most of them while each seal reports
    *  `forwardSecret: true`. */
   excludePrekeyIds?: readonly string[];
+  /** The org this desk seals as, if it has one. A quote naming this org as its seller is
+   *  the sender's own, and travels with whatever the sender seals. */
+  senderOrg?: string;
+  /** How much of the traveler the recipient is sent.
+   *
+   *  `"entitled"` (the default): what `projectForRecipient` gives. The traveler's buyer
+   *  receives all of it; anyone else receives the quoteable body, the quotes that are its
+   *  own or the sender's, and the award, ship-to, ops and as-built data only if the
+   *  awarded quote is one of those. What was left out is reported (`withheld`).
+   *
+   *  `"everything"`: the whole traveler — every seller's quote, and who won — to a
+   *  recipient who is not its buyer. This is what sealing used to do to everyone, and it
+   *  handed each seller its competitors' prices. It exists for a caller that means
+   *  exactly that (moving a traveler to another party entitled to all of it), and has to
+   *  be asked for by name. */
+  disclose?: "entitled" | "everything";
   at?: Date;
 };
+
+/** Why `sealTraveler` refused. `code` is for a caller that words the refusal itself;
+ *  `staticReason` says, for `forward-secrecy-unavailable`, why no prekey was usable. */
+export class SealRefused extends Error {
+  readonly code:
+    | "directory-not-verified"
+    | "itar-recipient-not-attested"
+    | "forward-secrecy-unavailable"
+    | "no-recipient-key";
+  readonly staticReason?: StaticReason;
+  constructor(code: SealRefused["code"], message: string, staticReason?: StaticReason) {
+    super(message);
+    this.name = "SealRefused";
+    this.code = code;
+    if (staticReason !== undefined) this.staticReason = staticReason;
+  }
+}
 
 /** Why a seal used the static envelope instead of the forward-secret one. */
 export type StaticReason =
@@ -100,7 +134,39 @@ export type SealResult = {
   prekeyId?: string;
   /** Present iff `forwardSecret` is false: why. */
   staticReason?: StaticReason;
+  /** What of the traveler was NOT sent to this recipient (see `SealOptions.disclose`):
+   *  how many quotes, and whether the award (with ship-to, ops and as-built data) was
+   *  left out. All zero/false when everything was sent. */
+  withheld: { quotes: number; award: boolean };
+  /** Present iff the traveler is marked ITAR: the rule that let it go to this recipient
+   *  (see `itarRecipientBasis`). */
+  itarBasis?: "recipient-is-buyer" | "recipient-attested";
 };
+
+/** May a traveler be sealed to this org, as far as its ITAR mark goes?
+ *
+ *    "not-itar"            the traveler is not marked ITAR: the rule does not apply;
+ *    "recipient-is-buyer"  it is going back to the buyer org the traveler itself names
+ *                          (a seller returning its quote);
+ *    "recipient-attested"  the directory attests the recipient for ITAR;
+ *    null                  neither: it is not sealed.
+ *
+ *  `directory` must already have been verified against the trust root. This is a
+ *  consistency rule over a flag the buyer set and an attestation the directory's root
+ *  made. It is not export control, and it says nothing about who the recipient's
+ *  people are. */
+export function itarRecipientBasis(
+  traveler: Traveler,
+  directory: Directory,
+  recipientOrg: string,
+  at: Date = new Date(),
+): "not-itar" | "recipient-is-buyer" | "recipient-attested" | null {
+  if (traveler.itar !== true) return "not-itar";
+  if (traveler.buyer.org_id !== undefined && traveler.buyer.org_id === recipientOrg) {
+    return "recipient-is-buyer";
+  }
+  return orgHasCapability(directory, recipientOrg, "itar", at) ? "recipient-attested" : null;
+}
 
 export type OpenOptions = {
   /** Persist the keystore blob returned when a one-time prekey is spent (see
@@ -157,6 +223,10 @@ function resolveFsRecipient(opts: SealOptions, when: Date): FsSealRecipient | St
  *  envelope, whether forward secrecy was used (always reported; never a silent
  *  downgrade), the one-time prekey it spent, and — when it fell back — why.
  *
+ *  WHAT IS SENT is decided here too, not by the caller remembering to: the recipient
+ *  gets what it is entitled to see (`SealOptions.disclose`, `withheld` in the result),
+ *  and a traveler marked ITAR goes only to an ITAR-attested org or back to its buyer.
+ *
  *  ONE-TIME PREKEYS ARE THE SENDER'S TO TRACK. A forward-secret seal spends one prekey
  *  of the recipient's bundle and returns its id as `prekeyId`; pass every id you have
  *  been given back in `excludePrekeyIds` on later seals to the same bundle (see
@@ -172,9 +242,28 @@ function resolveFsRecipient(opts: SealOptions, when: Date): FsSealRecipient | St
 export async function sealTraveler(traveler: Traveler, opts: SealOptions): Promise<SealResult> {
   const when = opts.at ?? new Date();
   if (!verifyDirectory(opts.directory, opts.rootPublicKeyHex, when)) {
-    throw new Error("sealTraveler: key directory does not verify against the trust root");
+    throw new SealRefused(
+      "directory-not-verified",
+      "sealTraveler: key directory does not verify against the trust root",
+    );
   }
-  const zipBytes = new Uint8Array(await (await travelerToZip(traveler)).arrayBuffer());
+  // ITAR: a traveler marked ITAR is sealed only to an org the directory attests for it,
+  // or back to the buyer org the traveler itself names. It used to be a rule nothing
+  // enforced: any ITAR traveler sealed to any org in the directory.
+  const itar = itarRecipientBasis(traveler, opts.directory, opts.recipientOrg, when);
+  if (itar === null) {
+    throw new SealRefused(
+      "itar-recipient-not-attested",
+      "sealTraveler: this traveler is marked ITAR and the directory does not attest the recipient for ITAR; it is sealed only to an ITAR-attested org, or back to the buyer org it names",
+    );
+  }
+  const itarBasis = itar === "not-itar" ? {} : { itarBasis: itar };
+  // What this recipient is entitled to see — not, by default, every other seller's quote.
+  const { traveler: disclosed, withheld } =
+    opts.disclose === "everything"
+      ? { traveler, withheld: { quotes: 0, award: false } }
+      : projectForRecipient(traveler, opts.recipientOrg, { senderOrg: opts.senderOrg });
+  const zipBytes = new Uint8Array(await (await travelerToZip(disclosed)).arrayBuffer());
 
   // Prefer forward secrecy when a verifying bundle with a usable prekey exists.
   const fs = resolveFsRecipient(opts, when);
@@ -183,20 +272,30 @@ export async function sealTraveler(traveler: Traveler, opts: SealOptions): Promi
       envelope: sealFsEnvelope(zipBytes, [fs]),
       forwardSecret: true,
       prekeyId: fs.prekey_id,
+      withheld,
+      ...itarBasis,
     };
   }
   if (opts.requireForwardSecret) {
-    throw new Error(
+    throw new SealRefused(
+      "forward-secrecy-unavailable",
       `sealTraveler: forward secrecy required but no verifying prekey bundle with a usable prekey is available (${fs})`,
+      fs,
     );
   }
 
   // Explicit, reported fallback to the static envelope.
   const recipient = recipientByOrg(opts.directory, opts.recipientOrg, when);
   if (!recipient) {
-    throw new Error(`sealTraveler: no in-window ML-KEM recipient for ${opts.recipientOrg}`);
+    throw new SealRefused("no-recipient-key", "sealTraveler: no in-window ML-KEM recipient for that org");
   }
-  return { envelope: sealEnvelope(zipBytes, [recipient]), forwardSecret: false, staticReason: fs };
+  return {
+    envelope: sealEnvelope(zipBytes, [recipient]),
+    forwardSecret: false,
+    staticReason: fs,
+    withheld,
+    ...itarBasis,
+  };
 }
 
 /** A decrypted traveler whose one-time prekey has not been spent yet. */
