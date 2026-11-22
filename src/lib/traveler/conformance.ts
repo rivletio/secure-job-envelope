@@ -13,7 +13,14 @@ import type { ConformanceLevel, Traveler, Quote } from "./types.ts";
  *     so without this TypeScript would accept a document Rust rejects;
  *   - nesting past serde_json's 128-container recursion limit.
  *  `depth` counts the containers enclosing `v` (the root value is enclosed by 0);
- *  a container that is the 128th or deeper is the one serde_json refuses. */
+ *  a container that is the 128th or deeper is the one serde_json refuses.
+ *
+ *  It also refuses a member named `__proto__` anywhere. This one is the reverse case —
+ *  a divergence that originates on THIS side: zod's `z.record` (the free-form blobs)
+ *  silently drops an own `__proto__` key, so TypeScript would canonicalize, sign and
+ *  verify bytes that omit wire content the Rust core keeps. One document, two signature
+ *  verdicts — the signer could choose which implementation accepts it. The Rust
+ *  validator refuses the same name, so both sides agree by refusing. */
 // serde_json's RECURSION_LIMIT. Matched exactly (verified against the Rust parser at
 // the 127/128 boundary) so a deeply-nested blob is refused on the same side as Rust,
 // not accepted here and rejected there — and so a deep document is refused cleanly
@@ -37,6 +44,7 @@ function assertUtf8Safe(v: unknown, depth = 0): void {
   if (v && typeof v === "object") {
     if (depth + 1 >= MAX_JSON_DEPTH) throw new Error("JSON nesting exceeds the maximum depth");
     for (const [k, val] of Object.entries(v)) {
+      if (k === "__proto__") throw new Error("a member named __proto__ is not permitted");
       if (LONE_SURROGATE.test(k)) throw new Error("object key contains a lone surrogate (no UTF-8 encoding)");
       assertUtf8Safe(val, depth + 1);
     }

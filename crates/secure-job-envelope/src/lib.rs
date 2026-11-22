@@ -270,13 +270,29 @@ pub struct Level {
     pub name: &'static str,
 }
 
+/// The largest traveler document accepted, in UTF-8 bytes of the JSON text.
+pub const MAX_TRAVELER_JSON_BYTES: usize = 512 * 1024;
+
 pub fn parse_traveler(json: &str) -> Result<Traveler, Error> {
-    if json.len() > 512 * 1024 {
+    if json.len() > MAX_TRAVELER_JSON_BYTES {
         return Err(Error::Invalid("traveler json exceeds 512 KiB".into()));
     }
     let traveler: Traveler = serde_json::from_str(json)?;
     if traveler.spec != SPEC {
         return Err(Error::Invalid("unsupported spec".into()));
+    }
+    // serde's derived `Deserialize` also accepts a struct written as a positional
+    // JSON array; the TypeScript reference does not. Refuse it: compare the document
+    // as written against the typed document re-serialized (where every struct is an
+    // object) and require an object at every struct position. This also restores the
+    // invariant signature verification relies on — that reading the raw JSON by key
+    // sees the same document the typed parse produced.
+    let raw: Value = serde_json::from_str(json)?;
+    let typed = serde_json::to_value(&traveler)?;
+    if !validate::no_positional_structs(&raw, &typed) {
+        return Err(Error::Invalid(
+            "a JSON array was supplied where an object is required".into(),
+        ));
     }
     // Full structural validation, mirroring the zod schema field for field, so the
     // two implementations agree on exactly which documents are well-formed.
@@ -491,11 +507,15 @@ pub fn traveler_hash(traveler: &Traveler) -> Result<String, Error> {
     hash_quoteable(&quoteable_from(traveler))
 }
 
+/// "Blank" here means blank to the TypeScript reference (`x.trim().length === 0`
+/// under ECMAScript whitespace), not to Rust's `str::trim`, which strips U+0085 and
+/// keeps U+FEFF — the opposite of JS. With `str::trim` a name consisting only of
+/// U+0085 was Draft here and Quoteable in TypeScript: one document, two levels.
 pub fn is_quoteable(traveler: &Traveler) -> bool {
-    !traveler.buyer.name.trim().is_empty()
-        && !traveler.part.family.trim().is_empty()
-        && !traveler.part.part_number.trim().is_empty()
-        && !traveler.part.material.spec.trim().is_empty()
+    !validate::js_blank(&traveler.buyer.name)
+        && !validate::js_blank(&traveler.part.family)
+        && !validate::js_blank(&traveler.part.part_number)
+        && !validate::js_blank(&traveler.part.material.spec)
         && traveler.part.qty.target >= 1
 }
 
@@ -715,6 +735,12 @@ pub fn level(traveler: &Traveler) -> Level {
     }
 }
 
+/// The verdict for a refused document (also what `check` prints for input that is
+/// not even a candidate — oversized, or not UTF-8).
+pub fn reject_verdict() -> String {
+    r#"{"accept":false,"hash":null,"level":null,"bound":null}"#.into()
+}
+
 /// The four decisions the cross-implementation differential and fuzz corpus
 /// compare against the TypeScript reference: does this document parse, what does
 /// it hash to, what level is it, and which quotes bind. Emitted as one compact
@@ -723,7 +749,7 @@ pub fn level(traveler: &Traveler) -> Level {
 pub fn check_verdict(json: &str) -> String {
     let traveler = match parse_traveler(json) {
         Ok(t) => t,
-        Err(_) => return r#"{"accept":false,"hash":null,"level":null,"bound":null}"#.into(),
+        Err(_) => return reject_verdict(),
     };
     let hash = traveler_hash(&traveler).ok();
     let mut ids: Vec<&str> = bound_quotes(&traveler)

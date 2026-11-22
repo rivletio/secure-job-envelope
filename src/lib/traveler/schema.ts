@@ -124,7 +124,28 @@ export const quoteSchema = z
         message: "valid_until must be after created_at",
       });
     }
+    // One price per quantity. Two lines for the same qty leave the unit price ambiguous
+    // under an award (the first would silently win), so a repeat is refused — on both
+    // implementations (validate.rs `pricing`).
+    const dupLine = firstDuplicate(q.pricing.lines.map((l) => l.qty));
+    if (dupLine >= 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["pricing", "lines", dupLine, "qty"],
+        message: "more than one price line for the same qty",
+      });
+    }
   });
+
+/** Index of the first element that repeats an earlier one, or -1. */
+function firstDuplicate(values: readonly (string | number)[]): number {
+  const seen = new Set<string | number>();
+  for (const [i, v] of values.entries()) {
+    if (seen.has(v)) return i;
+    seen.add(v);
+  }
+  return -1;
+}
 
 const shipToSchema = z
   .object({
@@ -213,6 +234,27 @@ export const travelerSchema = z
   .superRefine((p, ctx) => {
     if (JSON.stringify(p).length > MAX_TRAVELER_JSON_BYTES) {
       ctx.addIssue({ code: "custom", message: "traveler exceeds 512 KiB" });
+    }
+    // quote_id identifies a quote within a traveler, and an award names a quote by id.
+    // Two quotes sharing an id let an award bind a different quote from the one a
+    // reader is shown — a buyer was shown the bound $14.20 quote while the award (and
+    // the signature over it) committed to a hidden stale twin at $1,420. Ids must be
+    // unique; so must `ops.seq`. Both rules are mirrored in validate.rs.
+    const dupQuote = firstDuplicate((p.quotes ?? []).map((q) => q.quote_id));
+    if (dupQuote >= 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["quotes", dupQuote, "quote_id"],
+        message: "more than one quote with the same quote_id",
+      });
+    }
+    const dupOp = firstDuplicate((p.ops ?? []).map((o) => o.seq));
+    if (dupOp >= 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ops", dupOp, "seq"],
+        message: "more than one op with the same seq",
+      });
     }
     if (p.itar) {
       for (const [i, q] of (p.quotes ?? []).entries()) {

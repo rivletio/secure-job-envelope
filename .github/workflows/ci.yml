@@ -70,6 +70,17 @@ jobs:
           npm run corpus
           git diff --exit-code conformance/fuzz/ \
             || { echo "conformance/fuzz is stale — run 'npm run corpus' and commit"; exit 1; }
+      # The generated conformance vectors (canonical, travelers + expected.json, and
+      # every signature / envelope vector) must be exactly what the generator emits:
+      # a vector added by hand is silently dropped the next time someone regenerates,
+      # and a generator change that alters a vector must show up in review.
+      # `git status --porcelain` (not `git diff`) so a NEW untracked file fails too.
+      - name: committed conformance vectors are what the generator produces
+        run: |
+          node --experimental-strip-types conformance/generate.ts > /dev/null
+          drift="$(git status --porcelain conformance/)"
+          [ -z "$drift" ] || { echo "conformance/ differs from the generator's output:"; echo "$drift"; \
+            echo "run 'node --experimental-strip-types conformance/generate.ts' and commit"; exit 1; }
 
 # Dependency advisories are checked by .github/workflows/audit.yml (blocking, and
 # on a weekly schedule so a new advisory surfaces without waiting for a push).

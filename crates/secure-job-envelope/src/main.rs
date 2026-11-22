@@ -1,27 +1,37 @@
 use std::env;
-use std::fs;
+use std::fs::File;
 use std::io::{self, Read};
 use std::process;
 
-use secure_job_envelope::{check_verdict, level, parse_traveler, traveler_hash};
+use secure_job_envelope::{
+    check_verdict, level, parse_traveler, reject_verdict, traveler_hash, MAX_TRAVELER_JSON_BYTES,
+};
+
+/// Exit codes (stable; scripts may rely on them):
+///   0  success (for `check`: a verdict was printed — read its `accept` field)
+///   1  the input could not be read (missing file, I/O error)
+///   2  usage error (unknown or missing command), or the document was refused
+const EXIT_IO: i32 = 1;
+const EXIT_REFUSED: i32 = 2;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let cmd = args.get(1).map(String::as_str).unwrap_or("help");
+    let Some(cmd) = args.get(1).map(String::as_str) else {
+        usage(&mut io::stderr());
+        process::exit(EXIT_REFUSED);
+    };
     match cmd {
         "hash" | "level" => {
-            let json = read_input(args.get(2).map(String::as_str));
-            let traveler = parse_traveler(&json).unwrap_or_else(|e| {
-                eprintln!("{e}");
-                process::exit(2);
-            });
+            let json = match read_input(args.get(2).map(String::as_str)) {
+                Input::Text(s) => s,
+                Input::TooLarge => refuse("input exceeds 512 KiB"),
+                Input::NotUtf8 => refuse("input is not valid UTF-8"),
+            };
+            let traveler = parse_traveler(&json).unwrap_or_else(|e| refuse(&e.to_string()));
             if cmd == "hash" {
                 match traveler_hash(&traveler) {
                     Ok(h) => println!("{h}"),
-                    Err(e) => {
-                        eprintln!("{e}");
-                        process::exit(2);
-                    }
+                    Err(e) => refuse(&e.to_string()),
                 }
             } else {
                 let l = level(&traveler);
@@ -34,34 +44,86 @@ fn main() {
         // one compact JSON line lets the fuzzer compare the two implementations
         // with a single process spawn per input. Errors are never included in the
         // verdict — their wording differs by design; only the decisions are compared.
-        "check" => {
-            let json = read_input(args.get(2).map(String::as_str));
-            println!("{}", check_verdict(&json));
-        }
+        // An oversized or non-UTF-8 input is a refusal like any other, so it yields
+        // the reject verdict (exit 0) rather than an error exit with no verdict.
+        "check" => match read_input(args.get(2).map(String::as_str)) {
+            Input::Text(json) => println!("{}", check_verdict(&json)),
+            Input::TooLarge | Input::NotUtf8 => println!("{}", reject_verdict()),
+        },
+        "help" | "--help" | "-h" => usage(&mut io::stdout()),
+        // An unknown command MUST fail. It used to print usage and exit 0, so a
+        // script gating on this tool — `envelope verify f && echo TRUSTED` — read a
+        // mistyped or not-yet-existing command as success.
         _ => {
-            eprintln!("envelope (SJE) 0.1.0");
-            eprintln!("  envelope hash [traveler.json]");
-            eprintln!("  envelope level [traveler.json]");
-            eprintln!("  envelope check [traveler.json]   # JSON verdict for the differential");
-            eprintln!("stdin is used when no file is given.");
+            eprintln!("envelope: unknown command {}", printable(cmd));
+            usage(&mut io::stderr());
+            process::exit(EXIT_REFUSED);
         }
     }
 }
 
-fn read_input(path: Option<&str>) -> String {
-    match path {
-        Some("-") | None => {
-            let mut buf = String::new();
-            // No panic on non-UTF-8 or a read error — report and exit cleanly.
-            if let Err(e) = io::stdin().read_to_string(&mut buf) {
-                eprintln!("stdin: {e}");
-                process::exit(1);
-            }
-            buf
+fn usage(out: &mut dyn io::Write) {
+    let _ = writeln!(
+        out,
+        "envelope (SJE) 0.1.0\n\
+         \x20 envelope hash  [traveler.json]   print the traveler hash\n\
+         \x20 envelope level [traveler.json]   print the conformance level\n\
+         \x20 envelope check [traveler.json]   JSON verdict {{accept, hash, level, bound}}\n\
+         stdin is used when no file (or `-`) is given. Input is capped at 512 KiB.\n\
+         Exit: 0 ok (check: a verdict was printed), 1 unreadable input, 2 refused / usage."
+    );
+}
+
+/// Print a refusal and exit non-zero. The message may quote document content (serde
+/// names an unknown field, for instance), so it is made terminal-safe first.
+fn refuse(msg: &str) -> ! {
+    eprintln!("{}", printable(msg));
+    process::exit(EXIT_REFUSED);
+}
+
+/// Escape characters that could rewrite the terminal when attacker-controlled text is
+/// echoed: C0/C1 controls (ESC, CR, …), line/paragraph separators, and bidi overrides
+/// and isolates. Without this a hostile file could, for example, emit a carriage return
+/// and a fake "sha384:…" line of its own.
+fn printable(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        let risky = c.is_control()
+            || matches!(c, '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}');
+        if risky {
+            out.push_str(&format!("\\u{{{:04x}}}", c as u32));
+        } else {
+            out.push(c);
         }
-        Some(p) => fs::read_to_string(p).unwrap_or_else(|e| {
-            eprintln!("{p}: {e}");
-            process::exit(1);
-        }),
+    }
+    out
+}
+
+enum Input {
+    Text(String),
+    TooLarge,
+    NotUtf8,
+}
+
+/// Read at most one byte past the document cap — never the whole stream. A traveler
+/// larger than the cap is refused by the parser anyway; reading it all first let a
+/// 512 MiB stdin cost 512 MiB of memory before the refusal.
+fn read_input(path: Option<&str>) -> Input {
+    let limit = (MAX_TRAVELER_JSON_BYTES as u64) + 1;
+    let mut buf = Vec::new();
+    let read = match path {
+        Some("-") | None => io::stdin().lock().take(limit).read_to_end(&mut buf),
+        Some(p) => File::open(p).and_then(|f| f.take(limit).read_to_end(&mut buf)),
+    };
+    if let Err(e) = read {
+        eprintln!("{}: {}", printable(path.unwrap_or("stdin")), printable(&e.to_string()));
+        process::exit(EXIT_IO);
+    }
+    if buf.len() > MAX_TRAVELER_JSON_BYTES {
+        return Input::TooLarge;
+    }
+    match String::from_utf8(buf) {
+        Ok(s) => Input::Text(s),
+        Err(_) => Input::NotUtf8,
     }
 }

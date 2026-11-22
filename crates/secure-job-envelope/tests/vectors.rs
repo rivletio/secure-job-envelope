@@ -420,17 +420,38 @@ fn prekey_bundle_vector_verifies_cross_language() {
 
 #[test]
 fn reject_vectors_are_refused_at_parse() {
+    // Each vector must be refused FOR THE REASON IT IS NAMED FOR. A vector refused for
+    // some other defect proves nothing about its rule (itar-mismatch.json once carried
+    // a fractional price, so it kept passing with the ITAR check deleted).
+    // reject-reasons.json pins, per vector, a fragment each implementation's refusal
+    // must mention; the TypeScript runner checks its own column of the same file.
+    let reasons: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(conformance_dir().join("travelers/reject-reasons.json")).unwrap(),
+    )
+    .unwrap();
     let dir = conformance_dir().join("travelers/reject");
     let mut count = 0;
     for entry in fs::read_dir(&dir).unwrap() {
         let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_str().unwrap().to_owned();
+        let expected = reasons[&name]["rs"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{name}: no reason declared in reject-reasons.json"));
         let json = fs::read_to_string(&path).unwrap();
+        let err = match parse_traveler(&json) {
+            Ok(_) => panic!("must refuse: {}", path.display()),
+            Err(e) => e.to_string(),
+        };
         assert!(
-            parse_traveler(&json).is_err(),
-            "must refuse: {}",
-            path.display()
+            err.contains(expected),
+            "{name}: refused for the wrong reason — \"{err}\" does not mention \"{expected}\""
         );
         count += 1;
     }
+    assert_eq!(
+        count,
+        reasons.as_object().unwrap().len(),
+        "reject-reasons.json and the reject directory must list the same vectors"
+    );
     assert!(count >= 3, "reject vectors present");
 }

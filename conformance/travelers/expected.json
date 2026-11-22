@@ -19,12 +19,16 @@
     "traveler_hash": "sha384:cf5e363e7740a04383b82d5e5143e6224e3990ac319644d7a4cdd5a2de64fcdab5302530fca5c6b4df91e0312f7f841f",
     "level": "L2"
   },
-  "l0-intfloat.json": {
-    "traveler_hash": "sha384:31d3b3fa0e58cea81ab7c599c93cbced2c07942ee0fc748eff145b2523915da2f1d82345d6da0994b7d8b0c27af2b162",
-    "level": "L0"
-  },
   "part-family-128-codepoints.json": {
     "traveler_hash": "sha384:fd5b0c1ebebb9c41895e40558ffec3609dcfe9cfd2286fc167fd12ae9e764a2b8e3f75babd3915a45376d411b2abc613",
+    "level": "L0"
+  },
+  "l0-nel-name.json": {
+    "traveler_hash": "sha384:076a2cf9c056cba2574efd32015d95e2a020b2da20a27478471bf3bf708e330bad4098dae493790df6f565180b2ff2b8",
+    "level": "L0"
+  },
+  "l0-intfloat.json": {
+    "traveler_hash": "sha384:31d3b3fa0e58cea81ab7c599c93cbced2c07942ee0fc748eff145b2523915da2f1d82345d6da0994b7d8b0c27af2b162",
     "level": "L0"
   }
 }
