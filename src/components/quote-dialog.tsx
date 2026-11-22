@@ -48,7 +48,6 @@ export function QuoteDialog({
   const [freight, setFreight] = useState("");
   const [feasible, setFeasible] = useState(true);
   const [exception, setException] = useState("");
-  const [blocked, setBlocked] = useState(false);
 
   const itarBlocked = cannotQuoteAs(traveler, seller);
 
@@ -65,11 +64,8 @@ export function QuoteDialog({
       toast.error("Price at least one quantity break.");
       return;
     }
-    if (blocked) return;
-    setBlocked(true);
     const freightN = freight === "" ? undefined : Number(freight);
     if (freightN !== undefined && (!Number.isFinite(freightN) || freightN < 0)) {
-      setBlocked(false);
       toast.error("Freight must be zero or more.");
       return;
     }
@@ -105,8 +101,6 @@ export function QuoteDialog({
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not bind quote");
-    } finally {
-      setBlocked(false);
     }
   }
 
@@ -186,7 +180,7 @@ export function QuoteDialog({
               placeholder="Process exception or assumption"
             />
           </div>
-          <Button type="button" onClick={submit} disabled={Boolean(itarBlocked) || blocked}>
+          <Button type="button" onClick={submit} disabled={Boolean(itarBlocked)}>
             Bind quote
           </Button>
         </div>

@@ -64,13 +64,19 @@ function TravelerPage() {
   const current = traveler;
 
   function runExport(kind: "zip" | "json") {
-    logAudit({ act: "export", traveler_id: current.traveler_id, hash });
+    // Audit the export only once it actually produced a file (the zip path is async
+    // and can reject) — otherwise a failed export leaves a phantom entry in the
+    // append-only log. Mirrors SealDialog, which logs after downloadEnvelope succeeds.
     if (kind === "zip") {
       void downloadArchive(current)
-        .then(() => toast.success("Exported .traveler.zip"))
+        .then(() => {
+          logAudit({ act: "export", traveler_id: current.traveler_id, hash });
+          toast.success("Exported .traveler.zip");
+        })
         .catch((err) => toast.error(err instanceof Error ? err.message : "Export failed"));
     } else {
       downloadJson(current);
+      logAudit({ act: "export", traveler_id: current.traveler_id, hash });
     }
   }
 
