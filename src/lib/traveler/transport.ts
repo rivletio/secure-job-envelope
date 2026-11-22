@@ -298,6 +298,29 @@ export async function sealTraveler(traveler: Traveler, opts: SealOptions): Promi
   };
 }
 
+/** Changes to one unlocked keystore, one at a time.
+ *
+ *  A change that has to be STORED is two steps with a wait between them — write the new
+ *  blob, then make the same change in memory (in that order: see `commit` below). Two
+ *  such changes running together each computed their blob from a vault the other had
+ *  not finished changing: the second commit's blob still held the first one's prekey
+ *  and was written over the first deletion. Every change to a keystore that is stored
+ *  goes through here — spending a prekey, and minting new ones — so each starts from
+ *  the vault as the one before it left it. A change that fails does not stop the next. */
+const keystoreTurns = new WeakMap<Unlocked, Promise<void>>();
+export function keystoreExclusive<T>(keystore: Unlocked, change: () => T | Promise<T>): Promise<T> {
+  const before = keystoreTurns.get(keystore) ?? Promise.resolve();
+  const turn = before.then(change);
+  keystoreTurns.set(
+    keystore,
+    turn.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return turn;
+}
+
 /** A decrypted traveler whose one-time prekey has not been spent yet. */
 export type OpenedTraveler = {
   traveler: Traveler;
@@ -379,8 +402,9 @@ export async function openTravelerDeferred(
     const commit = (): Promise<void> => {
       if (done) return Promise.resolve();
       // One spend at a time: a second call while the first is being stored waits for it
-      // rather than writing again. A failed spend clears the way for a retry.
-      running ??= spend().finally(() => {
+      // rather than writing again. A failed spend clears the way for a retry. And one
+      // CHANGE to this keystore at a time, whichever envelope it is for.
+      running ??= keystoreExclusive(keystore, spend).finally(() => {
         running = undefined;
       });
       return running;

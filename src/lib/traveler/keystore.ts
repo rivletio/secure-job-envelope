@@ -346,6 +346,8 @@ export type Unlocked = {
   /** Generate n one-time prekeys; stores their secrets, returns the public list to
    *  publish in a signed bundle, and the new keystore blob to persist. */
   addPrekeys(n: number): { keystore: Keystore; prekeys: PublicPrekey[] };
+  /** How many one-time prekeys this keystore holds (unspent). */
+  prekeyCount(): number;
   /** Look up a one-time prekey secret WITHOUT consuming it, so a caller can verify an
    *  envelope actually opens before committing the single-use deletion — so an envelope
    *  that FAILS AEAD cannot burn a prekey. (A party holding the public bundle can still
@@ -475,6 +477,10 @@ export async function unlock(store: Keystore, passphrase: string): Promise<Unloc
         prekeys.push({ prekey_id, public_key: pub });
       }
       return { keystore: reseal(), prekeys };
+    },
+    prekeyCount() {
+      requireOpen();
+      return Object.keys(vault.prekeys).length;
     },
     peekPrekey(prekeyId: string) {
       requireOpen();

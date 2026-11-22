@@ -56,8 +56,10 @@ export function exceedsUtf8Bytes(text: string, maxBytes: number): boolean {
  *  characters are only ever tracked outside string literals).
  *
  *  Throws when nesting reaches serde_json's recursion limit, which also bounds the
- *  scanner's own memory on a hostile deeply-nested input. */
-export function findDuplicateMember(text: string): string | undefined {
+ *  scanner's own memory on a hostile deeply-nested input. (`maxDepth` is for a caller
+ *  scanning text that WRAPS a document — a protocol message around a traveler — and so
+ *  legitimately nests a few levels deeper than a document may.) */
+export function findDuplicateMember(text: string, maxDepth: number = MAX_JSON_DEPTH): string | undefined {
   // One frame per open container: the member names seen so far for an object, `null`
   // for an array.
   const stack: (Set<string> | null)[] = [];
@@ -68,7 +70,7 @@ export function findDuplicateMember(text: string): string | undefined {
       case 0x7b: // {
       case 0x5b: {
         // [
-        if (stack.length + 1 >= MAX_JSON_DEPTH) {
+        if (stack.length + 1 >= maxDepth) {
           throw new Error("JSON nesting exceeds the maximum depth");
         }
         const isObject = text.charCodeAt(i) === 0x7b;

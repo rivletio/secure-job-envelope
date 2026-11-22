@@ -501,6 +501,60 @@ describe("two-phase open: decrypting is not accepting", () => {
     assert.equal(ctx.unlocked.peekPrekey(prekeyIds[0]!), undefined);
   });
 
+  it("two DIFFERENT envelopes committed at once: neither one-time prekey is left in what is stored", async () => {
+    // Each commit stores "the keystore without my prekey" and only then forgets it. Run
+    // two at once and the second used to compute its blob while the first prekey was
+    // still held in memory — and write it back over the first deletion. Both commits
+    // "succeeded", both prekeys were gone from the session, and the stored keystore
+    // still held a spent one-time secret until something else rewrote it.
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 3);
+    const [a, b, c] = prekeyIds as [string, string, string];
+    let stored: Keystore | undefined;
+    let writes = 0;
+    const persistKeystore = async (ks: Keystore) => {
+      writes++;
+      await new Promise((resolve) => setTimeout(resolve, 2)); // a store that takes a moment
+      stored = ks;
+    };
+    const openA = await openTravelerDeferred(await fsSeal(ctx, bundle, a), ctx.unlocked, { persistKeystore });
+    const openB = await openTravelerDeferred(await fsSeal(ctx, bundle, b), ctx.unlocked, { persistKeystore });
+    await Promise.all([openA.commit(), openB.commit()]);
+
+    assert.equal(writes, 2);
+    assert.equal(ctx.unlocked.peekPrekey(a), undefined);
+    assert.equal(ctx.unlocked.peekPrekey(b), undefined);
+    const reloaded = await unlock(stored!, PASS);
+    assert.equal(reloaded.peekPrekey(a), undefined, "the first prekey spent is not written back by the second commit");
+    assert.equal(reloaded.peekPrekey(b), undefined);
+    assert.ok(reloaded.peekPrekey(c), "a prekey nobody spent is still there");
+
+    // A commit whose store FAILS does not hold up, or undo, the one behind it.
+    const ctx2 = await setup();
+    const two = signedBundle(ctx2.unlocked, ctx2.signer, 2);
+    const [x, y] = two.prekeyIds as [string, string];
+    let kept: Keystore | undefined;
+    const failing = await openTravelerDeferred(await fsSeal(ctx2, two.bundle, x), ctx2.unlocked, {
+      persistKeystore: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        throw new Error("disk full");
+      },
+    });
+    const working = await openTravelerDeferred(await fsSeal(ctx2, two.bundle, y), ctx2.unlocked, {
+      persistKeystore: (ks) => {
+        kept = ks;
+      },
+    });
+    const [first, second] = await Promise.allSettled([failing.commit(), working.commit()]);
+    assert.equal(first.status, "rejected");
+    assert.equal(second.status, "fulfilled");
+    assert.ok(ctx2.unlocked.peekPrekey(x), "the failed commit spent nothing");
+    assert.equal(ctx2.unlocked.peekPrekey(y), undefined);
+    const after = await unlock(kept!, PASS);
+    assert.ok(after.peekPrekey(x), "and what was stored still holds the prekey that was not spent");
+    assert.equal(after.peekPrekey(y), undefined);
+  });
+
   it("a static envelope has nothing to spend", async () => {
     const ctx = await setup();
     const { envelope } = await sealTraveler(sampleTraveler(), {
