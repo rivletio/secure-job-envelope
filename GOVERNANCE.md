@@ -15,8 +15,7 @@ operational specifics of any Rivlet-operated root remain to be finalized.
 
 ## The trust model is root-agnostic
 
-**No root key is baked into the format or the code.** The verifier is *handed*
-the root public key:
+**No root is trusted by default.** The verifier is *handed* the root public key:
 
 ```ts
 verifyDirectory(dir, rootPublicKeyHex, at)   // rootPublicKeyHex is a parameter
@@ -24,7 +23,15 @@ verifyDirectory(dir, rootPublicKeyHex, at)   // rootPublicKeyHex is a parameter
 
 There is no default root, no hardcoded Rivlet key, no built-in authority to
 appeal to. A verifier trusts **exactly** the root public key it was configured
-with, out of band, and nothing more. This is the same posture as a TLS trust
+with, out of band, and nothing more.
+
+One root *does* exist in the repository, and it must never be mistaken for one:
+`src/lib/traveler/demo-trust.ts` builds a **demo** anchor so the desk can be tried
+without any infrastructure. Its root key, its orgs' signing keys and their encryption
+keys are all derived from constants published in that file. Anyone can therefore sign
+as its root or as any of its orgs, and read anything sealed to them: under the demo
+anchor a "verified" signature proves nothing and an envelope is confidential from
+no one. It is loaded only when a user asks for it. This is the same posture as a TLS trust
 store or an SSH `known_hosts` file: the format defines *how* a root attests
 identities; *which* root you trust is your decision.
 
@@ -54,12 +61,27 @@ freshness window. That is the whole of the root's authority.
 
 The root does **not** sign travelers, quotes, or awards — those are signed by the
 *orgs* the directory names (the buyer signs its traveler and its award; a seller
-signs its quote). The root cannot forge a party's traveler or award; it can only
-attest which key belongs to which org. A compromised or malicious root can
-mis-bind an identity (attest the wrong key for an org) or withhold a revocation,
-but it cannot by itself produce a valid buyer award signature for an org whose
-signing key it does not hold. Identity attestation and authorship are separate
-layers on purpose.
+signs its quote). Identity attestation and authorship are separate layers.
+
+They are not independent layers, and this page used to imply they were. Because the
+root decides which key belongs to which org, **a malicious or compromised root can do
+anything an org can**:
+
+- issue a directory in which an org has an additional entry — a new `kid` whose
+  signing key the root holds — and then sign travelers, quotes or awards *as that
+  org*; every verifier that trusts the root will accept them;
+- give an org a newer entry carrying an encryption key the root holds, so that what
+  is sealed to that org from then on is readable by the root (the most recently
+  started entry is the one senders encrypt to);
+- withhold a revocation, or re-issue an old directory in which a revoked key is
+  active again.
+
+Nothing in the format detects any of this. A directory carries no serial number, no
+link to its predecessor, and there is no transparency log or key-continuity rule: two
+directories from one root are simply two signed statements, and a verifier sees only
+the one it was given. What limits a root is therefore outside the format — who
+operates it, how its key is held, and whether the parties compare what they were
+given (see "Operating a directory responsibly" and `docs/WEAKNESSES.md`).
 
 ## Operating a directory responsibly
 
@@ -80,13 +102,19 @@ mechanisms; policy is yours:
   not just signature validity, part of trust — publish and distribute new
   directories promptly.
 - **Key rotation** is additive: an org may hold several overlapping in-window
-  entries during a rotation, and capability/identity checks scan *all* of them
-  order-independently (`orgHasCapability`, matching the Rust verifier).
+  entries during a rotation. None of the rules depends on the order the entries are
+  listed in: a signature is checked against the one entry that carries its `kid` (a
+  `kid` appears on at most one entry), a capability holds if *any* usable entry of
+  the org carries it, and the entry to **encrypt to** is the org's most recently
+  started usable entry that has an encryption key (ties: the greater `kid`). All
+  three are held across both implementations by
+  `conformance/signatures/directory-cases.json`.
 
 ## Rivlet's role
 
 The architecture above requires no Rivlet-operated root, and the repository ships
-none. Rivlet's policy on top of it:
+none (the demo anchor described above is not a root anyone should trust). Rivlet's
+policy on top of it:
 
 - **Neutrality is a commitment, not just a property.** SJE is root-agnostic by
   construction, and Rivlet commits to keeping it so: the format and the reference

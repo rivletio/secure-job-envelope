@@ -179,11 +179,14 @@ export function openEnvelope(env: Envelope, kid: string, secretKey: Uint8Array):
  * recipient's signed bundle (prekeys.ts) and binds BOTH shared secrets into the
  * KEK. After the recipient decrypts and deletes the one-time secret, a later
  * compromise of the static key can no longer recover the message — forward
- * secrecy. Conversely, if a one-time prekey is ever reused or mishandled, the
- * static half still keeps the payload confidential (graceful degradation).
+ * secrecy. Confidentiality needs BOTH secrets, so a one-time secret that leaks on
+ * its own exposes nothing.
  *
  * Realizing forward secrecy requires the recipient to delete the consumed
- * one-time secret; the format enables it, key management completes it.
+ * one-time secret; the format enables it, key management completes it
+ * (transport.ts: deleted when the traveler is admitted). Reuse is not graceful:
+ * a second envelope sealed to a prekey that has since been spent can never be
+ * opened — see docs/ENVELOPE-DRAFT.md.
  * ------------------------------------------------------------------------- */
 
 export const FS_ENVELOPE_SPEC = "sje-envelope/0.2.0" as const;

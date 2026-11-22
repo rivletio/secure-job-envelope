@@ -130,6 +130,44 @@ both must open, envelopes both must refuse **at the shape check** (most of which
 decrypt successfully if the check were missing), and shape-valid envelopes both must
 fail to open (a flipped bit, a reordered, dropped or relabelled recipient).
 
+### Key derivation and associated data (normative)
+
+Everything an implementation needs to produce the bytes in the golden vectors
+(`conformance/signatures/envelope.json`, `fs-envelope.json`). `‖` is concatenation,
+`0x00` a single zero byte, strings are UTF-8, and "canonical JSON" is SPEC §Canonical
+JSON (members in code-point order, no whitespace).
+
+| | `sje-envelope/0.1.0` | `sje-envelope/0.2.0` |
+|---|---|---|
+| `kid` | first 16 hex characters of SHA-384 over the recipient's static ML-KEM-1024 encapsulation key (1568 bytes) | same |
+| Content key (CEK) | 32 random bytes, fresh per envelope | same |
+| Payload AAD | canonical JSON of `{ "enc_alg", "recipients": [kid, …], "spec" }` — recipients in envelope order | canonical JSON of `{ "enc_alg", "recipients": [{ "kid", "prekey_id" }, …], "spec" }` |
+| `payload` | AES-256-GCM(key = CEK, nonce = `payload_nonce`, AAD = payload AAD) over the plaintext; ciphertext ‖ 16-byte tag | same |
+| Wrap label | `spec ‖ 0x00 ‖ enc_alg ‖ 0x00 ‖ kid` | `spec ‖ 0x00 ‖ enc_alg ‖ 0x00 ‖ kid ‖ 0x00 ‖ prekey_id` |
+| Input key material | the 32-byte ML-KEM shared secret of `kem_ct` | `ss_onetime ‖ ss_static` (64 bytes): the shared secret of `kem_ct_onetime`, then that of `kem_ct_static` |
+| Key-encryption key (KEK) | HKDF-SHA-384(IKM, salt = `sje-kek/0.1.0`, info = wrap label, L = 32) | same construction (the salt string is the same in both versions; the wrap label differs) |
+| `wrapped_cek` | AES-256-GCM(key = KEK, nonce = `wrap_nonce`, AAD = wrap label) over the CEK; 32 bytes ‖ 16-byte tag | same |
+
+Nonces are 12 random bytes each; a nonce is never reused under one key because every
+CEK and every KEK is used for exactly one encryption. Opening reverses this for the
+recipient entry whose `kid` is the opener's, then decrypts the payload under the AAD
+rebuilt from **every** recipient entry in the envelope — which is what makes dropping,
+adding or reordering a recipient fail for everyone.
+
+What the construction does **not** provide, by design of the primitives:
+
+- **Sender authentication.** Anyone who has a recipient's public key can seal an
+  envelope to it. An envelope that opens says nothing about who sent it; that is the
+  job of the signatures inside the traveler and of the receive policy (SPEC
+  §Verification).
+- **Key commitment.** AES-GCM is not key-committing: a sender can craft one envelope
+  whose payload decrypts to different plaintexts under different content keys handed
+  to different recipients. Recipients of one multi-recipient envelope must not assume
+  they all read the same traveler; compare `traveler_hash`.
+- **Metadata privacy.** `kid` is a stable pseudonym that anyone holding the directory
+  can resolve to an org; the number of recipients, the envelope version, `prekey_id`
+  and the payload length are visible. There is no padding.
+
 ## Forward secrecy (`sje-envelope/0.2.0`)
 
 The 0.1 envelope encapsulates only to a recipient's long-lived static key, so a
@@ -146,24 +184,38 @@ mode fixes that with **single-use prekeys** and a **two-KEM combine**:
   Each recipient entry carries `prekey_id`, `kem_ct_onetime`, and
   `kem_ct_static`; the payload AAD binds
   `{spec, enc_alg, recipients: [{kid, prekey_id}, …]}`.
-- **Open** requires **both** secret keys. Afterwards the recipient **deletes the
-  one-time secret** — once it is gone, a later compromise of the static key
-  cannot recover that message (forward secrecy). If a one-time prekey is ever
-  reused or mishandled, the static half still keeps the payload confidential
-  (graceful degradation).
+- **Open** requires **both** secret keys, so a one-time secret that leaks on its own
+  exposes nothing. Once the recipient has **deleted** the one-time secret, a later
+  compromise of the static key cannot recover that message — forward secrecy.
 
-**Honest boundary:** the format *enables* forward secrecy (single-use keys and a
-combine that binds both secrets); actually realizing it depends on the recipient
-deleting the consumed one-time secret — `openTraveler` deletes it and **persists the
-deletion before using the secret** (`src/lib/traveler/transport.ts`), so a crash
-cannot resurrect a spent prekey. When no verifying bundle with an unused prekey is
-available, `fsRecipientFromBundle` returns nothing; the transport layer then falls
-back to the 0.1 static envelope (confidential, but not forward-secret) **explicitly
-and reports it** via the `forwardSecret` flag — never silently — and
-`requireForwardSecret` turns that fallback into an error so a sender can refuse to
-send without forward secrecy. A downgrade forced by a stripped bundle cannot be
-cryptographically detected by the recipient of a single envelope (inherent); the
-surfaced flag and `requireForwardSecret` are the defense.
+**What this does and does not give you — read before relying on it.**
+
+- *When the one-time secret is deleted.* When the traveler the envelope carried has
+  been **admitted** by the recipient — not when the envelope is decrypted. Decrypting
+  is not accepting: the archive checks, the receive policy and sometimes a person stand
+  in between, and an envelope whose key was spent on decryption could never be opened
+  again after a refusal or a closed tab (`transport.ts::openTravelerDeferred`, then
+  `commit()`). Until then the same envelope can be decrypted again by whoever holds
+  the keystore and its passphrase. (Earlier text here said the deletion was persisted
+  "before the secret is used". The code never did that.)
+- *Deletion has to reach storage.* A write that fails is reported, not assumed: the
+  desk says so and the envelope remains decryptable with that keystore.
+- *A prekey serves one envelope.* Nothing reserves a prekey: a sender picks one from
+  the public bundle. Two envelopes sealed to the same prekey — by two senders, or by
+  one sender that does not remember what it used — leave the second **permanently
+  unopenable** once the first is admitted, while each sender was told "forward-secret".
+  A sender SHOULD remember which prekeys of a bundle it has used and never reuse one;
+  two different senders can still collide, and only a coordinating service (which this
+  format deliberately does not have) could prevent that.
+- *The pool can be burned.* Prekey ids and public keys are public. Anyone can seal
+  valid envelopes to every prekey in a bundle; each one the recipient admits spends a
+  prekey. Junk that fails the archive checks spends nothing.
+- *Downgrade is silent to the recipient.* When no verifying bundle with an unused
+  prekey is available, sealing falls back to the 0.1 static envelope — confidential,
+  not forward-secret — and **reports it** to the sender (`forwardSecret: false`);
+  `requireForwardSecret` turns the fallback into an error. A recipient cannot tell a
+  sender that had no bundle from one whose bundle was withheld, and cannot refuse a
+  static envelope. A bundle whose prekeys are all spent still verifies.
 
 ## Keys
 
