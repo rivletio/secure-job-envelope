@@ -1250,6 +1250,17 @@ const envReject = [
     edit(fsEnvelope, (e) => { delete e.recipients[0]!.prekey_id; })),
   shape("static-recipient-in-fs-envelope", "0.1.0 recipient members under a 0.2.0 spec", F,
     edit(fsEnvelope, (e) => { e.recipients = structuredClone(envelope.recipients) as Record<string, unknown>[]; })),
+  // The two ciphertexts of a 0.2.0 recipient, each held to its own form. (Nothing above
+  // touched them: either member's check could be deleted from either implementation and
+  // every shared case still passed.)
+  shape("fs-kem-ct-onetime-one-byte-short", "the ciphertext to the one-time prekey is exactly 1568 bytes", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.kem_ct_onetime = (e.recipients[0]!.kem_ct_onetime as string).slice(2); })),
+  shape("fs-kem-ct-onetime-uppercase-hex", "hex must be lowercase, in every member", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.kem_ct_onetime = up(e.recipients[0]!.kem_ct_onetime as string); })),
+  shape("fs-kem-ct-static-one-byte-short", "the ciphertext to the static key is exactly 1568 bytes", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.kem_ct_static = (e.recipients[0]!.kem_ct_static as string).slice(2); })),
+  shape("fs-kem-ct-static-uppercase-hex", "hex must be lowercase, in every member", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.kem_ct_static = up(e.recipients[0]!.kem_ct_static as string); })),
   // ---- crypto: shape-valid, must not open ----
   crypto_("payload-bit-flipped", "one payload bit changed", N,
     edit(envelope, (e) => { e.payload = flip(e.payload as string); })),
