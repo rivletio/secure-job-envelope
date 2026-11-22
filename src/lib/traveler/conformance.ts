@@ -3,27 +3,39 @@ import { LONE_SURROGATE } from "./canonical.ts";
 import { travelerSchema, quoteSchema } from "./schema.ts";
 import type { ConformanceLevel, Traveler, Quote } from "./types.ts";
 
-/** Reject a document containing a lone surrogate in ANY string key or value.
- *  Such a string has no UTF-8 encoding, so the Rust core's serde_json refuses the
- *  whole document at parse; without this check TypeScript would accept a document
- *  Rust rejects (a cross-implementation accept/reject divergence), and the
- *  offending string would also be unhashable. Mirrors serde's parse-time refusal. */
-// Depth-bounded like the canonicalizer (MAX_CANONICAL_DEPTH): this runs before the
-// schema/size checks, so a hand-built deeply-nested document must be refused
-// cleanly rather than blowing the stack with an uncaught RangeError.
-const MAX_UTF8_DEPTH = 128;
+/** Reject what the Rust core's serde_json refuses at parse time, so the two
+ *  implementations accept and reject the same documents. Three parse-time
+ *  divergences are closed here, before the zod schema runs:
+ *   - a lone surrogate in ANY string key or value: it has no UTF-8 encoding, so
+ *     serde_json cannot parse the document (and the string would be unhashable);
+ *   - a non-finite number: `JSON.parse("1e309")` yields `Infinity`, which a blob's
+ *     `z.unknown()` would accept, but serde_json errors on an out-of-range float —
+ *     so without this TypeScript would accept a document Rust rejects;
+ *   - nesting past serde_json's 128-container recursion limit.
+ *  `depth` counts the containers enclosing `v` (the root value is enclosed by 0);
+ *  a container that is the 128th or deeper is the one serde_json refuses. */
+// serde_json's RECURSION_LIMIT. Matched exactly (verified against the Rust parser at
+// the 127/128 boundary) so a deeply-nested blob is refused on the same side as Rust,
+// not accepted here and rejected there — and so a deep document is refused cleanly
+// rather than blowing the stack with an uncaught RangeError.
+const MAX_JSON_DEPTH = 128;
 
 function assertUtf8Safe(v: unknown, depth = 0): void {
-  if (depth > MAX_UTF8_DEPTH) throw new Error("JSON nesting exceeds the maximum depth");
   if (typeof v === "string") {
     if (LONE_SURROGATE.test(v)) throw new Error("string contains a lone surrogate (no UTF-8 encoding)");
     return;
   }
+  if (typeof v === "number") {
+    if (!Number.isFinite(v)) throw new Error("non-finite number has no JSON form serde_json will parse");
+    return;
+  }
   if (Array.isArray(v)) {
+    if (depth + 1 >= MAX_JSON_DEPTH) throw new Error("JSON nesting exceeds the maximum depth");
     for (const x of v) assertUtf8Safe(x, depth + 1);
     return;
   }
   if (v && typeof v === "object") {
+    if (depth + 1 >= MAX_JSON_DEPTH) throw new Error("JSON nesting exceeds the maximum depth");
     for (const [k, val] of Object.entries(v)) {
       if (LONE_SURROGATE.test(k)) throw new Error("object key contains a lone surrogate (no UTF-8 encoding)");
       assertUtf8Safe(val, depth + 1);

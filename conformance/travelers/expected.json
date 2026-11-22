@@ -22,5 +22,9 @@
   "l0-intfloat.json": {
     "traveler_hash": "sha384:31d3b3fa0e58cea81ab7c599c93cbced2c07942ee0fc748eff145b2523915da2f1d82345d6da0994b7d8b0c27af2b162",
     "level": "L0"
+  },
+  "part-family-128-codepoints.json": {
+    "traveler_hash": "sha384:fd5b0c1ebebb9c41895e40558ffec3609dcfe9cfd2286fc167fd12ae9e764a2b8e3f75babd3915a45376d411b2abc613",
+    "level": "L0"
   }
 }
