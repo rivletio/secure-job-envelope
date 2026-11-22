@@ -1561,7 +1561,28 @@ describe("arguments are exact (MCP-6)", () => {
     const { tools } = await client.listTools();
     const arg = (tool: string, name: string) =>
       (tools.find((t) => t.name === tool)!.inputSchema.properties as Json)[name] as Json;
-    const sameMembers = (mine: Json, theirs: Json, what: string) => {
+    // The published schemas share definitions (`$ref` into quote-0.1.0.json `$defs`):
+    // follow a reference until the node states its own members.
+    const files: Record<string, Json> = {
+      "traveler-0.1.0.json": published("traveler-0.1.0.json"),
+      "quote-0.1.0.json": published("quote-0.1.0.json"),
+    };
+    const resolved = (node: Json, from: string): Json => {
+      let at = node;
+      let file = from;
+      while (at && typeof at.$ref === "string") {
+        const [named, pointer = ""] = (at.$ref as string).split("#");
+        file = named || file;
+        at = pointer
+          .split("/")
+          .filter(Boolean)
+          .reduce((n: Json, key: string) => n[key] as Json, files[file]!);
+      }
+      return at;
+    };
+    const sameMembers = (mine: Json, published: Json, what: string, from = "traveler-0.1.0.json") => {
+      const theirs = resolved(published, from);
+      assert.ok(theirs?.properties, `${what}: the published schema states its members`);
       assert.deepEqual(Object.keys(mine.properties).sort(), Object.keys(theirs.properties).sort(), what);
       assert.deepEqual([...(mine.required ?? [])].sort(), [...(theirs.required ?? [])].sort(), `${what} (required)`);
     };
@@ -1572,10 +1593,16 @@ describe("arguments are exact (MCP-6)", () => {
     sameMembers(arg("sje_award", "ship_to"), traveler.ship_to, "ship_to");
     sameMembers(arg("sje_award", "ops").items, traveler.ops.items, "op");
     sameMembers(arg("sje_award", "terms"), traveler.award.properties.terms, "terms");
-    sameMembers(arg("sje_quote", "seller"), quote.seller, "seller");
-    sameMembers(arg("sje_quote", "pricing"), quote.pricing, "pricing");
-    sameMembers(arg("sje_quote", "pricing").properties.lines.items, quote.pricing.properties.lines.items, "line");
-    sameMembers(arg("sje_quote", "exceptions").items, quote.exceptions.items, "exception");
+    const Q = "quote-0.1.0.json";
+    sameMembers(arg("sje_quote", "seller"), quote.seller, "seller", Q);
+    sameMembers(arg("sje_quote", "pricing"), quote.pricing, "pricing", Q);
+    sameMembers(
+      arg("sje_quote", "pricing").properties.lines.items,
+      resolved(quote.pricing, Q).properties.lines.items,
+      "line",
+      Q,
+    );
+    sameMembers(arg("sje_quote", "exceptions").items, resolved(quote.exceptions, Q).items, "exception", Q);
   });
 
   it("what the schemas advertise is what the server enforces", async () => {
