@@ -354,6 +354,7 @@ try {
 
   step(9, "BUYER seals the award UNSIGNED — the SELLER's desk refuses an award it cannot verify");
   const sealed3 = await sealTo(buyer, awarded.traveler as Json, SELLER_ORG);
+  assert.match(String(sealed3.unsigned_award_note), /not signed/, "the buyer's desk says so when sealing");
   const unverified = await refusal(seller, "sje_open", { sje: sealed3.sje });
   assert.match(String(unverified.error), /refused by default/);
   assert.equal(unverified.traveler, undefined, "a refused document is not released");

@@ -1339,6 +1339,13 @@ async function sealTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
       ? { prekey_id: "prekey_id" in sealedTo ? sealedTo.prekey_id : null }
       : { not_forward_secret_because: obstacle ?? "no usable one-time prekey" }),
     traveler_hash: hash,
+    // What the recipient's desk will make of it, said before it is sent.
+    ...(t.award && !t.award.sig
+      ? {
+          unsigned_award_note:
+            "The award on this traveler is not signed. The recipient's desk will report it as unverified and refuse it by default; sign it with the buyer's ML-DSA key (outside this server), or expect to confirm it out of band.",
+        }
+      : {}),
     itar: t.itar === true,
     itar_gate: itarGate,
     directory_source: trust.source,

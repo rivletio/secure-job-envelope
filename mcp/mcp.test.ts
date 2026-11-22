@@ -2294,6 +2294,16 @@ describe("sje_seal gates", () => {
     }
     // require_forward_secret: false is honoured exactly, too.
     assert.equal(okOf(await call("sje_seal", { ...base, require_forward_secret: false })).forward_secret, false);
+
+    // A sender is told, before sending, what the recipient's desk will do with an
+    // award that is not signed.
+    const q = quoteFor(rfq(), "qot_sealaward01");
+    const unsignedAward = awarded(withQuotes(signedByBuyer(rfq()), q), q.quote_id);
+    const sealedUnsigned = okOf(await call("sje_seal", { ...base, traveler: unsignedAward }));
+    assert.match(sealedUnsigned.unsigned_award_note, /not signed.*refuse it by default/);
+    const sealedSigned = okOf(await call("sje_seal", { ...base, traveler: awardSignedByBuyer(unsignedAward) }));
+    assert.equal(sealedSigned.unsigned_award_note, undefined);
+    assert.equal(plain.unsigned_award_note, undefined, "no award, no note");
   });
 });
 
