@@ -109,6 +109,29 @@ future versions:
   own seller signature and the archive's META.json digests, not by
   `traveler_hash`.
 
+## The published pages
+
+What the published desk and demo site enforce, and what a static host cannot do:
+
+- **A policy in every document.** Each published HTML document carries a
+  Content-Security-Policy as a `<meta>` element. Nothing loads from another
+  origin; no inline script runs unless the build hashed it; there are no inline
+  styles and no `eval`; the pages make no network calls of their own
+  (`connect-src 'none'`). The build refuses to publish a document that lacks
+  the policy or would break it (`scripts/pages-csp.mjs`,
+  `scripts/build-pages.mjs`).
+- **No third parties.** Fonts are served from the same origin.
+- **The service worker does not answer for the desk.** The demo site's worker
+  handles only the demo site's own files; the desk always comes from the network.
+- **What this cannot do.** A `<meta>` policy cannot forbid framing
+  (`frame-ancestors`) or report violations; both need response headers, which
+  this host does not let a site set. The policy is written into the published
+  output only: a self-hosted deployment should send the same policy as a
+  response header and add `frame-ancestors 'none'`. The desk still shares its
+  origin with the demo site and with anything else served from the same host
+  (`docs/WEAKNESSES.md`, W-40), so a policy on these pages says nothing about
+  the others.
+
 ## Proving these claims
 
 Every claim in this document is either proven by a named test (both

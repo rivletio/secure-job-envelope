@@ -65,7 +65,13 @@ export class Steps {
 
 export const short = (h: string, n = 26) => (h.length > n ? `${h.slice(0, n)}…` : h);
 
-/** Tiny hyperscript: el("div", { class: "x" }, ["hi", child]). */
+/** Tiny hyperscript: el("div", { class: "x" }, ["hi", child]).
+ *
+ *  There is deliberately no way to hand this helper markup: attributes are set as attributes,
+ *  and a string child is appended as TEXT (Element.append never parses it). Build structure
+ *  from nodes. Do not add an innerHTML / insertAdjacentHTML path — the demos run the real
+ *  library on values a visitor can edit, and scripts/pages-hardening.test.ts fails if a
+ *  markup sink reappears anywhere under site/src. */
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   attrs: Record<string, string> = {},
@@ -74,7 +80,6 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "class") n.className = v;
-    else if (k === "html") n.innerHTML = v;
     else n.setAttribute(k, v);
   }
   for (const c of children) n.append(c);

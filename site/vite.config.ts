@@ -12,6 +12,11 @@ export default defineConfig(({ command }) => ({
   build: {
     outDir: resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
+    // No modulepreload polyfill: it is the only thing in the bundle that calls fetch(), and
+    // the published pages' Content-Security-Policy is `connect-src 'none'` — the demos make
+    // no network calls of their own (scripts/pages-csp.mjs). Browsers without native
+    // modulepreload still load every module; they just skip the preload hint.
+    modulePreload: { polyfill: false },
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),

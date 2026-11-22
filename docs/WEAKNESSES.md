@@ -138,9 +138,9 @@ both accepted while reading it differently.
 | ID | Severity | Weakness | Status |
 |---|---|---|---|
 | W-40 | Medium | **The desk shares an origin** with the demo site and with every other site published under the same host. Browser storage (plaintext travelers, the encrypted keystore, the trust anchor) and an unlocked desk's memory are reachable from any page on that origin. | **Owner** (serve the desk from an origin of its own). Until then: **Limit** — a script-injection flaw anywhere on the origin is one on the desk. |
-| W-41 | Low | No Content-Security-Policy; a third-party stylesheet loaded on the page where the passphrase is typed. | **In progress**. |
-| W-42 | Low | The demo site's service worker controlled the desk's path: a desk fix would reach returning visitors one visit late. | **In progress**. |
-| W-43 | Info | An unused `innerHTML` path in the demo site's DOM helper. | **In progress**. |
+| W-41 | Low | No Content-Security-Policy; a third-party stylesheet loaded on the page where the passphrase is typed. | **Fixed** ([#35](https://github.com/rivletio/secure-job-envelope/pull/35)): fonts are served from the same origin; every published document carries a policy that denies by default, allows this origin only, runs no inline script the build did not hash, and allows no inline style, no `eval` and no network call; the build refuses to publish a document that would break it. **Limits:** the policy travels in a `<meta>` element, which cannot forbid framing or report violations (both need response headers); it is written into the Pages output only, so a self-hosted build must send it as a header; checked in Chromium only. |
+| W-42 | Low | The demo site's service worker controlled the desk's path: a desk fix would reach returning visitors one visit late. | **Fixed** ([#35](https://github.com/rivletio/secure-job-envelope/pull/35)): the worker answers only for the demo site's own files; the desk always comes from the network and is never cached; the old cache is removed on activation. **Limit:** the worker's scope still covers the desk's path (a scope is a URL prefix), and the host caches pages for ten minutes. |
+| W-43 | Info | An unused `innerHTML` path in the demo site's DOM helper. | **Fixed** ([#35](https://github.com/rivletio/secure-job-envelope/pull/35)); a test fails if a markup sink reappears in the demo site's sources. |
 
 ## G. Supply chain and process
 
@@ -175,6 +175,8 @@ both accepted while reading it differently.
 | W-60 | Low | **Dates were shifted by the viewer's time zone.** A need-by of 30 October read "29 Oct" to anyone west of UTC, so two people looking at one traveler saw two different dates. | **Fixed** ([#34](https://github.com/rivletio/secure-job-envelope/pull/34)): the day shown is the day written. |
 | W-61 | Low | An expired quote kept its seller's one-quote slot, shutting the seller out of the revision for good; the store accepted an award for a quantity the quote does not price; state restored from browser storage (role, selected seller) was spread into the store unchecked. | **Fixed** ([#34](https://github.com/rivletio/secure-job-envelope/pull/34)). |
 | W-62 | Low | **The basis of an exception's `price_delta` is undefined** — per unit or for the order. Two parties can read one quote, with one hash, as two totals. | **Decision.** The desk counts each delta once, shows it on its own line and says the basis is undefined. `SPEC.md` now states that 0.1 does not define it and that a per-unit change belongs in the price lines. Recommended for the next version: define it as an amount for the order. |
+| W-63 | Low | **The parser that was tested was not the parser that shipped.** The schema library compiles its parsers with `new Function` where the runtime allows it and interprets them where it does not. Under a strict policy the browser ran the interpreter; Node — every test, the MCP server, the fuzzer — ran the compiled path. | **Fixed** ([#35](https://github.com/rivletio/secure-job-envelope/pull/35)): the interpreter is selected in every runtime, and a test fails if the library compiles any code from a string. |
+| W-64 | Info | The desk's favicon and the spec page's JSON Schema links pointed outside the published site (root-absolute paths under a sub-path deployment). | **Fixed** ([#35](https://github.com/rivletio/secure-job-envelope/pull/35)); the Pages build now fails on a reference to a file that is not in the output. |
 
 ---
 
@@ -194,7 +196,9 @@ both accepted while reading it differently.
 - **A browser.** The desk was driven in Chromium. Receive path: forged award, rollback,
   body swap, buyer change, two tabs. Award dialog: nothing pre-filled, a planted ship-to
   shown apart and used only on request. Storage: the warning appears on a failed write
-  and clears when one succeeds.
+  and clears when one succeeds. Published pages: the built output was served the way
+  the host serves it and exercised end to end — no policy violation, no request to
+  another origin, nothing of the desk in the service worker's cache.
 - **Not checked by anything here:** the cryptographic libraries themselves, side channels,
   the browser, the host the desk is served from, or any party's operational handling of
   keys.

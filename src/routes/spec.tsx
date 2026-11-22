@@ -3,6 +3,10 @@ import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/spec")({ component: SpecPage });
 
+/** The published JSON Schemas ship with the desk, under its base path. On Pages the desk
+ *  lives at a sub-path, where a root-absolute "/schemas/…" pointed outside the site. */
+const schemaHref = (file: string) => `${import.meta.env.BASE_URL}schemas/${file}`;
+
 function SpecPage() {
   return (
     <AppShell>
@@ -74,12 +78,12 @@ envelope level traveler.json`}
         <h2 className="text-lg font-medium text-paper">Quote schema</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Media schemas live at{" "}
-          <a className="underline underline-offset-2" href="/schemas/quote-0.1.0.json">
-            /schemas/quote-0.1.0.json
+          <a className="underline underline-offset-2" href={schemaHref("quote-0.1.0.json")}>
+            schemas/quote-0.1.0.json
           </a>{" "}
           and{" "}
-          <a className="underline underline-offset-2" href="/schemas/traveler-0.1.0.json">
-            /schemas/traveler-0.1.0.json
+          <a className="underline underline-offset-2" href={schemaHref("traveler-0.1.0.json")}>
+            schemas/traveler-0.1.0.json
           </a>
           .
         </p>

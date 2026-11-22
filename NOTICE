@@ -7,3 +7,30 @@ The Secure Job Envelope (SJE) standard and its reference implementations
 
 This product is licensed under the Apache License, Version 2.0; see the
 LICENSE file or <http://www.apache.org/licenses/LICENSE-2.0>.
+
+------------------------------------------------------------------------
+Bundled fonts (desk app)
+
+The desk app (src/) bundles three typefaces as web-font files. They are
+taken, unmodified, from the @fontsource npm packages (repackaged Google
+Fonts releases) and emitted next to the app by the build; nothing is
+loaded from a font CDN. These fonts are NOT covered by the Apache License
+above. Each is licensed under the SIL Open Font License, Version 1.1
+<https://openfontlicense.org>. The full licence text is the LICENSE file
+of each package (node_modules/<package>/LICENSE), and every font file
+carries its copyright notice and the licence URL in its metadata.
+
+  Fraunces
+    Copyright 2020 The Fraunces Project Authors
+    <https://github.com/undercasetype/Fraunces>
+    npm: @fontsource-variable/fraunces
+
+  Archivo
+    Copyright 2020 The Archivo Project Authors
+    <https://github.com/Omnibus-Type/Archivo>
+    npm: @fontsource-variable/archivo
+
+  IBM Plex Mono
+    Copyright 2017 IBM Corp. All rights reserved.
+    <https://github.com/IBM/plex>
+    npm: @fontsource/ibm-plex-mono

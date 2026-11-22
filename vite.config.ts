@@ -3,6 +3,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
+import { noInlineStyles } from "./scripts/vite-plugin-no-inline-styles.ts";
 
 // DESK_STATIC=1 produces a fully static, client-only SPA export of the desk for
 // GitHub Pages (served from DESK_BASE, default /secure-job-envelope/desk/). The
@@ -38,5 +39,7 @@ export default defineConfig(({ command, isPreview }) => ({
       ? [nitro({ preset: "node-server" })]
       : []),
     viteReact(),
+    // No inline <style> in the bundle: the published desk's CSP is style-src 'self'.
+    noInlineStyles(),
   ],
 }));
