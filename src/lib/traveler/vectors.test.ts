@@ -14,26 +14,84 @@ import { bytesToHex, utf8ToBytes } from "./bytes.ts";
 
 const root = new URL("../../../conformance/", import.meta.url).pathname;
 
+/** A canonical case gives its input as `value` (a JSON value; how the vector file spells
+ *  it is not part of the test) or as `text` (the exact JSON text — its spelling IS the
+ *  test: `10.0`, `-0`, `1e2`, an escaped letter). Exactly one of the two. */
+type CanonicalCase = { name: string; value?: unknown; text?: string };
 type CanonicalVectors = {
-  valid: Array<{ name: string; value: unknown; canonical: string; sha384: string }>;
-  invalid: Array<{ name: string; value: unknown; reason: string }>;
+  valid: Array<CanonicalCase & { canonical: string; sha384: string }>;
+  invalid: Array<CanonicalCase & { reason: string; refusal: { ts: string; rs: string } }>;
 };
 
+/** What this implementation does with a canonical case: the canonical bytes, or why it
+ *  refuses. A `text` is parsed here, by this implementation's own JSON parser, before it
+ *  is canonicalized; "not JSON" means that parser rejected the text. */
+function canonicalOutcome(c: CanonicalCase): { canonical: string } | { refusal: string } {
+  assert.ok(
+    (c.value === undefined) !== (c.text === undefined),
+    `${c.name}: a case gives exactly one of value and text`,
+  );
+  let value: unknown;
+  if (c.text !== undefined) {
+    try {
+      value = JSON.parse(c.text);
+    } catch (e) {
+      if (!(e instanceof SyntaxError)) throw e;
+      return { refusal: "not JSON" };
+    }
+  } else {
+    value = c.value;
+  }
+  try {
+    return { canonical: canonicalJson(value) };
+  } catch (e) {
+    return { refusal: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 describe("conformance vectors", () => {
-  const vec = JSON.parse(readFileSync(`${root}canonical.json`, "utf8")) as CanonicalVectors;
+  const canonicalFile = readFileSync(`${root}canonical.json`, "utf8");
+  const vec = JSON.parse(canonicalFile) as CanonicalVectors;
 
   it("canonicalizes every valid vector to the exact bytes and hash", () => {
     for (const v of vec.valid) {
-      const c = canonicalJson(v.value);
-      assert.equal(c, v.canonical, `canonical bytes: ${v.name}`);
-      assert.equal(`sha384:${bytesToHex(sha384(utf8ToBytes(c)))}`, v.sha384, `hash: ${v.name}`);
+      const outcome = canonicalOutcome(v);
+      assert.ok("canonical" in outcome, `${v.name}: refused (${"refusal" in outcome ? outcome.refusal : ""})`);
+      assert.equal(outcome.canonical, v.canonical, `canonical bytes: ${v.name}`);
+      assert.equal(`sha384:${bytesToHex(sha384(utf8ToBytes(outcome.canonical)))}`, v.sha384, `hash: ${v.name}`);
     }
   });
 
-  it("refuses every invalid canonicalization vector", () => {
+  it("refuses every invalid canonicalization vector — for the reason it is named for", () => {
+    // Refused for some OTHER reason proves nothing about the rule (a text that is simply
+    // malformed would "pass"), so each case pins a fragment of the refusal, as the
+    // traveler reject vectors do. The Rust runner checks its own column.
     for (const v of vec.invalid) {
-      assert.throws(() => canonicalJson(v.value), `must refuse: ${v.name} (${v.reason})`);
+      const outcome = canonicalOutcome(v);
+      assert.ok("refusal" in outcome, `must refuse: ${v.name} (${v.reason})`);
+      assert.ok(
+        outcome.refusal.includes(v.refusal.ts),
+        `${v.name}: refused for the wrong reason — "${outcome.refusal}" does not mention "${v.refusal.ts}"`,
+      );
     }
+  });
+
+  it("carries the spellings its cases are named for (a parsed value cannot)", () => {
+    // `negative-zero` was once stored as the value -0, which the file spelled 0, and
+    // nothing in it ever spelled 10.0: neither runner was shown what the names promised.
+    const text = (name: string) => vec.valid.find((v) => v.name === name)?.text;
+    assert.equal(text("negative-zero"), '{"t":-0}');
+    assert.equal(text("integer-valued-float"), '{"t":10.0}');
+    assert.equal(text("exponent"), '{"t":1e2}');
+    assert.equal(text("escape-u0041-is-A"), '{"s":"\\u0041"}');
+    // ...and the file itself holds them character for character.
+    for (const spelled of ['"{\\"t\\":-0}"', '"{\\"t\\":10.0}"', '"{\\"t\\":1e+2}"', '"{\\"s\\":\\"\\\\u0041\\"}"']) {
+      assert.ok(canonicalFile.includes(spelled), `canonical.json should contain ${spelled}`);
+    }
+    assert.ok(vec.valid.filter((v) => v.text !== undefined).length >= 60, "the text cases are present");
+    assert.ok(vec.invalid.filter((v) => v.text !== undefined).length >= 30, "the refused text cases are present");
+    // The file is ASCII: an invisible character in a vector is an escape a reviewer can see.
+    assert.match(canonicalFile, /^[\n -~]*$/);
   });
 
   it("refuses strings and keys with a lone surrogate (cross-impl safety)", () => {
