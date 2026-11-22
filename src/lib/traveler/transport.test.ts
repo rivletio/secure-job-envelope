@@ -21,6 +21,10 @@ import { importTravelerFile } from "./zip.ts";
 import type { Traveler } from "./types.ts";
 
 const PASS = "correct horse battery staple";
+/** What an open throws when an AES-256-GCM tag does not verify (the message is
+ *  @noble/ciphers'): the envelope got past the shape check and the recipient lookup, and
+ *  then failed a tag. */
+const TAG_MISMATCH = /^Error: aes-gcm: invalid tag$/;
 const root = new URL("../../../conformance/", import.meta.url).pathname;
 
 function sampleTraveler(): Traveler {
@@ -100,9 +104,12 @@ describe("encrypted transport (static path)", () => {
     // The payload hex decodes to bytes that are NOT a parseable traveler zip.
     const payloadBytes = Buffer.from(envelope.payload, "hex");
     assert.ok(!payloadBytes.includes(Buffer.from("PK\x03\x04")), "no ZIP local-file-header in the ciphertext");
+    // Refused for what it is — bytes that are not an archive — not for some later check.
+    // (The second argument used to be a string, which `assert.rejects` takes as the
+    // failure MESSAGE: any rejection at all passed.)
     await assert.rejects(
       importTravelerFile(new File([payloadBytes], "x.zip", { type: "application/zip" })),
-      "ciphertext must not import as a traveler",
+      /^Error: Not a valid zip archive$/,
     );
   });
 
@@ -114,8 +121,11 @@ describe("encrypted transport (static path)", () => {
       recipientOrg: "org_recipient",
     });
 
+    // One nibble of the ciphertext changed: still lowercase hex of the same length, so
+    // the envelope passes the shape check and it is the AEAD tag that refuses it. The
+    // control is the round trip in the test above: the same envelope, unchanged, opens.
     const tampered = { ...envelope, payload: (envelope.payload[0] === "a" ? "b" : "a") + envelope.payload.slice(1) };
-    await assert.rejects(() => openTraveler(tampered, unlocked));
+    await assert.rejects(() => openTraveler(tampered, unlocked), TAG_MISMATCH);
 
     // A different identity's keystore cannot open it (not a recipient).
     const other = await createIdentity({ passphrase: PASS, orgId: "org_other" });
@@ -179,7 +189,8 @@ describe("encrypted transport (forward-secret path)", () => {
 
     const good = (await seal()).envelope as FsEnvelope;
     const tampered: FsEnvelope = { ...good, payload: (good.payload[0] === "a" ? "b" : "a") + good.payload.slice(1) };
-    await assert.rejects(() => openTraveler(tampered, unlocked), "a tampered FS envelope must be refused");
+    // Refused by the AEAD tag — not as "already consumed", and not by the shape check.
+    await assert.rejects(() => openTraveler(tampered, unlocked), TAG_MISMATCH);
 
     // The prekey must survive the failed open — a fresh, legitimate envelope to the
     // SAME prekey still opens. (Before the fix, the failed open consumed the prekey,

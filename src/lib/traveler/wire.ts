@@ -50,7 +50,7 @@ export function exceedsUtf8Bytes(text: string, maxBytes: number): boolean {
 /** The first member name that repeats within one JSON object, at any depth — or
  *  `undefined` if there is none. One pass, no recursion.
  *
- *  Names are compared after JSON unescaping (`"a"` and `"a"` are the same member),
+ *  Names are compared after JSON unescaping (`"a"` and `"\u0061"` are the same member),
  *  as serde does. On malformed text this returns `undefined` and leaves the syntax error
  *  to `JSON.parse`; for well-formed JSON the tokenization is exact (structural
  *  characters are only ever tracked outside string literals).
