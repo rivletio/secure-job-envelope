@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { LevelInfo } from "@/lib/traveler/conformance";
+import { lockedAtLevel } from "@/lib/traveler/guards";
 import { cn } from "@/lib/utils";
 
 export function LevelBadge({
@@ -9,14 +10,15 @@ export function LevelBadge({
   info: LevelInfo;
   className?: string;
 }) {
-  const variant =
-    info.code === "L2" || info.code === "L3"
-      ? "default"
-      : info.code === "L1"
-        ? "mill"
-        : info.code === "L0"
-          ? "outline"
-          : "paper";
+  // The filled badge is the locked (executable) look — asked of the one lock
+  // definition, not re-derived from level codes here.
+  const variant = lockedAtLevel(info)
+    ? "default"
+    : info.code === "L1"
+      ? "mill"
+      : info.code === "L0"
+        ? "outline"
+        : "paper";
   return (
     <Badge variant={variant} className={cn("uppercase", className)}>
       {info.code} {info.name}
@@ -25,7 +27,7 @@ export function LevelBadge({
 }
 
 export function LevelStamp({ info }: { info: LevelInfo }) {
-  const filled = info.code === "L2" || info.code === "L3";
+  const filled = lockedAtLevel(info);
   return (
     <div
       className={cn(

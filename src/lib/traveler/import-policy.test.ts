@@ -194,6 +194,23 @@ describe("receive policy: a traveler already held", () => {
     assert.equal(l1.quotes?.length, 1);
   });
 
+  it("merge: a ship-to or ops list without an award is somebody's draft, and is never taken", () => {
+    // A seller returns its quote — and slips a ship-to into the file. Merged in, it would
+    // sit in the buyer's copy and be offered back as the default at award time.
+    const q2 = quoteFor(rfq, "qot_policy0006", "org_huron");
+    const incoming: Traveler = {
+      ...withQuotes(rfq, q2),
+      ship_to: { ...SHIP, line1: "1 Attacker Way" },
+      ops: [{ seq: 1, code: "anything" }],
+    };
+    const d = admitted(decide(incoming, l1));
+    assert.equal(d.kind, "merged");
+    assert.deepEqual(d.traveler.quotes?.map((q) => q.quote_id), [q1.quote_id, q2.quote_id], "the quote is taken");
+    assert.equal(d.traveler.ship_to ?? null, null, "the draft ship-to is not");
+    assert.equal(d.traveler.ops, undefined, "nor the draft ops");
+    assert.match(d.notes.join(" "), /draft ship-to or ops list; it was not taken/);
+  });
+
   it("merge: refuses a quote that differs from the held quote with the same id", () => {
     const cheaper = { ...q1, pricing: { ...q1.pricing, lines: [{ qty: rfq.part.qty.target, unit: 1 }] } };
     refused(decide(withQuotes(rfq, cheaper), l1), /Quote qot_policy0001 differs from the copy of that quote held here/);

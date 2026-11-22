@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { amendMerge, levelOf, parseTraveler, parseQuote } from "./conformance.ts";
+import { amendMerge, parseTraveler, parseQuote } from "./conformance.ts";
 import { seedTravelers } from "./fixtures.ts";
-import { cannotAward, cannotQuote } from "./guards.ts";
+import { cannotAward, cannotQuote, locked } from "./guards.ts";
 import { quoteContentHash, verificationReport } from "./authenticity.ts";
 import type { Directory } from "./directory.ts";
+import { pricedLine } from "./format.ts";
 import { travelerHash } from "./hash.ts";
 import { decideImport, type ImportDecision, type ImportKind } from "./import-policy.ts";
 import { isoNow } from "./ids.ts";
@@ -20,6 +21,7 @@ export type AuditAct =
   | "import"
   | "export"
   | "amend"
+  | "delete"
   | "reset";
 
 export type AuditEvent = {
@@ -85,10 +87,9 @@ export class ImportNeedsAcknowledgment extends Error {
   }
 }
 
-function executable(p: Traveler): boolean {
-  const code = levelOf(p).code;
-  return code === "L2" || code === "L3";
-}
+/** The most quotes one traveler can carry (schema.ts caps `quotes`). It only words
+ *  the refusal in `addQuote`; `parseTraveler` is what enforces the cap. */
+const MAX_QUOTES = 64;
 
 function withAudit(audit: AuditEvent[], ev: Omit<AuditEvent, "at">): AuditEvent[] {
   return [...audit, { at: isoNow(), ...ev }].slice(-MAX_AUDIT);
@@ -116,6 +117,7 @@ const AUDIT_ACTS = new Set<AuditAct>([
   "import",
   "export",
   "amend",
+  "delete",
   "reset",
 ]);
 
@@ -136,6 +138,14 @@ export function sanitizeAudit(list: unknown): AuditEvent[] {
   );
 }
 
+/** Fired on `window` when a write to browser storage fails (see `safeStorage`). */
+export const STORAGE_WRITE_FAILED = "sje:storage-write-failed";
+let storageWriteFailed = false;
+/** Whether the most recent write to browser storage failed. */
+export function lastStorageWriteFailed(): boolean {
+  return storageWriteFailed;
+}
+
 /** localStorage that never throws: a quota-exceeded write, a blocked or absent
  *  store (private mode, SSR), or a disabled origin degrades to a no-op / null
  *  rather than crashing the desk. The traveler file is the source of truth;
@@ -151,8 +161,12 @@ export const safeStorage = {
   setItem: (name: string, value: string): void => {
     try {
       if (typeof localStorage !== "undefined") localStorage.setItem(name, value);
+      storageWriteFailed = false;
     } catch {
-      /* quota exceeded or storage blocked — drop the write, don't crash */
+      // Quota exceeded or storage blocked. Don't crash — but don't stay silent either:
+      // the desk would go on looking saved while the next reload threw the work away.
+      storageWriteFailed = true;
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(STORAGE_WRITE_FAILED));
     }
   },
   removeItem: (name: string): void => {
@@ -184,7 +198,7 @@ export const useTravelerStore = create<TravelerState>()(
           const i = s.travelers.findIndex((p) => p.traveler_id === parsed.traveler_id);
           const travelers = [...s.travelers];
           if (i >= 0) {
-            if (executable(travelers[i]!)) {
+            if (locked(travelers[i]!)) {
               throw new Error("Executable traveler is locked.");
             }
             travelers[i] = parsed;
@@ -198,20 +212,57 @@ export const useTravelerStore = create<TravelerState>()(
             }),
           };
         }),
+      // Deleting is local housekeeping, not a lifecycle step: it is allowed at every
+      // level (a locked traveler included — the lock protects the document from being
+      // changed, not this desk from letting go of its copy) and it is audited, with the
+      // hash of what was let go. Removing an id that is not held changes nothing.
       remove: (travelerId) =>
-        set((s) => ({ travelers: s.travelers.filter((p) => p.traveler_id !== travelerId) })),
+        set((s) => {
+          const held = s.travelers.find((p) => p.traveler_id === travelerId);
+          if (!held) return s;
+          let hash: string | undefined;
+          try {
+            hash = travelerHash(held);
+          } catch {
+            // Deletion is the way out for a traveler that has somehow gone bad; it
+            // must not fail because that traveler can no longer be hashed.
+          }
+          return {
+            travelers: s.travelers.filter((p) => p.traveler_id !== travelerId),
+            audit: withAudit(s.audit, {
+              act: "delete",
+              traveler_id: travelerId,
+              ...(hash ? { hash } : {}),
+            }),
+          };
+        }),
       addQuote: (travelerId, quote) => {
         const traveler = get().get(travelerId);
         if (!traveler) throw new Error("Traveler is not on this desk.");
         const parsed = parseQuote(quote);
         const err = cannotQuote(traveler, parsed);
         if (err) throw new Error(err);
+        const rest = (traveler.quotes ?? []).filter((q) => q.quote_id !== parsed.quote_id);
+        if (rest.length >= MAX_QUOTES) {
+          throw new Error(
+            `This traveler already carries ${MAX_QUOTES} quotes, the most a traveler can hold (stale quotes from earlier revisions count). It cannot take another.`,
+          );
+        }
+        // Re-validate the merged traveler through the schema, as award and amend do. A
+        // quote that is valid on its own can still make the traveler invalid — one quote
+        // too many, or one that takes it past the size cap. Stored unvalidated, that
+        // traveler looked fine until the next reload, when sanitizeTravelers dropped it
+        // whole: the quote was "accepted" and the job silently disappeared. A refusal
+        // here throws before `set`, so the held traveler is exactly as it was.
+        let next: Traveler;
+        try {
+          next = parseTraveler({ ...traveler, quotes: [...rest, parsed] });
+        } catch (e) {
+          const why = e instanceof Error ? e.message.replace(/^Invalid traveler\.\s*/, "") : "invalid";
+          throw new Error(`Quote not added: the traveler would no longer be valid with it (${why}).`);
+        }
         set((s) => ({
-          travelers: s.travelers.map((p) => {
-            if (p.traveler_id !== travelerId) return p;
-            const rest = (p.quotes ?? []).filter((q) => q.quote_id !== parsed.quote_id);
-            return { ...p, quotes: [...rest, parsed] };
-          }),
+          travelers: s.travelers.map((p) => (p.traveler_id === travelerId ? next : p)),
           audit: withAudit(s.audit, {
             act: "quote",
             traveler_id: travelerId,
@@ -226,6 +277,11 @@ export const useTravelerStore = create<TravelerState>()(
         if (!quote) throw new Error("Award references a quote that is not on the traveler.");
         const err = cannotAward(traveler, quote);
         if (err) throw new Error(err);
+        // The award's own quantity must be one the quote prices: an award for a quantity
+        // with no price line commits to no amount at all (and no longer verifies).
+        if (!pricedLine(quote.pricing.lines, award.qty)) {
+          throw new Error(`The quote has no unit price at qty ${String(award.qty)}.`);
+        }
         if (!ops.length) throw new Error("List at least one op.");
         if (!shipTo.name.trim() || !shipTo.line1.trim() || !shipTo.city.trim() || !shipTo.country) {
           throw new Error("Ship-to is incomplete.");
@@ -253,7 +309,7 @@ export const useTravelerStore = create<TravelerState>()(
       amend: (travelerId, patch) =>
         set((s) => {
           const current = s.travelers.find((p) => p.traveler_id === travelerId);
-          if (!current || executable(current)) return s;
+          if (!current || locked(current)) return s;
           // Shared with the MCP sje_amend handler: re-validate through the schema,
           // force the same key set, and drop the now-stale buyer signatures.
           const next = amendMerge(current, patch);
@@ -323,10 +379,17 @@ export const useTravelerStore = create<TravelerState>()(
         audit: s.audit,
       }),
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<TravelerState>;
+        // Nothing persisted is spread into state unexamined: storage is editable by
+        // anything on this origin, and every member below is read by code that assumes
+        // its type.
+        const p = (persisted ?? {}) as Partial<Record<keyof TravelerState, unknown>>;
         return {
           ...current,
-          ...p,
+          role: p.role === "buyer" || p.role === "seller" ? p.role : current.role,
+          sellerOrgId:
+            typeof p.sellerOrgId === "string" && SHOPS.some((shop) => shop.org_id === p.sellerOrgId)
+              ? p.sellerOrgId
+              : current.sellerOrgId,
           travelers: Array.isArray(p.travelers)
             ? sanitizeTravelers(p.travelers)
             : current.travelers,

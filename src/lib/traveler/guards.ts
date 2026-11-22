@@ -1,4 +1,4 @@
-import { boundQuotes } from "./conformance.ts";
+import { boundQuotes, levelOf, type LevelInfo } from "./conformance.ts";
 import { isoDateTimeMs } from "./datetime.ts";
 import { pricedLine } from "./format.ts";
 import { travelerHash } from "./hash.ts";
@@ -13,11 +13,56 @@ export function isQuoteExpired(quote: Quote, now = new Date()): boolean {
   return now.getTime() > t;
 }
 
+/** THE definition of "locked": a traveler is locked exactly when it is executable —
+ *  conformance level 2 or above, i.e. an award that names a quote bound to the current
+ *  revision, at least one op, and a complete ship-to (see `levelOf`).
+ *
+ *  This is the only place the rule is written. The guards below, the desk store, the
+ *  MCP tools and every UI component ask this function (or `lockedAtLevel` when they
+ *  already hold the level), so "locked" can never disagree with the level a reader is
+ *  shown. It used to be spelled three ways; one of them — award && ops && ship_to.name
+ *  — called a traveler locked while the ladder said L0 or L1, when its award named a
+ *  quote that is stale or not on the traveler at all. Such an award is not in effect:
+ *  the traveler stays quotable, amendable and awardable (see `awardStanding`). */
 export function locked(traveler: Traveler): boolean {
-  return Boolean(traveler.award) && Boolean(traveler.ops?.length) && Boolean(traveler.ship_to?.name);
+  return lockedAtLevel(levelOf(traveler));
 }
 
-export function cannotQuote(traveler: Traveler, quote: Quote): string | null {
+/** The same definition for a caller that already computed the level. */
+export function lockedAtLevel(info: Pick<LevelInfo, "level">): boolean {
+  return info.level >= 2;
+}
+
+/** Where a traveler's award record stands, so every surface describes it the same way:
+ *  - `none`       no award;
+ *  - `in-effect`  the traveler is locked (L2+): the award names a bound quote and the
+ *                 ops and ship-to are complete;
+ *  - `incomplete` the award names a bound quote, but the traveler is not executable
+ *                 yet (`missing` says what L2 still needs);
+ *  - `void`       the award names a quote that is not bound to the current revision:
+ *                 `stale` (on the traveler, but not bound — priced against another
+ *                 revision) or `absent` (not on the traveler). Such an award is not in
+ *                 effect and locks nothing. */
+export type AwardStanding =
+  | { state: "none" }
+  | { state: "in-effect"; quote: Quote }
+  | { state: "incomplete"; quote: Quote; missing: string[] }
+  | { state: "void"; quote_id: string; reason: "stale" | "absent" };
+
+export function awardStanding(traveler: Traveler): AwardStanding {
+  const award = traveler.award;
+  if (!award) return { state: "none" };
+  const quote = boundQuotes(traveler).find((q) => q.quote_id === award.quote_id);
+  if (!quote) {
+    const held = (traveler.quotes ?? []).some((q) => q.quote_id === award.quote_id);
+    return { state: "void", quote_id: award.quote_id, reason: held ? "stale" : "absent" };
+  }
+  const info = levelOf(traveler);
+  if (lockedAtLevel(info)) return { state: "in-effect", quote };
+  return { state: "incomplete", quote, missing: info.missing };
+}
+
+export function cannotQuote(traveler: Traveler, quote: Quote, now = new Date()): string | null {
   if (locked(traveler)) return "Executable travelers cannot take new quotes.";
   if (quote.traveler_hash_quoted !== travelerHash(traveler)) {
     return "Quote is not bound to the current traveler hash.";
@@ -25,8 +70,20 @@ export function cannotQuote(traveler: Traveler, quote: Quote): string | null {
   if (traveler.itar && quote.seller.itar !== true) {
     return "ITAR traveler cannot be quoted by a seller that has not self-declared ITAR.";
   }
-  if ((traveler.quotes ?? []).some((q) => q.seller.org_id && q.seller.org_id === quote.seller.org_id && q.quote_id !== quote.quote_id)) {
-    return "This seller already has a quote on this revision.";
+  // One quote per seller per REVISION, so only quotes bound to the current hash count.
+  // A stale quote is history from an earlier revision: counting it stopped a seller
+  // from ever re-quoting after an amend, and let anyone lock a rival out by planting an
+  // unbound quote under the rival's org_id.
+  // …and only quotes that are still LIVE: an expired quote can no longer be awarded, so
+  // it must not stop its own seller from replacing it (it used to — the seller was shut
+  // out of the revision for good once its quote lapsed).
+  const holdsTheSlot = (q: Quote) =>
+    !isQuoteExpired(q, now) &&
+    Boolean(q.seller.org_id) &&
+    q.seller.org_id === quote.seller.org_id &&
+    q.quote_id !== quote.quote_id;
+  if (boundQuotes(traveler).some(holdsTheSlot)) {
+    return "This seller already has a live quote on this revision.";
   }
   return null;
 }

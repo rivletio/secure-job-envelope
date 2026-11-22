@@ -23,7 +23,8 @@
  *    equivocate  The same revision with different content is refused.
  *    merge       The same revision and content: the incoming copy's quotes are ADDED
  *                (by quote_id; a held quote is never dropped or altered), and its award
- *                is taken through the award gate.
+ *                is taken through the award gate. A ship-to or ops list that arrives
+ *                WITHOUT an award is a draft and is never merged in.
  *    award       A verified award is admitted. An unverified one needs acknowledgment.
  *                A verified held award is immovable; an unverified held award yields to
  *                a verified one, so a forged award cannot lock the genuine one out.
@@ -262,16 +263,16 @@ export function decideImport(incoming: Traveler, ctx: ImportContext = {}): Impor
       }
     } else if (!incoming.award && held.award) {
       notes.push("The incoming copy carries no award; the award held here was kept.");
-    } else {
-      // No award on either side: ship-to and ops are drafts. Fill what is missing.
-      if (!held.ship_to && incoming.ship_to) {
-        next = { ...next, ship_to: incoming.ship_to };
-        changed = true;
-      }
-      if (!held.ops?.length && incoming.ops?.length) {
-        next = { ...next, ops: incoming.ops };
-        changed = true;
-      }
+    } else if (
+      (incoming.ship_to && !same(incoming.ship_to, held.ship_to ?? null)) ||
+      (incoming.ops?.length && !same(incoming.ops, held.ops ?? []))
+    ) {
+      // No award on either side. A ship-to or an ops list without an award is somebody's
+      // draft, covered by no signature — and "somebody" may be a seller returning a
+      // quote. It is never merged in: where the parts ship is stated by the award, by
+      // the buyer. (Merged silently, it would sit in the buyer's copy and be offered
+      // back as the default when the buyer awards.)
+      notes.push("The incoming copy carries a draft ship-to or ops list; it was not taken.");
     }
     if (!changed) notes.push("Identical to the copy held.");
     return { action: "admit", kind: changed ? "merged" : "unchanged", traveler: next, notes, acknowledge };
