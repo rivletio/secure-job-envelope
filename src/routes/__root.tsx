@@ -19,15 +19,17 @@ export const Route = createRootRoute({
           "A SJE is a content-addressed job envelope for one part family moving between two US manufacturers.",
       },
     ],
+    // Same-origin only. The fonts (Fraunces, Archivo, IBM Plex Mono) are self-hosted: their
+    // @font-face rules live in styles.css and Vite bundles the files next to the app. No
+    // third-party stylesheet may be linked here — this document is where the passphrase is
+    // typed, and whoever serves a stylesheet can read attribute values with CSS selectors.
+    // The published desk's Content-Security-Policy (scripts/pages-csp.mjs) allows nothing
+    // but this origin, and the Pages build fails on a reference to any other.
     links: [
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+      // Under the app's base path, like every other asset: on Pages the desk is served from
+      // a sub-path, and "/favicon.svg" would leave the site altogether.
+      { rel: "icon", type: "image/svg+xml", href: `${import.meta.env.BASE_URL}favicon.svg` },
       { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap",
-      },
     ],
   }),
   component: () => (

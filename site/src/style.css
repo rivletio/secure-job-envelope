@@ -116,6 +116,12 @@ h2 {
   font-weight: 600;
   margin: 0 0 4px;
 }
+/* One-off spacing lives in classes (here, .row.links, .demo-card.wide), never in a style=""
+   attribute: the shipped pages' Content-Security-Policy is style-src 'self', which refuses
+   inline styles, and the Pages build fails on one (scripts/build-pages.mjs). */
+h2.flush {
+  margin: 0;
+}
 .muted {
   color: var(--faint);
 }
@@ -150,6 +156,9 @@ h2 {
 .demo-card {
   display: block;
 }
+.demo-card.wide {
+  margin-top: 14px;
+}
 .demo-card .tag {
   font-family: var(--mono);
   font-size: 11px;
@@ -172,6 +181,9 @@ h2 {
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+.row.links {
+  margin: 4px 0 20px;
 }
 .btns {
   display: flex;

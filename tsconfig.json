@@ -14,7 +14,8 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "allowJs": true
   },
-  "include": ["src", "mcp", "sim", "examples"]
+  "include": ["src", "mcp", "sim", "examples", "scripts"]
 }
