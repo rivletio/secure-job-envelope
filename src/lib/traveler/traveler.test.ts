@@ -37,8 +37,9 @@ describe("rivlet traveler 0.0.1", () => {
   });
 
   it("refuses non-finite numbers in canonical JSON", () => {
-    assert.throws(() => canonicalJson({ n: Infinity }));
-    assert.throws(() => canonicalJson({ n: NaN }));
+    assert.throws(() => canonicalJson({ n: Infinity }), /non-finite number is not canonical/);
+    assert.throws(() => canonicalJson({ n: -Infinity }), /non-finite number is not canonical/);
+    assert.throws(() => canonicalJson({ n: NaN }), /non-finite number is not canonical/);
   });
 
   it("closed field set: extra buyer keys do not change the hash", () => {
@@ -96,21 +97,31 @@ describe("rivlet traveler 0.0.1", () => {
   });
 
   it("rejects negative unit prices and non-ISO currency", () => {
-    const hash = "sha384:" + "a".repeat(64);
-    assert.equal(
-      quoteSchema.safeParse(validQuote({ traveler_hash_quoted: hash, pricing: { currency: "USD", lines: [{ qty: 1, unit: -5 }] } }))
-        .success,
-      false,
-    );
-    assert.equal(
-      quoteSchema.safeParse(validQuote({ traveler_hash_quoted: hash, pricing: { currency: "usd", lines: [{ qty: 1, unit: 5 }] } }))
-        .success,
-      false,
-    );
-    assert.equal(
-      quoteSchema.safeParse(validQuote({ traveler_hash_quoted: hash, pricing: { currency: "USD", lines: [{ qty: 1, unit: Infinity }] } }))
-        .success,
-      false,
+    // Asserting only `success === false` let this test pass on a fixture that was itself
+    // invalid: the hash here was 64 hex digits, HASH_RE wants 96, so every quote below
+    // was refused for its hash and none of the three rules was ever exercised. Each case
+    // now names every issue the schema raises, as [path, code, message].
+    const hash = "sha384:" + "a".repeat(96);
+    const issues = (pricing: Quote["pricing"]) => {
+      const r = quoteSchema.safeParse(validQuote({ traveler_hash_quoted: hash, pricing }));
+      return r.success ? "accepted" : r.error.issues.map((i) => [i.path.join("."), i.code, i.message]);
+    };
+    // The fixture is valid: whatever is refused below is refused for the one thing changed.
+    assert.equal(issues({ currency: "USD", lines: [{ qty: 1, unit: 5 }] }), "accepted");
+    assert.deepEqual(issues({ currency: "USD", lines: [{ qty: 1, unit: -5 }] }), [
+      ["pricing.lines.0.unit", "too_small", "Too small: expected number to be >=0"],
+    ]);
+    assert.deepEqual(issues({ currency: "usd", lines: [{ qty: 1, unit: 5 }] }), [
+      ["pricing.currency", "invalid_format", "Invalid string: must match pattern /^[A-Z]{3}$/"],
+    ]);
+    assert.deepEqual(issues({ currency: "USD", lines: [{ qty: 1, unit: Infinity }] }), [
+      ["pricing.lines.0.unit", "invalid_type", "Invalid input: expected number, received Infinity"],
+    ]);
+    // The hash rule this fixture used to trip, pinned on its own.
+    const shortHash = quoteSchema.safeParse(validQuote({ traveler_hash_quoted: "sha384:" + "a".repeat(64) }));
+    assert.deepEqual(
+      shortHash.success ? "accepted" : shortHash.error.issues.map((i) => [i.path.join("."), i.code]),
+      [["traveler_hash_quoted", "invalid_format"]],
     );
   });
 
@@ -122,7 +133,15 @@ describe("rivlet traveler 0.0.1", () => {
       seller: { name: "Red River Machine", org_id: "org_redriver", itar: false },
     });
     assert.equal(cannotQuote(traveler, quote), "ITAR traveler cannot be quoted by a seller that has not self-declared ITAR.");
-    assert.throws(() => parseTraveler({ ...traveler, quotes: [quote] }));
+    // Refused for the ITAR rule and for nothing else: the same traveler with the same
+    // quote from an ITAR seller parses, so the seller's flag is the only defect.
+    assert.doesNotThrow(() =>
+      parseTraveler({ ...traveler, quotes: [{ ...quote, seller: { ...quote.seller, itar: true } }] }),
+    );
+    assert.throws(
+      () => parseTraveler({ ...traveler, quotes: [quote] }),
+      /^Error: Invalid traveler\. quotes\.0\.seller\.itar: ITAR traveler cannot carry a quote from a non-ITAR seller$/,
+    );
   });
 
   it("refuses award of an expired quote or a qty with no price line", () => {
@@ -154,11 +173,17 @@ describe("rivlet traveler 0.0.1", () => {
     assert.equal(back.traveler_id, traveler.traveler_id);
     assert.equal(travelerHash(back), travelerHash(traveler));
 
+    // What this archive is refused FOR is the directory entry JSZip writes next to a
+    // member named "../traveler.json" — not the traversal in the name. (JSZip cannot
+    // write such a name without that entry, so this case never reached the name check;
+    // with no reason pinned it passed all the same.) The stored-name guard is exercised
+    // on its own, on hand-built archives, in zip.test.ts.
     const evil = new JSZip();
     evil.file("../traveler.json", JSON.stringify(traveler));
     const evilBlob = await evil.generateAsync({ type: "blob" });
     await assert.rejects(
       importTravelerFile(new File([evilBlob], "evil.zip", { type: "application/zip" })),
+      /^Error: Archive directories are not allowed$/,
     );
 
     const tamper = new JSZip();
@@ -302,25 +327,26 @@ describe("rivlet traveler 0.0.1", () => {
   });
 
   it("surfaces the first schema path on invalid travelers", () => {
-    assert.match(
-      (() => {
-        try {
-          parseTraveler({ spec: "nope" });
-        } catch (e) {
-          return e instanceof Error ? e.message : "";
-        }
-        return "";
-      })(),
-      /Invalid traveler/,
+    // The whole message: the path of the FIRST issue (this document has many — every
+    // required member but `spec` is missing) and that issue's text.
+    assert.throws(
+      () => parseTraveler({ spec: "nope" }),
+      /^Error: Invalid traveler\. spec: Invalid input: expected "sje\/0\.1\.0"$/,
+    );
+    assert.throws(
+      () => parseTraveler({ spec: "sje/0.1.0" }),
+      /^Error: Invalid traveler\. traveler_id: Invalid input: expected string, received undefined$/,
     );
   });
 });
 
 it("canonical JSON refuses numbers outside the 0.0.1 fixed-notation range (Rust parity)", () => {
-  assert.throws(() => canonicalJson({ t: 1e21 }));
-  assert.throws(() => canonicalJson({ t: 1e-7 }));
-  assert.throws(() => canonicalJson({ t: 0.000001 })); // ryu renders 1e-6
-  assert.throws(() => canonicalJson({ t: 9007199254740992 })); // > 2^53-1
+  // Each refusal is pinned to the rule that fires. (1e21 is refused for its magnitude,
+  // before its rendering is ever looked at.)
+  assert.throws(() => canonicalJson({ t: 1e21 }), /number exceeds 2\^53-1/);
+  assert.throws(() => canonicalJson({ t: 1e-7 }), /non-integer number below 1e-5/);
+  assert.throws(() => canonicalJson({ t: 0.000001 }), /non-integer number below 1e-5/); // ryu renders 1e-6
+  assert.throws(() => canonicalJson({ t: 9007199254740992 }), /number exceeds 2\^53-1/); // > 2^53-1
   assert.equal(canonicalJson({ t: 0.00001 }), '{"t":0.00001}');
   assert.equal(canonicalJson({ t: 9007199254740991 }), '{"t":9007199254740991}');
   assert.equal(canonicalJson({ t: 9.53 }), '{"t":9.53}');
