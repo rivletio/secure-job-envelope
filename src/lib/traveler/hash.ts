@@ -66,8 +66,11 @@ export function hashQuoteable(body: QuoteableBody): string {
   return `sha384:${bytesToHex(sha384(utf8ToBytes(canonicalJson(body))))}`;
 }
 
-export function sha384Hex(bytes: string): string {
-  return `sha384:${bytesToHex(sha384(utf8ToBytes(bytes)))}`;
+/** `sha384:` + hex of the SHA-384 of the given bytes (a string is hashed as its UTF-8
+ *  encoding). */
+export function sha384Hex(input: string | Uint8Array): string {
+  const bytes = typeof input === "string" ? utf8ToBytes(input) : input;
+  return `sha384:${bytesToHex(sha384(bytes))}`;
 }
 
 export function shortHash(hash: string): string {

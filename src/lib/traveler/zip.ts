@@ -1,8 +1,9 @@
 import JSZip from "jszip";
 import { randomBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
-import { parseTraveler } from "./conformance.ts";
+import { parseTravelerJson } from "./conformance.ts";
 import { travelerHash, quoteableBody, sha384Hex } from "./hash.ts";
+import { decodeUtf8Strict, exceedsUtf8Bytes, parseStrictJson } from "./wire.ts";
 import {
   MAX_ARCHIVE_BYTES,
   MAX_TRAVELER_JSON_BYTES,
@@ -20,13 +21,42 @@ const MAX_ZIP_FILES = 3;
 const MAX_META_BYTES = 16_384;
 const MAX_CANON_BYTES = 64 * 1024;
 
-function assertSafePath(name: string) {
+function assertSafePath(name: string, entry: JSZip.JSZipObject) {
+  // JSZip normalizes member names while loading — "../traveler.json", "a/../traveler.json"
+  // and "./traveler.json" all arrive here as "traveler.json" — so the name it hands back
+  // can never show a traversal, and checking only that name refused nothing. JSZip keeps
+  // the name as stored in the archive in `unsafeOriginalName`; a member whose stored
+  // name is not already the plain root name is refused.
+  // Fail closed: if a future JSZip stops exposing the stored name, every member is
+  // refused (and the archive tests fail) rather than the check silently passing.
+  const stored = (entry as unknown as { unsafeOriginalName?: unknown }).unsafeOriginalName;
+  if (stored !== name) throw new Error("Archive path is not allowed");
   const n = name.replace(/\\/g, "/");
   // Members are flat root files: refuse any slash, backslash, "..", or NUL
   // (SPEC §Archive: "refuse paths containing / or \ or ..").
   if (n !== name || n.includes("..") || n.includes("/") || n.includes("\0")) {
     throw new Error("Archive path is not allowed");
   }
+}
+
+/** How many members the archive's own end-of-central-directory record declares.
+ *
+ *  A zip may hold two members with the same name. JSZip indexes members by name, so the
+ *  later one silently replaces the earlier and the list it returns has no trace of the
+ *  other — while a different tool extracting the same file may hand its user the first.
+ *  One archive, two travelers, depending on the reader. Comparing JSZip's member count
+ *  with the count the archive declares turns a collapsed (or otherwise unlisted) member
+ *  into a refusal. The record is located exactly as JSZip locates it: the last
+ *  occurrence of its signature. */
+function declaredMemberCount(bytes: Uint8Array): number | undefined {
+  for (let i = bytes.length - 4; i >= 0; i--) {
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06) {
+      // "total number of entries in the central directory": u16 LE at offset 10
+      if (i + 12 > bytes.length) return undefined;
+      return bytes[i + 10]! | (bytes[i + 11]! << 8);
+    }
+  }
+  return undefined;
 }
 
 function archiveName(travelerId: string): string {
@@ -98,21 +128,29 @@ async function readEntryText(
   label: string,
 ): Promise<string> {
   const bytes = await readEntryCapped(entry, maxBytes, label);
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  try {
+    // Strict: invalid UTF-8 is refused, and a leading byte-order mark is kept (so the
+    // JSON parse below refuses it) instead of being silently stripped.
+    return decodeUtf8Strict(bytes);
+  } catch {
+    throw new Error(`${label} is not valid UTF-8`);
+  }
 }
 
-function parseJson(text: string, label: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    throw new Error(`${label} is not JSON`);
-  }
+/** The traveler as JSON text for a file or an archive member: pretty-printed for a
+ *  human reader when that fits, compact otherwise. Any reader — this one, or the Rust
+ *  core — caps the text at 512 KiB of UTF-8, and indentation alone can push a large but
+ *  valid traveler over it; an archive this code wrote must always be one it can read
+ *  back. */
+export function travelerWireJson(traveler: Traveler): string {
+  const pretty = JSON.stringify(traveler, null, 2);
+  return exceedsUtf8Bytes(pretty, MAX_TRAVELER_JSON_BYTES) ? JSON.stringify(traveler) : pretty;
 }
 
 export async function travelerToZip(traveler: Traveler): Promise<Blob> {
   const zip = new JSZip();
   const hash = travelerHash(traveler);
-  const travelerJson = JSON.stringify(traveler, null, 2);
+  const travelerJson = travelerWireJson(traveler);
   zip.file(ROOT_TRAVELER, travelerJson, { compression: "DEFLATE" });
   zip.file(
     ROOT_META,
@@ -168,11 +206,14 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
   }
   const names = Object.keys(zip.files);
   if (names.length > MAX_ZIP_FILES) throw new Error("Archive has too many files");
+  if (declaredMemberCount(new Uint8Array(buf)) !== names.length) {
+    throw new Error("Archive has duplicate or unlisted members");
+  }
   for (const name of names) {
-    assertSafePath(name);
     const entry = zip.files[name]!;
     if (entry.dir) throw new Error("Archive directories are not allowed");
-    if (!ALLOWED_FILES.has(name)) throw new Error(`Unexpected archive member: ${name}`);
+    assertSafePath(name, entry);
+    if (!ALLOWED_FILES.has(name)) throw new Error("Unexpected archive member");
   }
 
   const travelerEntry = zip.file(ROOT_TRAVELER);
@@ -180,11 +221,18 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
   if (!travelerEntry) throw new Error("Archive has no traveler.json at the root");
   if (!metaEntry) throw new Error("Archive is missing META.json (required for integrity)");
 
-  const text = await readEntryText(travelerEntry, MAX_TRAVELER_JSON_BYTES, "traveler.json");
-  const traveler = parseTraveler(parseJson(text, "traveler.json"));
+  // The traveler is parsed from its BYTES by the strict text entry point: the 512 KiB
+  // cap, the byte-order-mark and duplicate-member refusals, and the digest below all
+  // refer to exactly the bytes in the archive — the same bytes the Rust core would see.
+  const travelerBytes = await readEntryCapped(travelerEntry, MAX_TRAVELER_JSON_BYTES, "traveler.json");
+  const traveler = parseTravelerJson(travelerBytes);
 
-  const metaText = await readEntryText(metaEntry, MAX_META_BYTES, "META.json");
-  const meta = parseJson(metaText, "META.json");
+  // META.json goes through the same strict text boundary: a repeated member name (two
+  // `traveler_json_sha384`, say) is refused instead of resolved last-wins.
+  const meta = parseStrictJson(await readEntryCapped(metaEntry, MAX_META_BYTES, "META.json"), {
+    maxBytes: MAX_META_BYTES,
+    label: "META.json",
+  });
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
     throw new Error("META.json must be an object");
   }
@@ -205,7 +253,10 @@ async function importZip(buf: ArrayBuffer): Promise<Traveler> {
   // any byte change is refused. (This is unkeyed integrity — it detects corruption
   // and naive tampering; adversarial authenticity is the separate ML-DSA authorship
   // signature, which in 0.1 covers the quoteable body, not the lifecycle fields.)
-  if (typeof rec.traveler_json_sha384 !== "string" || rec.traveler_json_sha384 !== sha384Hex(text)) {
+  if (
+    typeof rec.traveler_json_sha384 !== "string" ||
+    rec.traveler_json_sha384 !== sha384Hex(travelerBytes)
+  ) {
     throw new Error("META.json traveler_json_sha384 is required and must match traveler.json");
   }
 
@@ -228,14 +279,12 @@ export async function importTravelerFile(file: File): Promise<Traveler> {
   const isZip =
     lower.endsWith(".zip") || lower.endsWith(".traveler.zip") || file.type.includes("zip");
   if (isZip) return importZip(buf);
-  const text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
-  if (text.length > MAX_TRAVELER_JSON_BYTES) throw new Error("JSON exceeds 512 KiB");
-  return parseTraveler(parseJson(text, "traveler.json"));
+  return parseTravelerJson(new Uint8Array(buf));
 }
 
 export function downloadJson(traveler: Traveler) {
   if (!TRAVELER_ID_RE.test(traveler.traveler_id)) throw new Error("invalid traveler_id");
-  const blob = new Blob([JSON.stringify(traveler, null, 2)], {
+  const blob = new Blob([travelerWireJson(traveler)], {
     type: TRAVELER_MEDIA,
   });
   downloadBlob(blob, `${traveler.traveler_id}.json`);

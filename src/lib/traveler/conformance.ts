@@ -1,7 +1,8 @@
 import { travelerHash } from "./hash.ts";
 import { LONE_SURROGATE } from "./canonical.ts";
 import { travelerSchema, quoteSchema } from "./schema.ts";
-import type { ConformanceLevel, Traveler, Quote } from "./types.ts";
+import { MAX_TRAVELER_JSON_BYTES, type ConformanceLevel, type Traveler, type Quote } from "./types.ts";
+import { MAX_JSON_DEPTH, exceedsUtf8Bytes, parseStrictJson } from "./wire.ts";
 
 /** Reject what the Rust core's serde_json refuses at parse time, so the two
  *  implementations accept and reject the same documents. Three parse-time
@@ -21,11 +22,18 @@ import type { ConformanceLevel, Traveler, Quote } from "./types.ts";
  *  verify bytes that omit wire content the Rust core keeps. One document, two signature
  *  verdicts — the signer could choose which implementation accepts it. The Rust
  *  validator refuses the same name, so both sides agree by refusing. */
-// serde_json's RECURSION_LIMIT. Matched exactly (verified against the Rust parser at
-// the 127/128 boundary) so a deeply-nested blob is refused on the same side as Rust,
-// not accepted here and rejected there — and so a deep document is refused cleanly
-// rather than blowing the stack with an uncaught RangeError.
-const MAX_JSON_DEPTH = 128;
+// MAX_JSON_DEPTH is serde_json's RECURSION_LIMIT (wire.ts). Matched exactly (verified
+// against the Rust parser at the 127/128 boundary) so a deeply-nested blob is refused
+// on the same side as Rust, not accepted here and rejected there — and so a deep
+// document is refused cleanly rather than blowing the stack with an uncaught RangeError.
+
+/** No array in a valid traveler is this long: every typed list is capped at 64 entries
+ *  or fewer, and a list inside a free-form blob is bounded by the blob's 8 KiB cap to
+ *  fewer than 4096 elements (the shortest element costs two characters). Refusing a
+ *  longer array here therefore changes no verdict — it only makes the refusal cost
+ *  nothing: a 5 KB compressed envelope carrying 174,629 empty `quotes` once cost the
+ *  schema validator ~1 GiB and two seconds to say "too many". */
+const MAX_ARRAY_ITEMS = 4096;
 
 function assertUtf8Safe(v: unknown, depth = 0): void {
   if (typeof v === "string") {
@@ -38,6 +46,7 @@ function assertUtf8Safe(v: unknown, depth = 0): void {
   }
   if (Array.isArray(v)) {
     if (depth + 1 >= MAX_JSON_DEPTH) throw new Error("JSON nesting exceeds the maximum depth");
+    if (v.length > MAX_ARRAY_ITEMS) throw new Error("array is longer than any field allows");
     for (const x of v) assertUtf8Safe(x, depth + 1);
     return;
   }
@@ -137,11 +146,56 @@ export function levelOf(traveler: Traveler): LevelInfo {
   };
 }
 
-export function parseTraveler(data: unknown): Traveler {
-  assertUtf8Safe(data);
+function validateTraveler(data: unknown, sizeChecked: boolean): Traveler {
+  try {
+    assertUtf8Safe(data);
+  } catch (e) {
+    throw new Error(`Invalid traveler. ${e instanceof Error ? e.message : "not a JSON value"}`);
+  }
+  if (!sizeChecked) assertCompactSize(data);
   const r = travelerSchema.safeParse(data);
   if (!r.success) throw new Error(formatZod(r.error, "traveler"));
   return r.data as Traveler;
+}
+
+/** The 512 KiB cap for a traveler that is already a JavaScript value (no wire text to
+ *  measure): UTF-8 bytes of its compact serialization — the smallest text it could have
+ *  arrived as. Runs before the schema, so an oversized value is refused in one linear
+ *  pass rather than validated field by field first. */
+function assertCompactSize(data: unknown): void {
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(data);
+  } catch {
+    throw new Error("Invalid traveler. not a JSON value");
+  }
+  if (text !== undefined && exceedsUtf8Bytes(text, MAX_TRAVELER_JSON_BYTES)) {
+    throw new Error("Invalid traveler. traveler exceeds 512 KiB");
+  }
+}
+
+/** Validate a traveler that is already a JavaScript value (a store entry, an MCP object
+ *  argument, a test fixture). For traveler JSON *text or bytes* — anything read off the
+ *  wire — use `parseTravelerJson`, which also applies the checks only the text can
+ *  answer (duplicate member names, byte-order mark, the size of the bytes as sent). */
+export function parseTraveler(data: unknown): Traveler {
+  return validateTraveler(data, false);
+}
+
+/** Parse traveler JSON as it arrived — bytes (preferred) or text — refusing exactly
+ *  what the Rust core's `parse_traveler` refuses. This is the entry point for every
+ *  traveler that crosses a company boundary: the archive inside a sealed envelope, a
+ *  `.json` opened on the desk, a JSON string passed to an MCP tool, a conformance
+ *  vector. The 512 KiB cap is applied to the UTF-8 bytes of this text (as Rust does),
+ *  so the compact-serialization bound of `parseTraveler` is not applied a second time. */
+export function parseTravelerJson(input: string | Uint8Array): Traveler {
+  let data: unknown;
+  try {
+    data = parseStrictJson(input, { maxBytes: MAX_TRAVELER_JSON_BYTES, label: "traveler" });
+  } catch (e) {
+    throw new Error(`Invalid traveler. ${e instanceof Error ? e.message : "not JSON"}`);
+  }
+  return validateTraveler(data, true);
 }
 
 export function parseQuote(data: unknown): Quote {

@@ -8,7 +8,7 @@ import { describe, it } from "node:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { canonicalJson } from "./canonical.ts";
 import { travelerHash } from "./hash.ts";
-import { levelOf, parseTraveler } from "./conformance.ts";
+import { levelOf, parseTraveler, parseTravelerJson } from "./conformance.ts";
 import { sha384 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "./bytes.ts";
 
@@ -63,7 +63,9 @@ describe("conformance vectors", () => {
       { traveler_hash: string; level: string }
     >;
     for (const [file, exp] of Object.entries(expected)) {
-      const traveler = parseTraveler(JSON.parse(readFileSync(`${root}travelers/${file}`, "utf8")));
+      // Parsed from the file's BYTES through the strict text entry point — the same
+      // bytes the Rust runner hands to parse_traveler.
+      const traveler = parseTravelerJson(readFileSync(`${root}travelers/${file}`));
       assert.equal(travelerHash(traveler), exp.traveler_hash, `hash: ${file}`);
       assert.equal(levelOf(traveler).code, exp.level, `level: ${file}`);
     }
@@ -90,10 +92,12 @@ describe("conformance vectors", () => {
       "reject-reasons.json names a vector that does not exist",
     );
     for (const file of files) {
-      const doc = JSON.parse(readFileSync(`${root}travelers/reject/${file}`, "utf8"));
+      // The vector's BYTES, not a pre-parsed object: a byte-order mark or a repeated
+      // member name exists only in the text, and JSON.parse would erase both.
+      const bytes = readFileSync(`${root}travelers/reject/${file}`);
       let message: string | undefined;
       try {
-        parseTraveler(doc);
+        parseTravelerJson(bytes);
       } catch (e) {
         message = e instanceof Error ? e.message : String(e);
       }

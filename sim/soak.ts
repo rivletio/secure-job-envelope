@@ -27,7 +27,7 @@ import { Rng } from "./rng.ts";
 import { SHOPS, genId, genTraveler } from "./generate.ts";
 import { buildTrust } from "./directory.ts";
 import { useTravelerStore } from "../src/lib/traveler/store.ts";
-import { awardedQuote, boundQuotes, levelOf, parseTraveler, staleQuotes } from "../src/lib/traveler/conformance.ts";
+import { awardedQuote, boundQuotes, levelOf, parseTravelerJson, staleQuotes } from "../src/lib/traveler/conformance.ts";
 import { travelerHash } from "../src/lib/traveler/hash.ts";
 import { locked } from "../src/lib/traveler/guards.ts";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
@@ -216,8 +216,10 @@ function adversarial() {
   const store = useTravelerStore.getState();
   const root = new URL("../conformance/travelers/reject/", import.meta.url).pathname;
   for (const file of readdirSync(root)) {
-    const doc = JSON.parse(readFileSync(`${root}${file}`, "utf8"));
-    mustThrow(() => parseTraveler(doc), `reject vector refused at parse: ${file}`);
+    // From the file's bytes, as it would arrive: some vectors (a byte-order mark, a
+    // repeated member name) only exist in the text and JSON.parse would erase them.
+    const bytes = readFileSync(`${root}${file}`);
+    mustThrow(() => parseTravelerJson(bytes), `reject vector refused at parse: ${file}`);
   }
 
   // Award refuses a quote that is not on the traveler.

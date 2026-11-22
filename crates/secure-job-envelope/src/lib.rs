@@ -150,11 +150,11 @@ pub struct Quote {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub need_by_feasible: Option<bool>,
     pub pricing: Pricing,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::blob_present")]
     pub assumptions: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub exceptions: Option<Vec<QuoteException>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::blob_present")]
     pub capacity: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::de::present_some")]
     pub sig: Option<Signature>,
@@ -243,7 +243,7 @@ pub struct Traveler {
     pub quotes: Option<Vec<Quote>>,
     #[serde(default)]
     pub award: Option<Award>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::de::blob_nullable")]
     pub as_built: Option<Value>,
     #[serde(default, deserialize_with = "crate::de::present_some")]
     pub signatures: Option<Vec<Signature>>,
