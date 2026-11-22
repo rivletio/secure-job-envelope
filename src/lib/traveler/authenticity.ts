@@ -12,7 +12,13 @@ import { parseQuote, parseTraveler } from "./conformance.ts";
 import { quoteableBody, travelerHash, sha384Hex } from "./hash.ts";
 import { SIG_ALG, SIG_DOMAIN, signBody, verifyBody } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
-import { entryByKid, orgHasCapability, verifyDirectory, type Directory } from "./directory.ts";
+import {
+  entryByKid,
+  orgHasCapability,
+  revokedEntryByKid,
+  verifyDirectory,
+  type Directory,
+} from "./directory.ts";
 import type { Traveler, Quote, Signature } from "./types.ts";
 
 /** Exact bytes a buyer signs: the canonical quoteable body (== traveler_hash preimage). */
@@ -84,7 +90,16 @@ function checkSig(
     return { kid: s.kid, ok: false, reason: "author names no org_id to bind the signature to" };
   }
   const entry = entryByKid(dir, s.kid, at);
-  if (!entry) return { kid: s.kid, ok: false, reason: "no active in-window directory entry for kid" };
+  if (!entry) {
+    // Listed and withdrawn, or simply not usable? They used to be one answer, so a
+    // receiver could not tell a signature made with a REVOKED key — the one case a
+    // directory exists to flag — from one made with a key it had never heard of.
+    const revoked = revokedEntryByKid(dir, s.kid);
+    if (revoked) {
+      return { kid: s.kid, ok: false, org_id: revoked.org_id, reason: "signing key is revoked in the directory" };
+    }
+    return { kid: s.kid, ok: false, reason: "no active in-window directory entry for kid" };
+  }
   if (entry.org_id !== claimedOrg) {
     return { kid: s.kid, ok: false, org_id: entry.org_id, reason: "signer org does not match author org" };
   }

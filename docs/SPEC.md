@@ -397,6 +397,7 @@ authorship and awards, `seller.org_id` for a quote), in this order:
 | The directory is not well-formed, not in its window, or not signed by the trust root | `directory does not verify against the trust root` |
 | The document is not a valid traveler / quote | `not a valid traveler` / `not a valid quote` |
 | The author names no `org_id` | `author names no org_id to bind the signature to` |
+| The entry with the signature's `kid` has status `revoked` (inside its window or not) | `signing key is revoked in the directory` |
 | No usable entry has the signature's `kid` | `no active in-window directory entry for kid` |
 | That entry's `org_id` is not `A` | `signer org does not match author org` |
 | The key does not verify the signed message | `signature does not verify` |
@@ -412,6 +413,11 @@ commit to something determinate:
 | That quote's content hash is not `award.quote_hash` | `awarded quote content does not match the buyer-signed quote_hash` |
 | That quote's `traveler_hash_quoted` is not this traveler's hash | `awarded quote is not bound to this revision` |
 | That quote has no price line whose `qty` is `award.qty` | `awarded quote has no price for the awarded quantity` |
+
+A key the directory lists as **revoked** and a key it does not list are different
+answers too. The first is evidence — the root withdrew that key, and something signed
+with it should not be acted on; the second is an absence of evidence. A receiver MUST NOT
+treat a signature made with a revoked key as merely "unverified".
 
 "No award" and "an award that failed" are different answers and MUST be reported
 differently. A traveler is **verified** iff at least one authorship check passes and, if
