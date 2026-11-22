@@ -17,6 +17,7 @@
  *  (`sje-envelope/0.1.0`) and returns `false`. `requireForwardSecret` turns the
  *  fallback into an error so a caller can refuse to send without forward secrecy.
  */
+import { randomBytes } from "./bytes.ts";
 import { travelerToZip, importTravelerFile } from "./zip.ts";
 import {
   sealEnvelope,
@@ -66,10 +67,7 @@ export type OpenOptions = {
 /** Pick a prekey index from a CSPRNG. Modulo bias is irrelevant here — this only
  *  load-balances which one-time prekey a sender consumes, not key material. */
 function randomIndex(n: number): number {
-  if (typeof crypto === "undefined" || !crypto.getRandomValues) {
-    throw new Error("a secure random source (crypto.getRandomValues) is required");
-  }
-  return crypto.getRandomValues(new Uint32Array(1))[0]! % n;
+  return new DataView(randomBytes(4).buffer).getUint32(0) % n;
 }
 
 /** Resolve a forward-secret recipient from the supplied bundle, or undefined if the

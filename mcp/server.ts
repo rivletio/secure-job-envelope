@@ -392,6 +392,12 @@ async function handle(name: string, args: Args) {
       if (!args.directory || typeof args.directory !== "object") {
         return fail("sje_seal needs the signed key directory.");
       }
+      // Bound the untrusted directory's size before canonicalizing/verifying it, for
+      // consistency with the traveler/quote inputs (verifyDirectory already fails closed
+      // on bad shapes — this just caps work on a hostile oversized blob).
+      if (JSON.stringify(args.directory).length > MAX_TRAVELER_JSON_BYTES) {
+        return fail("Signed directory exceeds size limit.");
+      }
       const rootHex = String(args.root_public_key_hex ?? "");
       const recipientOrg = String(args.recipient_org ?? "");
       if (!rootHex) return fail("sje_seal needs root_public_key_hex (the trust-root public key).");

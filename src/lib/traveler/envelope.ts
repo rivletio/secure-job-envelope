@@ -21,7 +21,7 @@ import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import { hkdf } from "@noble/hashes/hkdf.js";
 import { sha384 } from "@noble/hashes/sha2.js";
 import { gcm } from "@noble/ciphers/aes.js";
-import { bytesToHex, hexToBytes, utf8ToBytes } from "./bytes.ts";
+import { bytesToHex, hexToBytes, randomBytes, utf8ToBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
 import { entryByOrg, type Directory } from "./directory.ts";
 import { verifyPrekeyBundle, prekeyById, type PrekeyBundle } from "./prekeys.ts";
@@ -46,15 +46,6 @@ function aadRecipient(kid: string): Uint8Array {
 }
 function kek(sharedSecret: Uint8Array, kid: string): Uint8Array {
   return hkdf(sha384, sharedSecret, KEK_SALT, aadRecipient(kid), 32);
-}
-
-function randomBytes(n: number): Uint8Array {
-  const b = new Uint8Array(n);
-  if (typeof crypto === "undefined" || !crypto.getRandomValues) {
-    throw new Error("a secure random source (crypto.getRandomValues) is required to seal");
-  }
-  crypto.getRandomValues(b);
-  return b;
 }
 
 export type EnvelopeRecipient = {

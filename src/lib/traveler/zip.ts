@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { randomBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
 import { parseTraveler } from "./conformance.ts";
 import { travelerHash, quoteableBody, sha384Hex } from "./hash.ts";
@@ -249,11 +250,7 @@ export async function downloadArchive(traveler: Traveler) {
  *  the traveler_id (`{traveler_id}.sje`) — that would leak the id of an otherwise
  *  confidential artifact through the filename alone. */
 export function downloadEnvelope(envelope: object): void {
-  const rand = new Uint8Array(8);
-  if (typeof crypto === "undefined" || !crypto.getRandomValues) {
-    throw new Error("a secure random source (crypto.getRandomValues) is required");
-  }
-  crypto.getRandomValues(rand);
+  const rand = randomBytes(8);
   const name = Array.from(rand, (b) => b.toString(16).padStart(2, "0")).join("") + ".sje";
   downloadBlob(new Blob([JSON.stringify(envelope)], { type: "application/json" }), name);
 }
