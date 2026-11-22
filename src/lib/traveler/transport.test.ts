@@ -3,11 +3,11 @@ import { describe, it } from "node:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sealTraveler, openTraveler, parseSjeEnvelope } from "./transport.ts";
+import { sealTraveler, openTraveler, openTravelerDeferred, parseSjeEnvelope } from "./transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "./keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "./directory.ts";
 import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "./prekeys.ts";
-import type { FsEnvelope } from "./envelope.ts";
+import { fsRecipientFromBundle, sealFsEnvelope, type FsEnvelope } from "./envelope.ts";
 import { keypairFromSeed, type Keypair } from "./signature.ts";
 import { bytesToHex } from "./bytes.ts";
 import { parseTraveler } from "./conformance.ts";
@@ -245,3 +245,90 @@ describe("encrypted transport (forward-secret path)", () => {
     );
   });
 });
+
+describe("two-phase open: decrypting is not accepting", () => {
+  const fsSeal = async (ctx: Awaited<ReturnType<typeof setup>>, bundle: PrekeyBundle, prekeyId: string) =>
+    (
+      await sealTraveler(sampleTraveler(), {
+        directory: ctx.directory,
+        rootPublicKeyHex: ctx.rootPublicKeyHex,
+        recipientOrg: "org_recipient",
+        prekeyBundle: bundle,
+        prekeyId,
+      })
+    ).envelope;
+
+  it("does not spend the one-time prekey until commit(), and persists exactly then", async () => {
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 2);
+    const envelope = await fsSeal(ctx, bundle, prekeyIds[0]!);
+    const persisted: Keystore[] = [];
+    const opts = { persistKeystore: (ks: Keystore) => void persisted.push(ks) };
+
+    const first = await openTravelerDeferred(envelope, ctx.unlocked, opts);
+    assert.equal(first.forwardSecret, true);
+    assert.deepEqual(first.traveler, sampleTraveler());
+    assert.equal(persisted.length, 0, "nothing is persisted by decrypting");
+    assert.ok(ctx.unlocked.peekPrekey(prekeyIds[0]!), "the prekey is still held");
+
+    // The import was refused, or the tab closed: the same envelope opens again.
+    const again = await openTravelerDeferred(envelope, ctx.unlocked, opts);
+    assert.deepEqual(again.traveler, sampleTraveler());
+
+    await again.commit();
+    assert.equal(persisted.length, 1, "the deletion is persisted at commit");
+    assert.equal(ctx.unlocked.peekPrekey(prekeyIds[0]!), undefined);
+    await again.commit(); // idempotent
+    await first.commit(); // the other handle finds it already spent: a no-op, not an error
+    assert.equal(persisted.length, 1);
+    await assert.rejects(openTravelerDeferred(envelope, ctx.unlocked, opts), /already consumed/);
+    assert.ok(ctx.unlocked.peekPrekey(prekeyIds[1]!), "other prekeys are untouched");
+  });
+
+  it("a validly encrypted envelope carrying junk does not burn the prekey", async () => {
+    // Anyone holding the public bundle can encrypt to a prekey. If decrypting spent it,
+    // a junk payload under a valid tag would destroy the genuine sender's envelope.
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 1);
+    const recipient = fsRecipientFromBundle(
+      ctx.directory,
+      bundle,
+      "org_recipient",
+      prekeyIds[0]!,
+      ctx.rootPublicKeyHex,
+    )!;
+    const junk = sealFsEnvelope(new TextEncoder().encode("not an archive"), [recipient]);
+    await assert.rejects(openTravelerDeferred(junk, ctx.unlocked), /Not a valid zip archive/);
+    await assert.rejects(openTraveler(junk, ctx.unlocked), /Not a valid zip archive/);
+    assert.ok(ctx.unlocked.peekPrekey(prekeyIds[0]!), "still held after the junk envelope");
+    // …so the genuine envelope sealed to the same prekey still opens.
+    const genuine = await fsSeal(ctx, bundle, prekeyIds[0]!);
+    assert.deepEqual(await openTraveler(genuine, ctx.unlocked), sampleTraveler());
+  });
+
+  it("a failed persist fails the commit — the caller must not report the prekey deleted", async () => {
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 1);
+    const envelope = await fsSeal(ctx, bundle, prekeyIds[0]!);
+    const opened = await openTravelerDeferred(envelope, ctx.unlocked, {
+      persistKeystore: () => {
+        throw new Error("storage is full");
+      },
+    });
+    await assert.rejects(opened.commit(), /storage is full/);
+  });
+
+  it("a static envelope has nothing to spend", async () => {
+    const ctx = await setup();
+    const { envelope } = await sealTraveler(sampleTraveler(), {
+      directory: ctx.directory,
+      rootPublicKeyHex: ctx.rootPublicKeyHex,
+      recipientOrg: "org_recipient",
+    });
+    const opened = await openTravelerDeferred(envelope, ctx.unlocked);
+    assert.equal(opened.forwardSecret, false);
+    await opened.commit();
+    assert.deepEqual((await openTravelerDeferred(envelope, ctx.unlocked)).traveler, sampleTraveler());
+  });
+});
+
