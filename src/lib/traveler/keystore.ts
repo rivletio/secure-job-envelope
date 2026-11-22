@@ -27,7 +27,7 @@
  */
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { gcm } from "@noble/ciphers/aes.js";
-import { bytesToHex, hexToBytes, utf8ToBytes } from "./bytes.ts";
+import { bytesToHex, hexToBytes, randomBytes, utf8ToBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
 import { KEM_ALG, encKid, kemKeypairFromSeed } from "./envelope.ts";
 
@@ -78,16 +78,6 @@ export type DirectoryEntryPublic = {
   enc_public_key: string;
   kid: string;
 };
-
-function randomBytes(n: number): Uint8Array {
-  if (typeof crypto === "undefined" || !crypto.getRandomValues) {
-    // No insecure fallback: key material must come from a CSPRNG (ids.ts rule).
-    throw new Error("a secure random source (crypto.getRandomValues) is required");
-  }
-  const b = new Uint8Array(n);
-  crypto.getRandomValues(b);
-  return b;
-}
 
 function assertPassphrase(p: string): void {
   if (typeof p !== "string" || p.length < MIN_PASSPHRASE) {

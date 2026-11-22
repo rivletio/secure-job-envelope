@@ -95,6 +95,12 @@ function checkSig(
   return { kid: s.kid, ok, org_id: entry.org_id, reason: ok ? undefined : "signature does not verify" };
 }
 
+/** The stock "directory failed to verify against the trust root" result, shared by the
+ *  three verify* functions so the reason string lives in exactly one place. */
+function dirUnverified(dir: Directory): SigCheck {
+  return { kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" };
+}
+
 /** Per-signature results for a traveler's buyer authorship signatures. */
 export function verifyTravelerSignatures(
   t: Traveler,
@@ -104,7 +110,7 @@ export function verifyTravelerSignatures(
 ): SigCheck[] {
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
-    return [{ kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" }];
+    return [dirUnverified(dir)];
   }
   // Fail closed if the body cannot be canonicalized (a non-canonical number in an
   // opaque field, say): a body that cannot be produced cannot have been signed, so
@@ -142,7 +148,7 @@ export function verifyQuoteSignature(
   if (!q.sig) return undefined;
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
-    return { kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" };
+    return dirUnverified(dir);
   }
   // Fail closed if the quote body cannot be canonicalized. A quote's opaque
   // assumptions / capacity blobs allow arbitrary values, so a hostile number
@@ -180,7 +186,7 @@ export function verifyAwardSignature(
   if (!t.award) return undefined;
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
-    return { kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" };
+    return dirUnverified(dir);
   }
   if (!t.award.sig) {
     return { kid: "", ok: false, reason: "award is present but not signed by the buyer" };
