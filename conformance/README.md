@@ -17,6 +17,7 @@ implementation proves itself the same way.
 | `signatures/directory-cases.json` → `recipient_cases[]` | The `(kid, public_key)` to encrypt to for `org_id`, or `null` — independent of the order of the directory's entries |
 | `signatures/verify-cases.json` → `traveler_cases[]` | Verify the traveler and produce exactly `want`: a check per buyer signature, the award check (`null`: no award), a check per quote (`null`: unsigned), and `verified`. A refused check carries its **reason**, which is normative (SPEC §Verification) |
 | `signatures/verify-cases.json` → `itar_cases[]` | The ITAR gate's answer for `(traveler, quote)`: `null` (allowed) or the reason it is refused |
+| `../public/schemas/not-expressible-0.1.0.json` | Not a vector: the rules the published JSON Schemas do not state, and why, each with the `travelers/reject/` vectors that break it and nothing else. Those vectors **pass** the schemas and must still be refused; every other reject vector fails the schemas, at the place the implementation refuses it (`src/lib/traveler/schema-contract.test.ts`) |
 
 Runners: `src/lib/traveler/vectors.test.ts` (TypeScript),
 `crates/secure-job-envelope/tests/vectors.rs` (Rust).
