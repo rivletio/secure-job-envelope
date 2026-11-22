@@ -59,10 +59,10 @@ export type SealOptions = {
 };
 
 export type OpenOptions = {
-  /** Persist the keystore blob returned after a one-time prekey is consumed. Called
-   *  on the forward-secret path BEFORE the secret is used, so a crash cannot
-   *  resurrect a consumed prekey. Omit it and forward secrecy holds only in-memory
-   *  for the life of this process. */
+  /** Persist the keystore blob returned when a one-time prekey is spent (see
+   *  `OpenedTraveler.commit`). Omit it and the deletion holds only in memory, for the
+   *  life of this process. If it throws, the commit throws: the caller must not report
+   *  the prekey as deleted. */
   persistKeystore?: (keystore: Keystore) => void | Promise<void>;
 };
 
@@ -127,17 +127,40 @@ export async function sealTraveler(
   return { envelope: sealEnvelope(zipBytes, [recipient]), forwardSecret: false };
 }
 
-/** Decrypt an `.sje` envelope with an unlocked keystore and run the defensive
- *  import. Dispatches on the envelope spec: the static path uses the identity
- *  secret; the forward-secret path additionally consumes (deletes) the one-time
- *  prekey named by the recipient entry. Throws if the envelope does not address this
- *  keystore, if decryption fails (tamper / wrong key / spent prekey), or if the
- *  decrypted payload is not a valid archive. */
-export async function openTraveler(
+/** A decrypted traveler whose one-time prekey has not been spent yet. */
+export type OpenedTraveler = {
+  traveler: Traveler;
+  /** Whether the envelope was forward-secret (a one-time prekey is involved). */
+  forwardSecret: boolean;
+  /** Spend the one-time prekey this envelope used, and persist that. Call it once the
+   *  traveler has been ADMITTED (or when the envelope is being discarded for good).
+   *  Idempotent; a no-op for a static envelope. */
+  commit: () => Promise<void>;
+};
+
+/** Decrypt an `.sje` envelope and parse the traveler inside it, WITHOUT yet spending
+ *  the one-time prekey a forward-secret envelope used.
+ *
+ *  Decrypting is not the same as accepting. Between the two sit the archive checks, the
+ *  receive policy (import-policy.ts) and, sometimes, a person deciding whether to trust
+ *  an unverified award. If the prekey were spent the moment the envelope decrypted, a
+ *  refusal at any of those steps — or a closed tab — would leave an envelope that can
+ *  never be opened again, and a junk payload under a valid tag would burn a prekey for
+ *  nothing. So spending is the caller's explicit second step: `commit()`.
+ *
+ *  What that means for forward secrecy, stated plainly: the one-time secret is deleted
+ *  when the traveler is admitted, not when it is decrypted. Until `commit()` runs the
+ *  same envelope can be opened again — by its recipient, and by anyone who later
+ *  obtains the recipient's keystore AND its passphrase.
+ *
+ *  Throws if the envelope is malformed, does not address this keystore, fails to
+ *  decrypt (tamper / wrong key / a prekey already spent), or does not carry a valid
+ *  archive. Nothing is spent on a throw. */
+export async function openTravelerDeferred(
   envelope: SjeEnvelope,
   keystore: Unlocked,
   opts?: OpenOptions,
-): Promise<Traveler> {
+): Promise<OpenedTraveler> {
   // Shape first, whatever the caller's types claim: nothing below (the recipient
   // lookup, the prekey lookup) should run on a value that is not exactly an envelope.
   assertEnvelopeShape(envelope);
@@ -146,7 +169,7 @@ export async function openTraveler(
       throw new Error("openTraveler: envelope has no recipient entry for this keystore");
     }
     const zipBytes = openEnvelope(envelope, keystore.kid, keystore.staticSecretKey());
-    return toTraveler(zipBytes);
+    return { traveler: await toTraveler(zipBytes), forwardSecret: false, commit: async () => {} };
   }
 
   if (envelope.spec === FS_ENVELOPE_SPEC) {
@@ -154,29 +177,43 @@ export async function openTraveler(
     if (!r) {
       throw new Error("openTraveler: envelope has no recipient entry for this keystore");
     }
-    // Look up the one-time prekey secret WITHOUT consuming it, and verify+decrypt
-    // FIRST, so an envelope that FAILS AEAD (a forgery with a random wrapped_cek) cannot
-    // burn a prekey. Honest limit: prekey_id and the prekey public key are public (they
-    // travel in the signed bundle), so a party holding the bundle CAN seal a
-    // validly-encrypted junk envelope that decrypts and consumes the prekey — one-time
-    // prekey pools are inherently exhaustible by anyone who can encrypt to them. Pool
-    // exhaustion is handled by graceful downgrade to the static 0.1 envelope (reported
-    // via `forwardSecret`), not prevented here. A spent/unknown prekey → refuse.
+    // Honest limit: prekey_id and the prekey public key are public (they travel in the
+    // signed bundle), so a party holding the bundle CAN seal a validly-encrypted envelope
+    // to any prekey — one-time prekey pools are exhaustible by anyone who can encrypt to
+    // them, once the recipient admits what was sent. A spent/unknown prekey → refuse.
     const onetime = keystore.peekPrekey(r.prekey_id);
     if (!onetime) {
       throw new Error("openTraveler: one-time prekey already consumed or not held by this keystore");
     }
     const zipBytes = openFsEnvelope(envelope, keystore.kid, keystore.staticSecretKey(), onetime);
-    // Authenticated: only now spend the one-time prekey, persisting the deletion
-    // before the plaintext is released, so it can never open a second envelope.
-    // (Accepted trade: a crash between a successful open and the persist resurrects
-    // THIS one prekey — far less harmful than letting an attacker burn the pool.)
-    const { keystore: updated } = keystore.consumePrekey(r.prekey_id);
-    if (opts?.persistKeystore) await opts.persistKeystore(updated);
-    return toTraveler(zipBytes);
+    const traveler = await toTraveler(zipBytes);
+    let spent = false;
+    const commit = async (): Promise<void> => {
+      if (spent) return;
+      spent = true;
+      // Already gone (another open of the same envelope committed first): nothing to do.
+      if (!keystore.peekPrekey(r.prekey_id)) return;
+      const { keystore: updated } = keystore.consumePrekey(r.prekey_id);
+      if (opts?.persistKeystore) await opts.persistKeystore(updated);
+    };
+    return { traveler, forwardSecret: true, commit };
   }
 
   throw new Error("openTraveler: unsupported envelope spec");
+}
+
+/** Decrypt an `.sje` envelope, spend its one-time prekey, and return the traveler — for
+ *  a caller that accepts whatever a valid envelope carries. A caller that decides
+ *  afterwards (a receive policy, a confirmation) uses `openTravelerDeferred` and commits
+ *  only once the traveler is admitted. */
+export async function openTraveler(
+  envelope: SjeEnvelope,
+  keystore: Unlocked,
+  opts?: OpenOptions,
+): Promise<Traveler> {
+  const opened = await openTravelerDeferred(envelope, keystore, opts);
+  await opened.commit();
+  return opened.traveler;
 }
 
 /** Copy the decrypted bytes into a fresh `Uint8Array<ArrayBuffer>` (openEnvelope
