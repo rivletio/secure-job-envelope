@@ -120,7 +120,7 @@ export function findDuplicateMember(text: string): string | undefined {
 
 /** A short, single-line, printable rendering of attacker-controlled text for an error
  *  message (a duplicated member name is chosen by whoever wrote the document). */
-function quoteForMessage(s: string): string {
+export function quoteForMessage(s: string): string {
   const shown = s.length > 40 ? `${s.slice(0, 40)}...` : s;
   // JSON.stringify escapes quotes, backslashes and C0 controls; additionally mask DEL,
   // C1 controls, line/paragraph separators and bidi controls so the message stays on

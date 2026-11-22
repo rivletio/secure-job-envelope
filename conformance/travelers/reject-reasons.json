@@ -9,7 +9,7 @@
   "bad-traveler-id.json": { "ts": "traveler_id", "rs": "invalid traveler_id" },
   "blob-nesting-over-max.json": { "ts": "nesting exceeds the maximum depth", "rs": "recursion limit exceeded" },
   "blob-nonfinite-number.json": { "ts": "non-finite number", "rs": "number out of range" },
-  "blob-number-1e20.json": { "ts": "as_built..0: number exceeds 2^53-1", "rs": "as_built has no canonical form: number exceeds 2^53-1" },
+  "blob-number-1e20.json": { "ts": "as_built.\"\".0: number exceeds 2^53-1", "rs": "as_built has no canonical form: number exceeds 2^53-1" },
   "blob-number-above-2-53.json": { "ts": "as_built.serial: number exceeds 2^53-1", "rs": "as_built has no canonical form: integer exceeds 2^53-1" },
   "blob-over-8-kib.json": { "ts": "as_built: object exceeds 8 KiB", "rs": "as_built exceeds 8 KiB" },
   "blob-proto-member-nested.json": { "ts": "__proto__", "rs": "as_built contains a member named __proto__" },

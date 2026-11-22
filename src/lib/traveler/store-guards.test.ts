@@ -25,8 +25,8 @@ const events: string[] = [];
 };
 
 const { useTravelerStore, lastStorageWriteFailed, STORAGE_WRITE_FAILED, TRAVELER_STORE_KEY } = await import("./store.ts");
-const { parseTraveler } = await import("./conformance.ts");
-const { cannotQuote } = await import("./guards.ts");
+const { levelOf, parseTraveler } = await import("./conformance.ts");
+const { cannotAward, cannotQuote } = await import("./guards.ts");
 const { travelerHash } = await import("./hash.ts");
 import type { Quote, Traveler } from "./types.ts";
 
@@ -75,6 +75,26 @@ describe("lifecycle follow-ups", () => {
     assert.equal(store().get(rfq.traveler_id)?.award ?? null, null, "nothing was stored");
     award(rfq.part.qty.target);
     assert.equal(store().get(rfq.traveler_id)?.award?.qty, rfq.part.qty.target);
+  });
+
+  it("the award guard asks about the quantity being awarded, not the target", () => {
+    // A quote that prices a break quantity and not the target. Awarding the priced
+    // quantity is sound — it is what a signed award must name to verify — and used to be
+    // refused for want of a price at the target, which this award is not for.
+    const breakQty = rfq.part.qty.target + 250;
+    const q = quote("qot_guards0004", "2039-01-01T00:00:00.000Z", [{ qty: breakQty, unit: 1100 }]);
+    store().upsert(rfq);
+    store().addQuote(rfq.traveler_id, q);
+    const held = store().get(rfq.traveler_id)!;
+    const now = new Date("2026-03-01T00:00:00.000Z");
+    assert.match(cannotAward(held, q, now) ?? "", new RegExp(`no unit price at qty ${rfq.part.qty.target}\\.`));
+    assert.equal(cannotAward(held, q, now, breakQty), null);
+    store().award(rfq.traveler_id, { quote_id: q.quote_id, awarded_at: "2026-03-01T00:00:00.000Z", qty: breakQty }, SHIP, [
+      { seq: 1, code: "LASER" },
+    ]);
+    const awarded = store().get(rfq.traveler_id)!;
+    assert.equal(awarded.award?.qty, breakQty);
+    assert.equal(levelOf(awarded).code, "L2");
   });
 
   it("nothing persisted is spread into state unexamined", async () => {

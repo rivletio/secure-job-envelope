@@ -5,7 +5,6 @@ import { seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote, locked } from "./guards.ts";
 import { quoteContentHash, verificationReport } from "./authenticity.ts";
 import type { Directory } from "./directory.ts";
-import { pricedLine } from "./format.ts";
 import { travelerHash } from "./hash.ts";
 import { decideImport, type ImportDecision, type ImportKind } from "./import-policy.ts";
 import { isoNow } from "./ids.ts";
@@ -275,13 +274,10 @@ export const useTravelerStore = create<TravelerState>()(
         if (!traveler) throw new Error("Traveler is not on this desk.");
         const quote = (traveler.quotes ?? []).find((q) => q.quote_id === award.quote_id);
         if (!quote) throw new Error("Award references a quote that is not on the traveler.");
-        const err = cannotAward(traveler, quote);
+        // For the quantity this award is for: an award for a quantity with no price line
+        // commits to no amount at all (and could never verify).
+        const err = cannotAward(traveler, quote, new Date(), award.qty);
         if (err) throw new Error(err);
-        // The award's own quantity must be one the quote prices: an award for a quantity
-        // with no price line commits to no amount at all (and no longer verifies).
-        if (!pricedLine(quote.pricing.lines, award.qty)) {
-          throw new Error(`The quote has no unit price at qty ${String(award.qty)}.`);
-        }
         if (!ops.length) throw new Error("List at least one op.");
         if (!shipTo.name.trim() || !shipTo.line1.trim() || !shipTo.city.trim() || !shipTo.country) {
           throw new Error("Ship-to is incomplete.");
