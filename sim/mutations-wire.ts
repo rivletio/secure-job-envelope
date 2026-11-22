@@ -12,7 +12,9 @@
  *  not JSON, or not a traveler, at all (both must refuse). The respellers and the
  *  tables of edge-case literals live in spelling.ts.
  */
+import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { MAX_TRAVELER_JSON_BYTES } from "../src/lib/traveler/types.ts";
+import { utf8ByteLength } from "../src/lib/traveler/wire.ts";
 import type { Ctx, WireMutation } from "./mutations.ts";
 import { SPACEY, uPlus } from "./mutations-object.ts";
 import {
@@ -301,12 +303,46 @@ export const BLOB_FILLERS: readonly Filler[] = [
   },
 ];
 
-/** An object whose compact wire text is exactly `target` UTF-16 units long (or as
- *  close under it as the filler's granularity allows): the filler, then ASCII padding. */
-export function blobOfSize(filler: Filler, target: number): WObj {
+/** A way of measuring a blob — every unit someone might count its cap in. The format
+ *  measures the canonical form in bytes (SPEC, parsing rule 12); an implementation that
+ *  counted any of the others would agree on most blobs and split on the ones built here. */
+export type BlobMeasure = { name: string; of: (blob: WObj) => number };
+
+/** The blob's canonical JSON — or, when it has none (a number outside the canonical
+ *  range), its wire text: such a blob is refused whatever its size. */
+const canonicalOrWire = (blob: WObj): string => {
+  const text = printWire(blob);
+  try {
+    return canonicalJson(JSON.parse(text));
+  } catch {
+    return text;
+  }
+};
+
+export const BLOB_MEASURES: readonly BlobMeasure[] = [
+  { name: "canonical-bytes", of: (blob) => utf8ByteLength(canonicalOrWire(blob)) },
+  { name: "canonical-units", of: (blob) => canonicalOrWire(blob).length },
+  { name: "wire-bytes", of: (blob) => utf8ByteLength(printWire(blob)) },
+  { name: "wire-units", of: (blob) => printWire(blob).length },
+];
+
+/** An object that measures exactly `target` by `measure`: as much of the filler as
+ *  fits, then ASCII padding (one more of every unit per character). */
+export function blobOfSize(filler: Filler, target: number, measure: BlobMeasure = BLOB_MEASURES[0]!): WObj {
   const pad = (n: number) => member("pad", str("x".repeat(Math.max(0, n))));
-  const blob = obj(...filler.fill(target - '{,"pad":""}'.length), pad(0));
-  blob.members[blob.members.length - 1] = pad(target - printWire(blob).length);
+  const build = (room: number) => obj(...filler.fill(room), pad(0));
+  // The most filler that still fits. A filler is asked for `room` units of wire text,
+  // which can be several times what it measures (six characters of `\u0041` are one
+  // byte of canonical text), and more filler never measures less: bisect.
+  let lo = 0;
+  let hi = target * 8;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (measure.of(build(mid)) <= target) lo = mid;
+    else hi = mid - 1;
+  }
+  const blob = build(lo);
+  blob.members[blob.members.length - 1] = pad(target - measure.of(blob));
   return blob;
 }
 
@@ -757,17 +793,18 @@ export const WIRE_MUTATIONS: WireMutation[] = [
   // ---- size and depth inside blobs ----
   {
     name: "blob-fill",
-    why: "a blob at 8191 / 8192 / 8193 units of every kind of content: the 8 KiB cap must be measured the same way on both sides",
+    why: "a blob at 8191 / 8192 / 8193 of every kind of content, counted in every unit (canonical or wire text, bytes or UTF-16 units): the 8 KiB cap must be measured the same way on both sides",
     weight: 8,
     apply: (w, ctx) => {
       if (w.root.k !== "obj") return;
       const filler = ctx.rng.pick(BLOB_FILLERS);
       const target = ctx.rng.pick([8191, 8192, 8193, 8192 + ctx.rng.int(-40, 40), ctx.rng.int(2000, 16_000)]);
+      const measure = ctx.rng.pick(BLOB_MEASURES);
       const quotes = memberOf(w.root, "quotes");
       const quote = quotes?.k === "arr" && quotes.items[0]?.k === "obj" ? quotes.items[0] : undefined;
       const site = quote && ctx.rng.bool(0.3) ? ctx.rng.pick(["assumptions", "capacity"]) : "as_built";
-      setMember(site === "as_built" ? w.root : quote!, site, blobOfSize(filler, target));
-      ctx.note(`${filler.name} ${target} ${site}`);
+      setMember(site === "as_built" ? w.root : quote!, site, blobOfSize(filler, target, measure));
+      ctx.note(`${filler.name} ${target} ${measure.name} ${site}`);
     },
   },
   {

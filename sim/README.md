@@ -57,8 +57,17 @@ differential: 20000 cases, seeds 1..20000
   ts   = this checkout (parseTravelerJson)
   rust = crates/secure-job-envelope/target/release/envelope
   4407 unmutated, 8030 with one mutation, 7563 stacked; 175 of 175 mutations exercised
+  both accept 7522 · both refuse 12478 · findings 0
+  slowest: ts 60.3 ms (seed 149: …) · rust 65.2 ms (seed 2559: …)
+no findings — the implementations agree on every case, and neither crashed, hung or stalled.
+```
+
+That is this checkout. A run with findings ends differently — this is the first run of
+the byte-level fuzzer, before the one root cause it found was fixed (see
+[`findings/`](findings/README.md)):
+
+```
   both accept 7610 · both refuse 12365 · findings 25
-  slowest: ts 54.7 ms (seed 149: …) · rust 74.6 ms (seed 170: …)
 
 FINDINGS: 25 cases — 25 accept/refuse splits, 0 hash/level/bound splits, 0 ts crashes, 0 rust crashes, 0 hangs, 0 slow
 by responsible mutation (the smallest subset of a case's mutations that still reproduces):
@@ -68,9 +77,7 @@ by responsible mutation (the smallest subset of a case's mutations that still re
   blob-fill+chunk-repeat       1 × ts refuses, rust accepts   seeds 7948
 ```
 
-(That is this checkout today: one open root cause, see `findings/`.)
-
-- Reproduce one case: `npm run differential -- --start 1428 --seeds 1` (add `--save DIR` to get its bytes).
+- Reproduce one case: `npm run differential -- --start 149 --seeds 1` (add `--save DIR` to get its bytes).
 - Sweep one mutation over every seed's traveler: `--only blob-fill` (comma-separate to stack).
 - Judge a saved file or a directory of them: `--replay sim/findings`.
 - `--jobs J` sets the worker count (one Rust process is spawned per case — `envelope check`
@@ -81,12 +88,16 @@ by responsible mutation (the smallest subset of a case's mutations that still re
 What counts as a finding, besides a verdict field that differs: a TypeScript
 exception that is not a refusal (anything but a plain `Error`), a Rust exit without a
 verdict (a panic, a non-zero status, no answer in 10 s), either side taking more than
-2 s on one document, and a worker that stops reporting progress for 30 s — it is
-killed, the seed is recorded as `ts hung`, and the rest of its seeds run without it.
+2 s on one document, a worker that stops reporting progress for 30 s — it is
+killed, the seed is recorded as `ts hung`, and the rest of its seeds run without it —
+and an *unmutated* document that both sides refuse: the generator is then producing
+travelers that are not valid, and a mutated case built on one is refused whatever its
+mutation did. (That happened: one base document in a few hundred priced the same
+quantity twice, which the format refuses.)
 
-A finding the implementation owners have not resolved yet lives in
-[`findings/`](findings/README.md) as minimized bytes with both verdicts and a
-diagnosis. The fuzzer keeps reporting it until it is fixed — it is never special-cased.
+A finding that is not resolved yet lives in [`findings/`](findings/README.md) as
+minimized bytes with both verdicts and a diagnosis. The fuzzer keeps reporting it until
+it is fixed — it is never special-cased. There are none open.
 
 ## Would it have caught them? (mutation-testing the fuzzer)
 
@@ -119,7 +130,7 @@ so that is what the harness runs for them (`loadTsImpl` in `verdict.ts`).
 Result with this catalog, seeds 1..6000 at each old commit (K1–K4 at `a987ea8`,
 672 findings in all; K6–K8 at `be62aa7`, 356 in all). `×` counts the cases
 attributed to that mutation alone; the example seed is a case with no other mutation;
-the last column is the same mutation in 20,000 seeds at HEAD (`2095f22`).
+the last column is the same mutation in 20,000 seeds at the commit that introduced this fuzzer.
 
 | class | mutation | × | example seed | at the old commit | at HEAD |
 |---|---|---|---|---|---|
@@ -143,7 +154,7 @@ kept the last value there, as the audit said. At `a987ea8` the Rust CLI exits no
 with no verdict on any input that is not UTF-8 (277 cases, reported as `rust crashed`),
 and the old TypeScript takes over 2 s on a list of 170,000 or more elements (3 cases,
 `ts slow`).
-The open finding of `findings/` (`blob-fill`) is present at both old commits too.
+The finding written up in `findings/` (`blob-fill`, since fixed) is present at both old commits too.
 
 ## Files
 
@@ -154,7 +165,7 @@ The open finding of `findings/` (`blob-fill`) is present at both old commits too
 - `case.ts` — seed → case: draws the mutations, runs the three stages, records which ones bit.
 - `verdict.ts` — the four-field verdict (parse/hash/level/bound) from bytes, for TS (this checkout or `--ts-root`) and via the Rust CLI; crash and timeout detection; the comparison.
 - `differential.ts`, `soak.ts`, `corpus.ts` — the entry points above. `corpus.test.ts` — the TS replay of the corpus and the harness's own invariants (runs in `npm test`).
-- `findings/` — open findings: minimized reproducers and their diagnosis.
+- `findings/` — findings: minimized reproducers and a diagnosis while one is open, the write-up once it is fixed.
 - `directory.ts` — a seeded signed key directory + one-time prekey bundle for the soak's crypto phase.
 
 ## How the parity work was found

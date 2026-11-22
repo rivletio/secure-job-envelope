@@ -202,6 +202,32 @@ function editsAt(site: Site): Edit[] {
       set("__proto__ inside a nested array", { a: [1, [withProto({})]] });
       set("more than 8 KiB", { blob: "x".repeat(9000) });
       set("an array of 5000", { list: Array.from({ length: 5000 }, () => 0) });
+      // Numbers inside it are canonical numbers, at any depth: the schema says so with
+      // bounds, the implementation by asking whether the number has a canonical form.
+      // Both must object at the number itself. Both sides of each bound:
+      for (const [what, n] of [
+        ["2^53-1", 9007199254740991],
+        ["2^53", 9007199254740992],
+        ["-(2^53-1)", -9007199254740991],
+        ["-(2^53)", -9007199254740992],
+        ["1e20", 1e20],
+        ["1e21", 1e21],
+        ["the largest binary64", Number.MAX_VALUE],
+        ["0.00001", 0.00001],
+        ["just under 0.00001", 0.000009999999999999999],
+        ["-0.00001", -0.00001],
+        ["just over -0.00001", -0.000009999999999999999],
+        ["1e-7", 1e-7],
+        ["the smallest binary64", Number.MIN_VALUE],
+        ["zero", 0],
+        ["minus zero", -0],
+        ["a fraction", 1.5],
+        ["a large fraction", 4503599627370495.5],
+      ] as const) {
+        set(`the number ${what} as a member`, { n });
+        set(`the number ${what} nested in an array in an object`, { a: [true, { b: [n] }] });
+      }
+      set("two numbers with no canonical form", { a: 1e20, b: [1, 1e-7] });
       break;
   }
   return edits;

@@ -30,5 +30,17 @@
   "l0-intfloat.json": {
     "traveler_hash": "sha384:31d3b3fa0e58cea81ab7c599c93cbced2c07942ee0fc748eff145b2523915da2f1d82345d6da0994b7d8b0c27af2b162",
     "level": "L0"
+  },
+  "l0-blob-numbers-respelled.json": {
+    "traveler_hash": "sha384:bd4d4028892e2966ce3ae0f109b53a0f82b50aa4a2a57dcfefe99716894f0fbbf3d9f24eee5065fb825c401742827170",
+    "level": "L0"
+  },
+  "l0-blob-at-cap.json": {
+    "traveler_hash": "sha384:53b1fd8f9c475953a3561f5a457e54297722323705aebf67cbb321c0e380a0e3d2e087126d96a0ad0818f9bfd1ce6942",
+    "level": "L0"
+  },
+  "l0-blob-canonical-size.json": {
+    "traveler_hash": "sha384:77ae80ea7459e3ce0a66b81b13cf9f5765237b4058ca3a8780e1dda8b4f15c09632b843cc65fa383079f35b22a04fabf",
+    "level": "L0"
   }
 }

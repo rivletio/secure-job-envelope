@@ -1,29 +1,42 @@
-# sim/findings — open findings of the differential fuzzer
+# sim/findings — findings of the differential fuzzer
 
 A wire document the two implementations judge differently (or that crashes or
-stalls one of them), found by `npm run differential` and **not yet fixed**. Each is
-kept here as its minimized bytes, both verdicts, and a diagnosis. The fuzzer is not
-told about them: it keeps reporting each one until the implementations are fixed,
-and the corpus generator leaves the diverging cases out of `conformance/fuzz/`.
+stalls one of them), found by `npm run differential`. While a finding is **open** it
+is kept here as its minimized bytes, both verdicts, and a diagnosis. The fuzzer is not
+told about open findings: it keeps reporting each one until the implementations are
+fixed, and the corpus generator leaves the diverging cases out of `conformance/fuzz/`.
 
-Check them all against the current build (exit 1 while any still reproduces):
+Check open findings against the current build (exit 1 while any still reproduces):
 
 ```sh
 npm run differential -- --replay sim/findings
 ```
 
-When a finding is fixed: delete its files here, run `npm run corpus` (the cases it
-kept out can now be frozen), and add a conformance vector for the rule that was
-decided.
+When a finding is fixed: move its bytes to `conformance/travelers/` as vectors for the
+rule that was decided, delete them here, run `npm run corpus` (the cases it kept out
+can now be frozen), and move its write-up below.
 
----
+## Open
 
-## F1 — the 8 KiB blob cap is measured on each side's own re-rendering of the numbers
+None. `npm run differential -- --seeds 20000` reports no findings.
+
+## Fixed
+
+### F1 — the 8 KiB blob cap was measured on each side's own re-rendering of the numbers
+
+**Fixed.** The cap is now defined on the one serialization both implementations already
+have to produce byte for byte: a free-form object must have a canonical form (every
+number in it is a canonical number), and that form is at most 8,192 bytes of UTF-8
+(`docs/SPEC.md`, parsing rule 12; `schema.ts` `jsonBlob`; `validate.rs` `json_blob`).
+The two reproducers below are now conformance vectors, under the verdict both sides
+give: `conformance/travelers/l0-blob-numbers-respelled.json` (accepted: 7,333 canonical
+bytes) and `conformance/travelers/reject/blob-number-1e20.json` (refused: `1e20` has no
+canonical form). What follows is the finding as it was written up while open.
 
 Found on `2095f22` (the first run of the byte-level fuzzer). One root cause, two
 directions, so two files:
 
-| file | bytes | SHA-384 of the bytes |
+| file (then, in this directory) | bytes | SHA-384 of the bytes |
 |---|---|---|
 | `blob-cap-ts-accepts-rust-refuses.json` | 2,373 | `af349d139fddba889ba39172a410291156194a10c4a588af082c23f2f893b3ea10d2687ae3199065a9b3097c2988fafe` |
 | `blob-cap-ts-refuses-rust-accepts.json` | 2,083 | `3e667b385b30fe93f86acfb2cb919cfb5e76bc561d8b6d3c27b4ab1b5d7c7a77a1e00128ad47f0e335c4acd8451f9b4a` |
@@ -39,7 +52,7 @@ Both are the smallest valid L0 traveler with one extra member:
 
 (no whitespace or trailing newline in the files; shown wrapped here).
 
-### Verdicts
+#### Verdicts before the fix
 
 | | TypeScript `parseTravelerJson(bytes)` | Rust `envelope check` |
 |---|---|---|
@@ -49,7 +62,7 @@ Both are the smallest valid L0 traveler with one extra member:
 With one array element fewer in either file (430, 372) the two agree, so these are
 minimal for their element; the 8,192 threshold itself is the floor on the size.
 
-### Diagnosis
+#### Diagnosis
 
 Both implementations cap a free-form blob (`as_built`, `quotes[].assumptions`,
 `quotes[].capacity`) at 8,192 UTF-16 units — but neither measures the text that was
@@ -93,7 +106,7 @@ Two further consequences of measuring a re-rendering:
   direction (`"\u0041"` is six bytes and one unit; `1e15` is four bytes and sixteen
   or eighteen units).
 
-### Reach
+#### Reach
 
 One wire document, two verdicts — the property the differential exists to rule out.
 `assumptions` and `capacity` are written by the *seller*, so a quote can be shaped to
@@ -101,7 +114,7 @@ make the traveler that carries it acceptable to desks on one implementation and
 refused by the other. No hash, level or bound split was found: blobs sit outside the
 quoteable hash, and both sides agree on every blob they both accept.
 
-### How the fuzzer reaches it
+#### How the fuzzer reached it
 
 Mutation `blob-fill` (mutations-wire.ts): a blob filled to 8,191 / 8,192 / 8,193
 units of one kind of content. The string fillers and the plain-integer fillers agree
@@ -119,9 +132,13 @@ npm run differential -- --only blob-fill --seeds 2000 --quiet
 The two files here are not those cases but the smallest documents with the same
 cause: `1e15` and `1e20` are the spellings with the largest gap per byte written.
 
-### Not fixed here
+#### What was decided
 
-The fuzzer's job is to report. A fix needs a decision the spec does not make yet —
-`docs/SPEC.md` never states the blob cap, only the code does. Either measure the
-blob's bytes as written (both sides hold the text), or define the cap on one
-canonical rendering and implement that rendering on both sides.
+Of the two ways out — measure the blob's bytes as written, or define the cap on one
+canonical rendering — the second was taken: the canonical form already exists, is
+already pinned byte for byte by shared vectors, and does not depend on how a sender
+chose to spell a number or escape a character. Its consequence is that a number with
+no canonical form (above 2^53-1, or a fraction below 1e-5) is refused inside a
+free-form object, as it is everywhere else in a traveler. A quote's `assumptions` and
+`capacity` are inside the quote's content hash, so such a number used to make a quote
+that parsed and could never be hashed or awarded.

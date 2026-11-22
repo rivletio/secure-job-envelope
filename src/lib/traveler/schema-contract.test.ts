@@ -41,6 +41,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { parseQuote, parseTravelerJson } from "./conformance.ts";
 import { isoDateTimeMs, isoDayOk } from "./datetime.ts";
 import { seedTravelers } from "./fixtures.ts";
+import { travelerSchema } from "./schema.ts";
 import { MAX_TRAVELER_JSON_BYTES } from "./types.ts";
 import {
   LENIENT,
@@ -51,6 +52,7 @@ import {
   implementationObjections,
   implemented,
   notExpressible,
+  pointerOf,
   published,
   refusal,
   ruleNamed,
@@ -145,19 +147,26 @@ describe("published JSON Schemas — 1. structure", () => {
     });
   }
 
-  it("what the schemas state beyond that is exactly: the ITAR rule, and no __proto__ in a free-form object", () => {
+  it("what the schemas state beyond that is exactly: the ITAR rule, and — in a free-form object — canonical numbers and no __proto__", () => {
     // Rules the implementation enforces where zod's rendering cannot show them: the first
-    // is a cross-field refinement in schema.ts, the second a guard in conformance.ts.
-    // schema-probes.test.ts holds each to the implementation's behaviour.
+    // is a cross-field refinement in schema.ts, the second a refinement on the free-form
+    // objects there (every number has a canonical form), the third a guard in
+    // conformance.ts. schema-probes.test.ts holds each to the implementation's behaviour.
+    const canonicalNumbers = "if/then";
     const noProto = 'propertyNames {"not":{"const":"__proto__"}}';
     assert.deepEqual(asides.traveler, [
       { path: "", what: "if/then" },
+      { path: "quotes.assumptions", what: canonicalNumbers },
       { path: "quotes.assumptions", what: noProto },
+      { path: "quotes.capacity", what: canonicalNumbers },
       { path: "quotes.capacity", what: noProto },
+      { path: "as_built", what: canonicalNumbers },
       { path: "as_built", what: noProto },
     ]);
     assert.deepEqual(asides.quote, [
+      { path: "assumptions", what: canonicalNumbers },
       { path: "assumptions", what: noProto },
+      { path: "capacity", what: canonicalNumbers },
       { path: "capacity", what: noProto },
     ]);
   });
@@ -291,7 +300,9 @@ describe("published JSON Schemas — 2. the patterns that stand in for code", ()
 /* 3. Documents                                                                          */
 /* ------------------------------------------------------------------------------------ */
 
-type Doc = { label: string; wire: Uint8Array; expect?: "accept" | "refuse" };
+/** `defects` is how many things were done to a valid traveler to make the document, where
+ *  the repository records it (the fuzz corpus does: one mutation, or several stacked). */
+type Doc = { label: string; wire: Uint8Array; expect?: "accept" | "refuse"; defects?: number };
 
 /** Every traveler in the repository, by listing where they live. `expect` is what the
  *  repository itself says about the document, when it says anything. */
@@ -308,15 +319,14 @@ function travelerDocuments(): Record<string, Doc[]> {
     "conformance/travelers/*.json and expected.json list the same vectors",
   );
 
+  // The committed fuzz corpus: one file of exact bytes per case, and a manifest with the
+  // verdict both implementations reach (conformance/fuzz/README.md). Many cases are
+  // deliberately not JSON, or not UTF-8.
   const corpus = new TextDecoder()
-    .decode(read("conformance/fuzz/travelers.jsonl"))
+    .decode(read("conformance/fuzz/manifest.jsonl"))
     .split("\n")
-    .filter((l) => l !== "");
-  const verdicts = new TextDecoder()
-    .decode(read("conformance/fuzz/expected.jsonl"))
-    .split("\n")
-    .filter((l) => l !== "");
-  assert.equal(corpus.length, verdicts.length, "one corpus verdict per corpus document");
+    .filter((l) => l !== "")
+    .map((l) => JSON.parse(l) as { file: string; mutations: string[]; expected: { accept: boolean } });
 
   const signed: Doc[] = [];
   for (const file of list("conformance/signatures/").filter((f) => f.endsWith(".json"))) {
@@ -342,12 +352,11 @@ function travelerDocuments(): Record<string, Doc[]> {
       wire: read(`${vectorDir}reject/${f}`),
       expect: "refuse" as const,
     })),
-    "fuzz corpus": corpus.map((line, i) => ({
-      label: `conformance/fuzz/travelers.jsonl line ${i + 1}`,
-      wire: utf8(line),
-      expect: (JSON.parse(verdicts[i]!) as { accept: boolean }).accept
-        ? ("accept" as const)
-        : ("refuse" as const),
+    "fuzz corpus": corpus.map((c) => ({
+      label: `conformance/fuzz/${c.file} (${c.mutations.join(" + ") || "unmutated"})`,
+      wire: read(`conformance/fuzz/${c.file}`),
+      expect: c.expected.accept ? ("accept" as const) : ("refuse" as const),
+      defects: c.mutations.length,
     })),
     examples: list("examples/")
       .filter((f) => f.endsWith(".traveler.json"))
@@ -580,28 +589,87 @@ describe("published JSON Schemas — 3. every document in the repository", () =>
   });
 
   it("the schema refuses every refused document of the fuzz corpus, and where the implementation does — except for a rule the schemas do not state", (t) => {
+    // What the most forgiving reader makes of a text a strict reader refuses: the mark
+    // dropped, invalid UTF-8 replaced, the last of a repeated member kept. That value is
+    // all a schema validator could ever be shown. `undefined` when even that reader finds
+    // no JSON value: such a text is not a document, and a JSON Schema has nothing to say
+    // about it (truncated text, a comment, a trailing comma, text after the value, …).
+    const lenientValue = (wire: Uint8Array): { value: unknown } | undefined => {
+      let text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: true }).decode(wire);
+      if (text.codePointAt(0) === 0xfeff) text = text.slice(1);
+      try {
+        return { value: JSON.parse(text) as unknown };
+      } catch {
+        return undefined;
+      }
+    };
+
     let bySchema = 0;
+    let notJson = 0;
+    let lenientlyRead = 0;
+    let stacked = 0;
     const byRule = new Map<string, number>();
     const refusedDocs = sources["fuzz corpus"]!.filter((d) => refusal(d.wire) !== undefined);
     for (const doc of refusedDocs) {
-      // A corpus line is plain JSON with nothing a strict reader refuses; if that ever
-      // changes, strictValue throws here and the new kind of document gets handled on purpose.
-      const value = strictValue(doc.wire);
+      const reason = refusal(doc.wire)!;
+      let value: unknown;
+      let strictlyRead = true;
+      try {
+        value = strictValue(doc.wire);
+      } catch {
+        // Refused as text. Either it is not JSON at all, or it breaks a rule about the
+        // text — which must then be one of the listed wire-text rules (checked below, by
+        // the reason the implementation gave).
+        strictlyRead = false;
+        const lenient = lenientValue(doc.wire);
+        if (lenient === undefined) {
+          notJson++;
+          continue;
+        }
+        lenientlyRead++;
+        value = lenient.value;
+      }
       if (!validate.traveler(value)) {
-        assert.deepEqual(
-          schemaObjections(validate.traveler),
-          implementationObjections(value),
-          `${doc.label}: the schema refuses it, but not where the implementation does ("${refusal(doc.wire)}")`,
-        );
+        // Refused by the schema too. Where the text itself was sound, it must be refused
+        // at the place the implementation objects; where the implementation stopped at
+        // the text, it named no place to compare.
+        if (strictlyRead && (doc.defects ?? 1) <= 1) {
+          assert.deepEqual(
+            schemaObjections(validate.traveler),
+            implementationObjections(value),
+            `${doc.label}: the schema refuses it, but not where the implementation does ("${reason}")`,
+          );
+        } else if (strictlyRead) {
+          // Several defects in one document. The implementation may stop at the first of
+          // two in one value (a list that is too long is not also examined item by item),
+          // so the schema, which reports everything, may name more places. It must never
+          // name fewer: every place the implementation objects is a place the schema
+          // objects — unless that objection is for a rule the schemas do not state.
+          const schemaPlaces = new Set(schemaObjections(validate.traveler));
+          const parsed = travelerSchema.safeParse(value);
+          const missed = (parsed.success ? [] : parsed.error.issues)
+            .filter((issue) => !ruleOf(`${issue.path.join(".")}: ${issue.message}`))
+            .map((issue) => pointerOf(issue.path))
+            .filter((place) => !schemaPlaces.has(place));
+          assert.deepEqual(
+            missed,
+            [],
+            `${doc.label}: the implementation objects where the schema does not ("${reason}")`,
+          );
+          stacked++;
+        }
         bySchema++;
         continue;
       }
-      for (const rule of explain(doc.label, refusal(doc.wire)!, value))
+      for (const rule of explain(doc.label, reason, value))
         byRule.set(rule.rule, (byRule.get(rule.rule) ?? 0) + 1);
     }
     t.diagnostic(
-      `${refusedDocs.length} refused corpus documents: ${bySchema} refused by the schema, ` +
-        `${[...byRule.values()].reduce((a, b) => a + b, 0)} explained by a listed rule (${[...byRule].map(([r, n]) => `${r} ${n}`).join(", ")})`,
+      `${refusedDocs.length} refused corpus documents: ${notJson} are not JSON text at all; ` +
+        `${bySchema} refused by the schema; ` +
+        `${[...byRule.values()].reduce((a, b) => a + b, 0)} explained by a listed rule (${[...byRule].map(([r, n]) => `${r} ${n}`).join(", ")}); ` +
+        `${lenientlyRead} of them could only be shown to the schema in a lenient reading; ` +
+        `${stacked} carry several defects (the schema names every place the implementation does)`,
     );
     assert.ok(
       refusedDocs.length > 50 && bySchema > 50,

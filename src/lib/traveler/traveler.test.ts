@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import JSZip from "jszip";
-import { canonicalJson } from "./canonical.ts";
+import { MAX_CANONICAL_NESTING, canonicalJson } from "./canonical.ts";
 import { boundQuotes, levelOf, parseTraveler } from "./conformance.ts";
 import { GOLDEN_QUOTEABLE, seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote, isQuoteExpired } from "./guards.ts";
 import { GOLDEN_HASH, hashQuoteable, sha384Hex, travelerHash, quoteableBody } from "./hash.ts";
 import { quoteSchema } from "./schema.ts";
 import type { Traveler, Quote } from "./types.ts";
+import { parseStrictJson } from "./wire.ts";
 import { importTravelerFile, travelerToZip } from "./zip.ts";
 
 function validQuote(over: Partial<Quote> & { traveler_hash_quoted: string }): Quote {
@@ -40,6 +41,39 @@ describe("rivlet traveler 0.0.1", () => {
     assert.throws(() => canonicalJson({ n: Infinity }), /non-finite number is not canonical/);
     assert.throws(() => canonicalJson({ n: -Infinity }), /non-finite number is not canonical/);
     assert.throws(() => canonicalJson({ n: NaN }), /non-finite number is not canonical/);
+  });
+
+  it("a value has a canonical form only as deep as both parsers read: 127 containers", () => {
+    // Built in memory, no parser in front: this is the canonicalizer's own limit. It is
+    // the limit the parsers put on wire text (wire.ts, serde_json), so nothing that
+    // canonicalizes here is unreadable there. It used to be 129: a value nested 128 deep
+    // canonicalized in TypeScript after a plain JSON.parse and could not be read by Rust.
+    const arrays = (n: number, bottom?: unknown): unknown => {
+      let v: unknown = bottom;
+      for (let i = 0; i < n; i++) v = v === undefined ? [] : [v];
+      return v;
+    };
+    const objects = (n: number, bottom: unknown = {}): unknown => {
+      let v: unknown = bottom;
+      for (let i = 0; i < n; i++) v = { a: v };
+      return v;
+    };
+    assert.equal(MAX_CANONICAL_NESTING, 127);
+    assert.equal(canonicalJson(arrays(127)), "[".repeat(127) + "]".repeat(127));
+    assert.throws(() => canonicalJson(arrays(128)), /nesting exceeds the maximum depth/);
+    // 126 wrappers around `{}` are 127 objects; one more is too many.
+    assert.equal(canonicalJson(objects(126)).length, 126 * 6 + 2);
+    assert.throws(() => canonicalJson(objects(127)), /nesting exceeds the maximum depth/);
+    // Only containers nest: a scalar at the bottom of 127 is not a 128th level.
+    assert.equal(canonicalJson(arrays(127, 1)), "[".repeat(127) + "1" + "]".repeat(127));
+    assert.equal(canonicalJson(objects(127, "x")).length, 127 * 6 + 3);
+    assert.throws(() => canonicalJson(arrays(128, 1)), /nesting exceeds the maximum depth/);
+    // And it is the same number the wire-text reader uses.
+    assert.doesNotThrow(() => parseStrictJson("[".repeat(127) + "]".repeat(127), { maxBytes: 4096, label: "t" }));
+    assert.throws(
+      () => parseStrictJson("[".repeat(128) + "]".repeat(128), { maxBytes: 4096, label: "t" }),
+      /nesting exceeds the maximum depth/,
+    );
   });
 
   it("closed field set: extra buyer keys do not change the hash", () => {

@@ -115,11 +115,11 @@
     {
       "rule": "blob-size",
       "kind": "serialized-size",
-      "spec": "src/lib/traveler/schema.ts (jsonBlob), crates/secure-job-envelope/src/validate.rs (json_blob); docs/CLAIMS.md G10; not yet stated in docs/SPEC.md",
-      "requires": "The compact serialization of each free-form object (as_built, a quote's assumptions and capacity) is at most 8,192 UTF-16 code units. One consequence is checked first: no array anywhere has more than 4,096 elements.",
+      "spec": "docs/SPEC.md, Parsing rule 12",
+      "requires": "The canonical JSON of each free-form object (as_built, a quote's assumptions and capacity) is at most 8,192 bytes of UTF-8. One consequence is checked first: no array anywhere has more than 4,096 elements. (That every number in a free-form object is a canonical number, so that the object has a canonical form at all, IS stated by the schemas.)",
       "why": "JSON Schema has no keyword for the size of a serialization.",
       "refusal": { "ts": ["exceeds 8 KiB", "array is longer than any field allows"] },
-      "reject_vectors": []
+      "reject_vectors": ["blob-over-8-kib.json"]
     }
   ]
 }

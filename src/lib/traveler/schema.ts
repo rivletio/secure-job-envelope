@@ -8,7 +8,9 @@ import {
   TRAVELER_ID_RE,
   TRAVELER_SPEC,
 } from "./types.ts";
+import { canonicalJson, canonicalNumberProblem } from "./canonical.ts";
 import { isoDateTimeMs, isoDayOk } from "./datetime.ts";
+import { exceedsUtf8Bytes } from "./wire.ts";
 
 // One parser, everywhere. By default zod compiles each object schema into a function with
 // `new Function(...)` when the runtime allows it, and interprets the schema when it does
@@ -52,8 +54,53 @@ const canonicalRange = (v: number) => Number.isInteger(v) || Math.abs(v) >= 1e-5
 // exact, no IEEE-754 rounding (SPEC 0.1 — "money is integer minor units").
 const money = z.number().int().nonnegative().max(1e12);
 
-const jsonBlob = z.record(z.string(), z.unknown()).refine((v) => JSON.stringify(v).length <= 8192, {
-  message: "object exceeds 8 KiB",
+/** The cap on a free-form object, in bytes of its canonical JSON (UTF-8). */
+export const MAX_BLOB_BYTES = 8192;
+
+/** A free-form object (`as_built`, a quote's `assumptions` and `capacity`): anything a
+ *  writer likes, on two conditions that every implementation can check the same way.
+ *
+ *   1. It has a canonical form: every number in it is a canonical number (canonical.ts).
+ *      A quote's blobs are inside the quote's content hash and signature, so a number
+ *      with no canonical form made a quote that parsed but could never be hashed.
+ *   2. That canonical form is at most 8 KiB of UTF-8.
+ *
+ *  The size used to be measured on each implementation's own re-serialization
+ *  (`JSON.stringify` here, `serde_json::to_string` in Rust), and the two write numbers at
+ *  different lengths — `1e15` is 16 characters in one and 18 in the other, `1e20` is 21
+ *  and 5 — so a blob of a few hundred numbers was accepted by one side and refused by the
+ *  other (sim/findings/). The canonical form is the one serialization both sides already
+ *  have to produce byte for byte. */
+const jsonBlob = z.record(z.string(), z.unknown()).superRefine((v, ctx) => {
+  // Every number, named where it is — so a reader is told which one, and so this
+  // objects at the same place the published JSON Schema does.
+  let numbersAreCanonical = true;
+  const walk = (value: unknown, path: (string | number)[]): void => {
+    if (typeof value === "number") {
+      const problem = canonicalNumberProblem(value);
+      if (problem === null) return;
+      numbersAreCanonical = false;
+      ctx.addIssue({ code: "custom", message: problem, path });
+    } else if (Array.isArray(value)) {
+      value.forEach((item, i) => walk(item, [...path, i]));
+    } else if (value !== null && typeof value === "object") {
+      for (const [name, member] of Object.entries(value)) walk(member, [...path, name]);
+    }
+  };
+  walk(v, []);
+  if (!numbersAreCanonical) return;
+
+  let canonical: string;
+  try {
+    canonical = canonicalJson(v);
+  } catch (err) {
+    const why = err instanceof Error ? err.message : "not canonical";
+    ctx.addIssue({ code: "custom", message: `object has no canonical form: ${why}` });
+    return;
+  }
+  if (exceedsUtf8Bytes(canonical, MAX_BLOB_BYTES)) {
+    ctx.addIssue({ code: "custom", message: "object exceeds 8 KiB" });
+  }
 });
 
 const signature = z

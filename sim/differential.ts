@@ -229,7 +229,15 @@ function runSeeds(args: Args, impl: TsImpl): Result {
       beat(seed, "", "");
       const c = buildCase(seed, { only: args.only });
       beat(seed, namesOf(c), c.label);
-      const { ts, rust, kinds } = judge(c.bytes);
+      const judged = judge(c.bytes);
+      const { ts, rust } = judged;
+      // An unmutated document is a valid traveler by construction. If both sides refuse
+      // one, the generator is wrong — and every mutated case built on such a document is
+      // refused whatever its mutation did, so it tests nothing. That is a finding too.
+      const kinds =
+        !c.applied.length && !judged.kinds.length && !ts.verdict.accept
+          ? ["unmutated refused"]
+          : judged.kinds;
 
       result.checked++;
       if (!c.applied.length) result.unmutated++;
@@ -403,7 +411,8 @@ function report(result: Result, args: Args, impl: TsImpl): void {
   console.log(
     `\nFINDINGS: ${findings.length} cases — ${count("ts accepts", "ts refuses")} accept/refuse splits, ` +
       `${count("hash", "level", "bound")} hash/level/bound splits, ${count("ts crashed")} ts crashes, ` +
-      `${count("rust crashed")} rust crashes, ${count("ts hung")} hangs, ${count("ts slow", "rust slow")} slow`,
+      `${count("rust crashed")} rust crashes, ${count("ts hung")} hangs, ${count("ts slow", "rust slow")} slow, ` +
+      `${count("unmutated refused")} unmutated documents refused`,
   );
   console.log("by responsible mutation (the smallest subset of a case's mutations that still reproduces):");
   for (const [culprit, byKind] of [...groups].sort((a, b) => a[0].localeCompare(b[0]))) {

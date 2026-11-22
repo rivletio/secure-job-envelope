@@ -136,6 +136,18 @@ export function genQuote(
 ): Quote {
   const createdDay = rng.int(0, 400);
   const nLines = rng.int(1, 6);
+  // No two price lines share a quantity: a quote that prices one quantity twice is
+  // refused (SPEC, parsing rule 5), and a base document that is already refused hides
+  // whatever a mutation was meant to test. A repeated draw is redrawn — after the
+  // line's unit, so every seed that had no repeat generates exactly what it always did.
+  const taken = new Set<number>();
+  const line = () => {
+    let qty = rng.int(1, 5000);
+    const unit = rng.int(100, 5_000_00);
+    while (taken.has(qty)) qty = rng.int(1, 5000);
+    taken.add(qty);
+    return { qty, unit };
+  };
   const quote: Quote = {
     quote_id: genId(rng, "qot"),
     seller: genOrg(rng, opts.sellerItar !== undefined ? { itar: opts.sellerItar } : {}),
@@ -145,10 +157,7 @@ export function genQuote(
     lead_time_days: rng.int(0, 365),
     pricing: {
       currency: rng.pick(CURRENCIES),
-      lines: Array.from({ length: nLines }, () => ({
-        qty: rng.int(1, 5000),
-        unit: rng.int(100, 5_000_00),
-      })),
+      lines: Array.from({ length: nLines }, line),
     },
   };
   if (rng.bool(0.5)) quote.pricing.nre = rng.int(0, 100_000_00);

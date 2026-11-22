@@ -16,7 +16,7 @@ import { buildCase, CATALOG, showApplied } from "./case.ts";
 import type { ManifestEntry } from "./corpus.ts"; // type only: corpus.ts is a script, importing it would run it
 import { genPlan, genTraveler } from "./generate.ts";
 import { rawNumber, serializeDoc } from "./mutations.ts";
-import { BLOB_FILLERS, blobOfSize } from "./mutations-wire.ts";
+import { BLOB_FILLERS, BLOB_MEASURES, blobOfSize } from "./mutations-wire.ts";
 import { Rng } from "./rng.ts";
 import { loadTsImpl, tsOutcome } from "./verdict.ts";
 import { encodeWire, printWire, raw, splice, toWire, type Wire } from "./wire.ts";
@@ -155,10 +155,16 @@ describe("fuzz harness", () => {
     }
   });
 
-  it("fills a blob to exactly the size it names, whatever the filler", () => {
+  it("fills a blob to exactly the size it names, whatever the filler and whatever the unit", () => {
     for (const filler of BLOB_FILLERS) {
-      for (const target of [8191, 8192, 8193]) {
-        assert.equal(printWire(blobOfSize(filler, target)).length, target, `${filler.name} at ${target}`);
+      for (const measure of BLOB_MEASURES) {
+        for (const target of [8191, 8192, 8193]) {
+          assert.equal(
+            measure.of(blobOfSize(filler, target, measure)),
+            target,
+            `${filler.name} at ${target} ${measure.name}`,
+          );
+        }
       }
     }
   });
