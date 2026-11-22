@@ -143,6 +143,13 @@ Other limits of this surface:
   reported per quote by `sje_evaluate`.
 - **`price_delta`.** The format does not say whether an exception's `price_delta`
   is per unit or per order; totals add each once, and say so.
+- **Verification work.** Checking a quote's signature re-verifies the whole
+  directory, so the cost is (signed quotes) × (directory size) — and the author
+  of a traveler chooses the first factor. Authorship and the award are always
+  checked. Quote signatures are checked only when all of them fit a fixed work
+  limit (64 signed quotes fit for a directory of up to ~55 orgs); otherwise each
+  is reported as *not checked* — never as passed — and `sje_evaluate` says so.
+  Evaluate fewer quotes at a time to have them checked.
 
 ## The demo
 

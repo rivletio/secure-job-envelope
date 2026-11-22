@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import Ajv2020 from "ajv/dist/2020.js";
 import JSZip from "jszip";
 import { buildServer, rootFingerprint, SERVER_INSTRUCTIONS } from "./server.ts";
 import { parseTraveler } from "../src/lib/traveler/conformance.ts";
@@ -781,9 +782,13 @@ describe("trust root: pinned by the operator (MCP-3)", () => {
     assert.equal(sealed.trust_root_fingerprint, rootFingerprint(rootHex));
   });
 
-  it("trust_root_fingerprint: SHA-384 of the raw key bytes, first 32 hex characters, in fours", () => {
+  it("trust_root_fingerprint: SHA-384 of the raw key bytes, first 32 hex characters, in fours", async () => {
     // Fixed vectors (computed independently with node:crypto).
     assert.equal(rootFingerprint("00".repeat(2592)), "09cb 9e82 d269 7c0c 6307 78c7 9a06 1c46");
+    // …and the same vector as a server pinned to that key reports it.
+    const zero = await connect({ SJE_TRUST_ROOT: "00".repeat(2592) });
+    const reported = okOf(await zero.call("sje_evaluate", { traveler: EXAMPLE }));
+    assert.equal(reported.trust_root_fingerprint, "09cb 9e82 d269 7c0c 6307 78c7 9a06 1c46");
     assert.equal(
       rootFingerprint(buildDemoTrust().rootPublicKeyHex),
       "dcb5 2a19 2c62 7062 32ae 5444 28fe 141f",
@@ -1573,6 +1578,49 @@ describe("arguments are exact (MCP-6)", () => {
     sameMembers(arg("sje_quote", "exceptions").items, quote.exceptions.items, "exception");
   });
 
+  it("what the schemas advertise is what the server enforces", async () => {
+    // A client that validates against the advertised schema and the server's own
+    // check must agree: on calls the tools accept, and on the ones they refuse.
+    const { tools } = await client.listTools();
+    const ajv = new Ajv2020({ allErrors: true, strict: false });
+    const validators = new Map(tools.map((t) => [t.name, ajv.compile(t.inputSchema)]));
+    const { buyerHash, quoted } = await quotedOverTools("NL-BRK-4425");
+    const good: Array<[string, Json]> = [
+      ["sje_validate", { traveler: EXAMPLE, expected_traveler_hash: travelerHash(parseTraveler(EXAMPLE)) }],
+      ["sje_validate", { traveler: JSON.stringify(EXAMPLE) }],
+      ["sje_compose", { ...COMPOSE, need_by: "2027-01-01", incoterms: "FOB", itar: false }],
+      ["sje_amend", { traveler: quoted.traveler, patch: { need_by: null, incoterms: "EXW", part: COMPOSE.part } }],
+      ["sje_quote", { traveler: EXAMPLE, ...QUOTE_ARGS, exceptions: [{ code: "X", proposal: "y", price_delta: -5 }] }],
+      ["sje_evaluate", { traveler: quoted.traveler, directory }],
+      ["sje_award", { traveler: quoted.traveler, expected_traveler_hash: buyerHash, quote_id: quoted.quote_id, qty: 250, ops: OPS, ship_to: SHIP, terms: { payment_terms: "net 30" } }],
+      ["sje_seal", { traveler: EXAMPLE, directory, recipient_org: DESK_ORG, require_forward_secret: false }],
+      ["sje_open", { sje: await sealToDesk(rfq()), directory, expected_buyer_org: BUYER_ORG }],
+    ];
+    for (const [tool, args] of good) {
+      const validate = validators.get(tool)!;
+      assert.ok(validate(args), `${tool}: schema refuses a call the server accepts: ${JSON.stringify(validate.errors)}`);
+      okOf(await call(tool, args));
+    }
+    const bad: Array<[string, Json]> = [
+      ["sje_seal", { traveler: EXAMPLE, directory, recipient_org: DESK_ORG, require_forward_secrecy: true }],
+      ["sje_seal", { traveler: EXAMPLE, directory, recipient_org: DESK_ORG, root_public_key_hex: rootHex }],
+      ["sje_seal", { traveler: EXAMPLE, directory, recipient_org: "Org Summit" }],
+      ["sje_award", { traveler: quoted.traveler, quote_id: quoted.quote_id, qty: 250, ops: OPS, ship_to: SHIP }],
+      ["sje_award", { traveler: quoted.traveler, expected_traveler_hash: buyerHash, quote_id: quoted.quote_id, qty: "250", ops: OPS, ship_to: SHIP }],
+      ["sje_quote", { traveler: EXAMPLE, ...QUOTE_ARGS, lead_time_days: 21.5 }],
+      ["sje_compose", { ...COMPOSE, itar: "false" }],
+      ["sje_compose", { ...COMPOSE, buyer: { ...COMPOSE.buyer, nickname: "N" } }],
+      ["sje_amend", { traveler: EXAMPLE, patch: { ops: OPS } }],
+      ["sje_identity", { passphrase: "correct horse battery staple" }],
+      ["sje_identity", { prekeys: 65 }],
+      ["sje_open", { sje: {}, accept_unverified_award: "true" }],
+    ];
+    for (const [tool, args] of bad) {
+      assert.equal(validators.get(tool)!(args), false, `${tool}: schema accepts ${JSON.stringify(args).slice(0, 90)}`);
+      assert.ok((await call(tool, args)).isError, `${tool}: server accepts ${JSON.stringify(args).slice(0, 90)}`);
+    }
+  });
+
   it("a misspelled require_forward_secrecy is refused, not sent without forward secrecy", async () => {
     const res = await call("sje_seal", {
       traveler: EXAMPLE,
@@ -2112,6 +2160,67 @@ describe("bounded work (MCP-4)", () => {
     const res = await call("sje_seal", { traveler: EXAMPLE, recipient_org: "org_bulk7", directory: many });
     assert.equal(okOf(res).recipient_directory_kid, "bulk-7");
   });
+
+  it("verification work is bounded: quote signatures are checked only when all of them fit the limit", async () => {
+    // The library verifies the whole directory again for each quote signature, so the
+    // work is (signed quotes) x (directory size) — and whoever writes the traveler picks
+    // the first factor. Here: 64 quotes, each "signed" with two characters of junk.
+    const body = signedByBuyer(rfq());
+    const quotes = Array.from({ length: 64 }, (_, i) =>
+      quoteFor(body, `qot_bulk${String(i).padStart(6, "0")}`, {
+        seller: { org_id: `org_bulk${i}`, name: "Shop" },
+        sig: { alg: "ML-DSA-87", kid: `bulk-${i}`, sig: "ab" },
+      }),
+    );
+    const t = withQuotes(body, ...quotes);
+    assert.ok(JSON.stringify(t).length < 40_000, "a small document");
+    const bulkKey = kemPublicHex(21);
+    const large = signedDirectory([
+      ...entries,
+      ...Array.from({ length: 100 }, (_, i) => entry(`org_bulk${i}`, `bulk-${i}`, deskSigner, bulkKey)),
+    ]);
+    const overLimit = /^not checked: verifying this many signed quotes against a directory this large/;
+
+    // Against a large directory the quote signatures are not checked — and say so. What
+    // admission turns on (authorship, the award) is checked regardless.
+    const out = okOf(await call("sje_open", { sje: await sealToDesk(t), directory: large }));
+    assert.equal(out.authenticity.status, "verified");
+    assert.equal(out.authenticity.verified_buyer_org, BUYER_ORG);
+    assert.equal(out.authenticity.quotes.length, 64);
+    for (const q of out.authenticity.quotes as Json[]) {
+      assert.equal(q.signed, true);
+      assert.equal(q.check.ok, false, "never reported as passed");
+      assert.match(q.check.reason, overLimit);
+    }
+    assert.match(out.notes.join(" "), /quotes were not checked/);
+    const ev = okOf(await call("sje_evaluate", { traveler: t, directory: large }));
+    assert.equal(ev.seller_signatures, "not_checked");
+    assert.match(ev.seller_signatures_not_checked_because, overLimit);
+    assert.match(ev.evaluation[0].seller_signature.reason, overLimit);
+    assert.equal(ev.evaluation[0].seller_identified_by, "nothing (self-asserted)");
+
+    // The same document against a small directory, and a document with few signed
+    // quotes against the large one, are checked in full: real verdicts.
+    const small = okOf(await call("sje_open", { sje: await sealToDesk(t), directory }));
+    assert.ok(
+      (small.authenticity.quotes as Json[]).every(
+        (q) => q.check.reason === "no active in-window directory entry for kid",
+      ),
+    );
+    assert.equal(okOf(await call("sje_evaluate", { traveler: t, directory })).seller_signatures, "checked");
+    const few = withQuotes(body, quotes[0]!, quotes[1]!);
+    const checked = okOf(await call("sje_open", { sje: await sealToDesk(few), directory: large }));
+    assert.deepEqual(checked.authenticity.quotes[0].check, {
+      ok: false,
+      kid: "bulk-0",
+      org_id: "org_bulk0",
+      reason: "signature does not verify",
+    });
+    assert.equal(
+      okOf(await call("sje_evaluate", { traveler: few, directory: large })).seller_signatures,
+      "checked",
+    );
+  });
 });
 
 /* ====================================================================================
@@ -2171,6 +2280,7 @@ describe("sje_seal gates", () => {
       ["an expired bundle", bundleOf([prekey], { issued_at: "2025-01-01T00:00:00.000Z", valid_until: "2025-06-01T00:00:00.000Z" }), /does not verify against the directory/],
       ["an empty bundle", bundleOf([]), /carries no one-time prekeys/],
       ["not a bundle", { spec: "sje-prekeys/0.1.0" }, /not a well-formed signed prekey bundle/],
+      ["a bundle whose prekeys is not a list", { ...bundleOf([prekey]), prekeys: 7 }, /not a well-formed signed prekey bundle/],
     ];
     for (const [what, prekey_bundle, why] of unusable) {
       const fallback = okOf(await call("sje_seal", { ...base, prekey_bundle }));
