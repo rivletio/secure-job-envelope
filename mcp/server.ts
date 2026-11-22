@@ -2297,5 +2297,11 @@ if (isMain) {
   }
   const requests = screenedRequests((line) => void process.stdout.write(line));
   process.stdin.pipe(requests);
+  // When the transport closes, stop reading stdin — as the SDK's own transport would
+  // have, had it been handed stdin itself — so the process can end.
+  server.onclose = () => {
+    process.stdin.unpipe(requests);
+    process.stdin.pause();
+  };
   await server.connect(new StdioServerTransport(requests, process.stdout));
 }
