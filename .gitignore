@@ -24,3 +24,6 @@ crates/secure-job-envelope/target/
 
 # local planning notes (not part of the repo)
 tasks/
+
+# temporary agent worktrees (full checkouts of this repo — never commit)
+.claude/worktrees/

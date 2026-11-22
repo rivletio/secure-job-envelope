@@ -178,6 +178,53 @@ const longFloat: Traveler = {
   itar: false,
 };
 
+// String length limits count Unicode CODE POINTS (zod v4's `.min`/`.max`), not UTF-16
+// code units. part.family here is exactly MAX_NAME (128) code points of U+1F600 — 256
+// UTF-16 units. An implementation that counts UTF-16 units (as the Rust core once did)
+// refuses this document; both must accept it and hash it identically.
+const codePointBoundary: Traveler = {
+  spec: "sje/0.1.0",
+  traveler_id: "tvl_cpboundary1",
+  revision: 1,
+  created_at: "2026-09-16T12:00:00.000Z",
+  buyer: { name: "Northline Equipment" },
+  part: {
+    family: "\u{1F600}".repeat(128),
+    part_number: "NL-BRK-4410",
+    material: { spec: "6061-T6" },
+    qty: { target: 50 },
+  },
+  itar: false,
+};
+
+// A name consisting only of U+0085 (NEL). U+0085 is NOT ECMAScript whitespace, so the
+// name is non-blank and the traveler is Quoteable (L0). An implementation that decides
+// "blank" with a Unicode White_Space trim (Rust's `str::trim` strips U+0085) calls the
+// same document Draft — one document, two levels. Both must say L0.
+const nelName: Traveler = {
+  spec: "sje/0.1.0",
+  traveler_id: "tvl_nelname001",
+  revision: 1,
+  created_at: "2026-09-16T12:00:00.000Z",
+  buyer: { name: "\u0085" },
+  part: {
+    family: "CNC bracket",
+    part_number: "NL-BRK-4410",
+    material: { spec: "6061-T6" },
+    qty: { target: 50 },
+  },
+  itar: false,
+};
+
+/** Pretty JSON for a vector file, with C1 control characters written as `\u00XX`
+ *  escapes so an invisible character (the U+0085 above) is reviewable in a diff. Both
+ *  spellings parse to the same string. */
+const wire = (p: unknown): string =>
+  JSON.stringify(p, null, 2).replace(
+    /[\u0080-\u009f]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  ) + "\n";
+
 const expected: Record<string, { traveler_hash: string; level: string }> = {};
 for (const [file, p] of [
   ["l0-bracket.json", l0],
@@ -185,10 +232,12 @@ for (const [file, p] of [
   ["l0-empty-arrays.json", emptyArrays],
   ["l1-quoted.json", l1],
   ["l2-awarded.json", l2],
+  ["part-family-128-codepoints.json", codePointBoundary],
+  ["l0-nel-name.json", nelName],
 ] as const) {
   const parsed = parseTraveler(JSON.parse(JSON.stringify(p)));
   expected[file] = { traveler_hash: travelerHash(parsed), level: levelOf(parsed).code };
-  writeFileSync(`${here}/travelers/${file}`, JSON.stringify(p, null, 2) + "\n");
+  writeFileSync(`${here}/travelers/${file}`, wire(p));
 }
 
 // Integer-valued floats on the wire (revision 1.0, qty.target 250.0, breaks [100.0,

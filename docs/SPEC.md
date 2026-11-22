@@ -97,7 +97,7 @@ Both reference implementations must reproduce the golden vector
 ### Parsing (wire bytes → document)
 
 Serialization is only half of cross-language byte equality; the two parsers must
-also **accept and reject the same wire documents**. Two rules are easy to get
+also **accept and reject the same wire documents**. These rules are easy to get
 subtly wrong because the natural default differs between a zod schema and a serde
 struct:
 
@@ -120,9 +120,32 @@ struct:
    published JSON Schema.) This closes a split where one implementation would accept a
    `null`-carrying document the other refused.
 
-Both rules are held across the two implementations by the seeded differential, the
-committed fuzz corpus, and the conformance vectors (`travelers/l0-intfloat.json`;
-`travelers/reject/*-null.json`).
+3. **A structured value is a JSON object, never an array.** The traveler itself and
+   every structured value inside it (`buyer`, `part`, `material`, `qty`, each quote and
+   its `seller` / `pricing` / price lines / exceptions, `award` and its `terms`,
+   `ship_to`, each op, each signature) MUST be written as a JSON object. The same
+   fields written positionally as an array — `"material": ["6061-T6"]` — are refused.
+   (A serde-derived struct accepts the positional form by default; zod does not. Code
+   that reads the raw JSON by key would otherwise see a different document from the
+   typed one.)
+
+4. **No member may be named `__proto__`,** at any depth, including inside the free-form
+   blobs (`assumptions`, `capacity`, `as_built`). JavaScript object models cannot carry
+   that name faithfully (a schema library may drop it silently), so an implementation
+   that kept it and one that dropped it would canonicalize — and therefore sign and
+   verify — different bytes for the same wire document.
+
+5. **Identifiers are unique within their list.** Within one traveler no two quotes share
+   a `quote_id` and no two ops share a `seq`; within one quote no two price lines share
+   a `qty`. An award names its quote by id and a price by quantity, so a duplicate makes
+   "the awarded quote" or "the unit price" ambiguous — and lets what a reader is shown
+   differ from what an award commits to. A document with a duplicate is refused.
+
+All five rules are held across the two implementations by the conformance vectors
+(`travelers/l0-intfloat.json`; `travelers/reject/*` — each reject vector's refusal
+*reason* is pinned per implementation in `travelers/reject-reasons.json`, so a vector
+cannot pass by being refused for some other defect), the seeded differential, and the
+committed fuzz corpus.
 
 ## Conformance ladder
 

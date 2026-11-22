@@ -69,10 +69,39 @@ describe("conformance vectors", () => {
     }
   });
 
-  it("refuses every reject vector at parse time", () => {
-    for (const file of readdirSync(`${root}travelers/reject`)) {
+  it("refuses every reject vector at parse time — for the reason it is named for", () => {
+    // A reject vector that is refused for some OTHER reason proves nothing about the
+    // rule it is named for (itar-mismatch.json once carried a fractional price, so it
+    // kept "passing" with the ITAR check deleted). reject-reasons.json pins, per
+    // vector and per implementation, a fragment the refusal must mention; the Rust
+    // runner checks its own column of the same file.
+    const reasons = JSON.parse(
+      readFileSync(`${root}travelers/reject-reasons.json`, "utf8"),
+    ) as Record<string, { ts: string; rs: string }>;
+    const files = readdirSync(`${root}travelers/reject`);
+    assert.deepEqual(
+      files.filter((f) => !reasons[f]),
+      [],
+      "every reject vector must declare why it is refused (reject-reasons.json)",
+    );
+    assert.deepEqual(
+      Object.keys(reasons).filter((f) => !files.includes(f)),
+      [],
+      "reject-reasons.json names a vector that does not exist",
+    );
+    for (const file of files) {
       const doc = JSON.parse(readFileSync(`${root}travelers/reject/${file}`, "utf8"));
-      assert.throws(() => parseTraveler(doc), `must refuse: ${file}`);
+      let message: string | undefined;
+      try {
+        parseTraveler(doc);
+      } catch (e) {
+        message = e instanceof Error ? e.message : String(e);
+      }
+      assert.notEqual(message, undefined, `must refuse: ${file}`);
+      assert.ok(
+        message!.includes(reasons[file]!.ts),
+        `${file}: refused for the wrong reason — "${message}" does not mention "${reasons[file]!.ts}"`,
+      );
     }
   });
 

@@ -129,10 +129,54 @@ fn datetime_ok(s: &str) -> bool {
     rfc3339_millis(s).is_some()
 }
 
+/// True iff every character is ECMAScript whitespace (so JS `s.trim()` is empty).
+/// Used by the level logic, which must agree with the TypeScript `x.trim().length > 0`
+/// — Rust's own `str::trim` strips U+0085 and keeps U+FEFF, the opposite of JS.
+pub(crate) fn js_blank(s: &str) -> bool {
+    s.chars().all(is_js_ws)
+}
+
+/// A member named `__proto__`, at any depth. The name is refused everywhere in a
+/// traveler: in typed positions `deny_unknown_fields` already rejects it, and inside
+/// a free-form blob the TypeScript reference cannot represent it faithfully (zod's
+/// record silently drops an own `__proto__` key), so the two implementations would
+/// otherwise canonicalize — and therefore sign and verify — different bytes for the
+/// same wire document. Refusing the name on both sides removes the fork.
+fn has_proto_member(v: &Value) -> bool {
+    match v {
+        Value::Object(m) => m.iter().any(|(k, child)| k == "__proto__" || has_proto_member(child)),
+        Value::Array(items) => items.iter().any(has_proto_member),
+        _ => false,
+    }
+}
+
+/// True iff `raw` (the document as written) is an OBJECT at every position where the
+/// typed document is one. serde's derived `Deserialize` accepts a struct written as a
+/// positional JSON array (`"material": ["6061-T6"]`, or the whole traveler as one
+/// array); zod does not. Beyond the accept/reject split, code that reads the raw JSON
+/// by key (signature verification) would then see a different document from the typed
+/// one. `typed` is the parsed traveler re-serialized, where every struct is an object.
+pub(crate) fn no_positional_structs(raw: &Value, typed: &Value) -> bool {
+    match (raw, typed) {
+        (Value::Object(r), Value::Object(t)) => t
+            .iter()
+            .all(|(k, tv)| r.get(k).map(|rv| no_positional_structs(rv, tv)).unwrap_or(true)),
+        (_, Value::Object(_)) => false,
+        (Value::Array(r), Value::Array(t)) => {
+            r.len() == t.len() && r.iter().zip(t).all(|(a, b)| no_positional_structs(a, b))
+        }
+        (_, Value::Array(_)) => false,
+        _ => true,
+    }
+}
+
 /// zod `jsonBlob`: a JSON object whose compact serialization is <= 8 KiB.
 fn json_blob(field: &str, v: &Value) -> Result<(), Error> {
     if !v.is_object() {
         return Err(err(format!("{field} must be a JSON object")));
+    }
+    if has_proto_member(v) {
+        return Err(err(format!("{field} contains a member named __proto__")));
     }
     let s = serde_json::to_string(v).map_err(|_| err(format!("{field} is not serializable")))?;
     // Count UTF-16 code units (not UTF-8 bytes) to match zod's JSON.stringify(v).length,
@@ -241,8 +285,13 @@ fn pricing(p: &Pricing) -> Result<(), Error> {
     if p.lines.is_empty() || p.lines.len() > 16 {
         return Err(err("pricing.lines must have between 1 and 16 entries"));
     }
-    for l in &p.lines {
+    for (i, l) in p.lines.iter().enumerate() {
         price_line(l)?;
+        // One price per quantity: two lines for the same qty would leave the unit
+        // price ambiguous under an award (the first would silently win).
+        if p.lines[..i].iter().any(|prev| prev.qty == l.qty) {
+            return Err(err("pricing.lines has more than one line for the same qty"));
+        }
     }
     if let Some(f) = p.freight_estimate {
         money("freight_estimate", f)?;
@@ -361,6 +410,12 @@ fn award(a: &Award) -> Result<(), Error> {
     if let Some(t) = &a.terms {
         award_terms(t)?;
     }
+    // The award's own signature object is validated like every other signature
+    // (alg, kid bounds, lowercase hex, length) — it was the one signature site the
+    // validator skipped, so a garbage `award.sig` parsed here and not in TypeScript.
+    if let Some(s) = &a.sig {
+        signature(s)?;
+    }
     Ok(())
 }
 
@@ -391,16 +446,25 @@ pub fn traveler(t: &Traveler) -> Result<(), Error> {
         if ops.len() > 64 {
             return Err(err("ops has more than 64 entries"));
         }
-        for o in ops {
+        for (i, o) in ops.iter().enumerate() {
             op(o)?;
+            if ops[..i].iter().any(|prev| prev.seq == o.seq) {
+                return Err(err("ops has more than one entry with the same seq"));
+            }
         }
     }
     if let Some(qs) = &t.quotes {
         if qs.len() > 64 {
             return Err(err("quotes has more than 64 entries"));
         }
-        for q in qs {
+        for (i, q) in qs.iter().enumerate() {
             quote(q)?;
+            // quote_id identifies a quote within a traveler; an award names a quote by
+            // id. Two quotes sharing an id let an award bind a different quote from the
+            // one a reader is shown (the first match by id), so the id must be unique.
+            if qs[..i].iter().any(|prev| prev.quote_id == q.quote_id) {
+                return Err(err("quotes has more than one quote with the same quote_id"));
+            }
         }
     }
     if let Some(a) = &t.award {
@@ -449,5 +513,36 @@ mod tests {
         assert!(sized("code", &"😀".repeat(33), 1, 32).is_err());
         // The blob cap deliberately still counts UTF-16 units (JSON.stringify length).
         assert_eq!(utf16_len("😀"), 2);
+    }
+
+    #[test]
+    fn blank_follows_ecmascript_whitespace_not_rust_trim() {
+        // The two sets differ at exactly these characters. JS `"\u{85}".trim()` is
+        // non-empty (NEL is not ECMAScript whitespace); Rust `str::trim` strips it.
+        // JS strips U+FEFF; Rust keeps it. `js_blank` must side with JS on both.
+        assert!(!js_blank("\u{85}"));
+        assert!("\u{85}".trim().is_empty(), "the Rust behaviour this replaces");
+        assert!(js_blank("\u{FEFF}"));
+        assert!(!"\u{FEFF}".trim().is_empty(), "the Rust behaviour this replaces");
+        assert!(js_blank("") && js_blank(" \t\u{A0}\u{2028}"));
+        assert!(!js_blank(" x "));
+    }
+
+    #[test]
+    fn positional_structs_and_proto_members_are_detected() {
+        let v = |s: &str| serde_json::from_str::<Value>(s).unwrap();
+        // typed side: what a struct re-serializes to (always an object).
+        let typed = v(r#"{"material":{"spec":"M"},"breaks":[1,2],"blob":{"a":[{"b":1}]}}"#);
+        assert!(no_positional_structs(&typed, &typed));
+        // a struct written positionally, at any depth, is refused …
+        assert!(!no_positional_structs(&v(r#"{"material":["M"],"breaks":[1,2]}"#), &typed));
+        assert!(!no_positional_structs(&v(r#"[{"spec":"M"},[1,2]]"#), &typed));
+        // … an absent optional is fine, and a real array stays an array.
+        assert!(no_positional_structs(&v(r#"{"breaks":[1,2]}"#), &typed));
+        assert!(!no_positional_structs(&v(r#"{"breaks":[1]}"#), &typed));
+
+        assert!(has_proto_member(&v(r#"{"__proto__":1}"#)));
+        assert!(has_proto_member(&v(r#"{"a":[{"b":{"__proto__":null}}]}"#)));
+        assert!(!has_proto_member(&v(r#"{"proto":1,"a":["__proto__"]}"#)), "only a member NAME counts");
     }
 }

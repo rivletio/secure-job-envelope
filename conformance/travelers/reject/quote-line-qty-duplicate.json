@@ -1,0 +1,46 @@
+{
+  "spec": "sje/0.1.0",
+  "traveler_id": "tvl_rejdupl001",
+  "revision": 1,
+  "created_at": "2026-09-16T12:00:00.000Z",
+  "buyer": {
+    "name": "Northline Equipment"
+  },
+  "part": {
+    "family": "CNC bracket",
+    "part_number": "NL-BRK-4410",
+    "material": {
+      "spec": "6061-T6"
+    },
+    "qty": {
+      "target": 50
+    }
+  },
+  "itar": false,
+  "quotes": [
+    {
+      "quote_id": "qot_dupline001",
+      "seller": {
+        "org_id": "org_summitfab",
+        "name": "Summit Fabrication"
+      },
+      "traveler_hash_quoted": "sha384:abababababababababababababababababababababababababababababababababababababababababababababababab",
+      "created_at": "2026-09-16T12:00:00.000Z",
+      "valid_until": "2039-01-01T00:00:00.000Z",
+      "lead_time_days": 21,
+      "pricing": {
+        "currency": "USD",
+        "lines": [
+          {
+            "qty": 50,
+            "unit": 1420
+          },
+          {
+            "qty": 50,
+            "unit": 990000
+          }
+        ]
+      }
+    }
+  ]
+}
