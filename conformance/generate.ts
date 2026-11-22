@@ -10,18 +10,25 @@ import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/hash.ts";
 import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signature.ts";
-import { bytesToHex, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
+import { bytesToHex, hexToBytes, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signTraveler, signQuote, signAward, quoteContentHash } from "../src/lib/traveler/authenticity.ts";
 import { PREKEY_BUNDLE_SPEC, signPrekeyBundle, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
 import {
   kemKeypairFromSeed,
   sealEnvelopeDeterministic,
+  openEnvelope,
   recipientByOrg,
   sealFsEnvelopeDeterministic,
   fsRecipientFromBundle,
+  ENVELOPE_SPEC,
+  ENC_ALG,
+  FS_ENC_ALG,
 } from "../src/lib/traveler/envelope.ts";
 import { sha384 } from "@noble/hashes/sha2.js";
+import { hkdf } from "@noble/hashes/hkdf.js";
+import { gcm } from "@noble/ciphers/aes.js";
+import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 
 const here = new URL(".", import.meta.url).pathname;
@@ -659,3 +666,277 @@ writeFileSync(
   JSON.stringify(fsEnvelopeVector, null, 2) + "\n",
 );
 console.log("fs envelope vector written");
+
+/* ---------- envelope shape + tamper vectors (accept and reject, both specs) ---------- */
+// The golden vectors above prove both implementations seal and open the SAME bytes. These
+// prove they REFUSE the same bytes, and why. Each case is the envelope's JSON text exactly
+// as it would arrive, plus who tries to open it:
+//
+//   accept          shape-valid and opens to plaintext_utf8 (strictness must not over-refuse:
+//                   member order and whitespace are not part of the shape; two recipients work)
+//   reject / shape  refused by the SHAPE check alone, before any key is used. Most of these
+//                   would decrypt successfully if the check were missing — an extra member, a
+//                   hex string in the other letter case, a repeated member name, a 16-byte
+//                   content key — which is exactly why they are vectors.
+//   reject / crypto shape-valid, but must fail to open (tamper, reorder, drop, relabel).
+//
+// A runner checks the stage, not just the refusal: a "shape" case must fail the shape check
+// itself, and a "crypto" case must PASS the shape check and then fail to open.
+type EnvCase = {
+  name: string;
+  why: string;
+  kid: string;
+  seed_hex: string;
+  onetime_seed_hex?: string;
+  text: string;
+};
+const NUL = String.fromCharCode(0);
+const BOM = String.fromCharCode(0xfeff);
+const plain = new TextEncoder().encode(envPlaintext);
+const goldenText = JSON.stringify(envelope);
+const fsGoldenText = JSON.stringify(fsEnvelope);
+const northSeedHex = bytesToHex(northlineKemSeed);
+const summitSeedHex = bytesToHex(summitKemSeed);
+const otSeedHex = bytesToHex(prekeySeeds[0]!);
+const summitRecipient = recipientByOrg(
+  directoryVector.directory,
+  "org_summitfab",
+  new Date("2027-01-01T00:00:00.000Z"),
+)!;
+const kidN = envRecipient.kid;
+const kidS = summitRecipient.kid;
+
+// Two recipients, deterministic.
+const det2 = {
+  cek: new Uint8Array(32).fill(0x4a),
+  payload_nonce: new Uint8Array(12).fill(0x05),
+  coins: [new Uint8Array(32).fill(0x0c), new Uint8Array(32).fill(0x0d)],
+  wrap_nonces: [new Uint8Array(12).fill(0x06), new Uint8Array(12).fill(0x07)],
+};
+const two = sealEnvelopeDeterministic(plain, [envRecipient, summitRecipient], det2);
+// The same recipient listed twice: the payload AAD binds [kid, kid], so without a
+// uniqueness rule this opens.
+const twice = sealEnvelopeDeterministic(plain, [envRecipient, envRecipient], det2);
+
+type Mut = Record<string, unknown> & { recipients: Record<string, unknown>[] };
+/** A deep copy of an envelope, edited. */
+function edit(base: unknown, f: (e: Mut) => void): string {
+  const e = structuredClone(base) as Mut;
+  f(e);
+  return JSON.stringify(e);
+}
+/** Flip the lowest bit of the first byte of a lowercase-hex string (stays lowercase hex). */
+function flip(hex: string): string {
+  const first = (parseInt(hex.slice(0, 2), 16) ^ 1).toString(16).padStart(2, "0");
+  return first + hex.slice(2);
+}
+
+/** What a non-conforming sealer would emit: everything as specified except the content
+ *  key's length. Re-derived here with the primitives directly (not through the code under
+ *  test); the 32-byte form is checked against openEnvelope below, so the 16- and 24-byte
+ *  forms are known to be exactly "right KDF, right AAD, wrong key size" — AES-128/192-GCM
+ *  under an "AES-256-GCM" label. */
+function sealWithKeyBytes(keyBytes: number): string {
+  const cek = new Uint8Array(keyBytes).fill(0x2b);
+  const payloadNonce = new Uint8Array(12).fill(0x08);
+  const wrapNonce = new Uint8Array(12).fill(0x09);
+  const aadWrap = utf8ToBytes(`${ENVELOPE_SPEC}${NUL}${ENC_ALG}${NUL}${kidN}`);
+  const aadBody = utf8ToBytes(
+    canonicalJson({ spec: ENVELOPE_SPEC, enc_alg: ENC_ALG, recipients: [kidN] }),
+  );
+  const { cipherText, sharedSecret } = ml_kem1024.encapsulate(
+    hexToBytes(envRecipient.public_key),
+    new Uint8Array(32).fill(0x0e),
+  );
+  const kek = hkdf(sha384, sharedSecret, utf8ToBytes("sje-kek/0.1.0"), aadWrap, 32);
+  return JSON.stringify({
+    spec: ENVELOPE_SPEC,
+    enc_alg: ENC_ALG,
+    payload_nonce: bytesToHex(payloadNonce),
+    payload: bytesToHex(gcm(cek, payloadNonce, aadBody).encrypt(plain)),
+    recipients: [
+      {
+        kid: kidN,
+        kem_ct: bytesToHex(cipherText),
+        wrap_nonce: bytesToHex(wrapNonce),
+        wrapped_cek: bytesToHex(gcm(kek, wrapNonce, aadWrap).encrypt(cek)),
+      },
+    ],
+  });
+}
+{
+  const control = JSON.parse(sealWithKeyBytes(32)) as Parameters<typeof openEnvelope>[0];
+  const opened = openEnvelope(control, kidN, northlineKem.secretKey);
+  if (new TextDecoder().decode(opened) !== envPlaintext) {
+    throw new Error("vector self-check failed: hand-derived envelope does not open");
+  }
+}
+
+const N = { kid: kidN, seed_hex: northSeedHex };
+const S = { kid: kidS, seed_hex: summitSeedHex };
+const F = { kid: kidN, seed_hex: northSeedHex, onetime_seed_hex: otSeedHex };
+
+const envAccept: EnvCase[] = [
+  { name: "golden-compact", why: "the golden 0.1.0 envelope as compact JSON", ...N, text: goldenText },
+  {
+    name: "members-reordered-and-indented",
+    why: "member order and whitespace are not part of the shape",
+    ...N,
+    text: JSON.stringify(
+      {
+        recipients: envelope.recipients.map((r) => ({
+          wrapped_cek: r.wrapped_cek,
+          wrap_nonce: r.wrap_nonce,
+          kem_ct: r.kem_ct,
+          kid: r.kid,
+        })),
+        payload: envelope.payload,
+        payload_nonce: envelope.payload_nonce,
+        enc_alg: envelope.enc_alg,
+        spec: envelope.spec,
+      },
+      null,
+      2,
+    ),
+  },
+  { name: "two-recipients-first", why: "first of two recipients opens", ...N, text: JSON.stringify(two) },
+  { name: "two-recipients-second", why: "second of two recipients opens", ...S, text: JSON.stringify(two) },
+  { name: "fs-golden-compact", why: "the golden 0.2.0 envelope as compact JSON", ...F, text: fsGoldenText },
+];
+
+const shape = (name: string, why: string, who: Omit<EnvCase, "name" | "why" | "text">, text: string) => ({
+  name,
+  why,
+  stage: "shape" as const,
+  ...who,
+  text,
+});
+const crypto_ = (name: string, why: string, who: Omit<EnvCase, "name" | "why" | "text">, text: string) => ({
+  name,
+  why,
+  stage: "crypto" as const,
+  ...who,
+  text,
+});
+const up = (h: string) => h.toUpperCase();
+
+const envReject = [
+  // ---- shape: would otherwise decrypt ----
+  shape("extra-member", "an unknown top-level member; the tags do not cover it", N,
+    edit(envelope, (e) => { e.note = "trust me"; })),
+  shape("extra-recipient-member", "an unknown member on a recipient entry", N,
+    edit(envelope, (e) => { e.recipients[0]!.hint = "x"; })),
+  shape("payload-uppercase-hex", "hex must be lowercase: one wire form per envelope", N,
+    edit(envelope, (e) => { e.payload = up(e.payload as string); })),
+  shape("kem-ct-uppercase-hex", "hex must be lowercase", N,
+    edit(envelope, (e) => { e.recipients[0]!.kem_ct = up(e.recipients[0]!.kem_ct as string); })),
+  shape("wrapped-cek-uppercase-hex", "hex must be lowercase", N,
+    edit(envelope, (e) => { e.recipients[0]!.wrapped_cek = up(e.recipients[0]!.wrapped_cek as string); })),
+  shape("duplicate-member-payload", "a repeated member name: a last-wins reader opens the second payload and never reads the first", N,
+    goldenText.replace('"payload":', '"payload":"00","payload":')),
+  shape("duplicate-member-recipient-kid", "a repeated member name inside a recipient entry", N,
+    goldenText.replace('"kid":', '"kid":"0000000000000000","kid":')),
+  shape("byte-order-mark", "a UTF-8 byte-order mark before the envelope", N, BOM + goldenText),
+  shape("trailing-content", "a second JSON value after the envelope", N, goldenText + " {}"),
+  shape("content-key-16-bytes", "a 16-byte content key (AES-128-GCM under the AES-256-GCM label); the wrapped key is not 48 bytes", N,
+    sealWithKeyBytes(16)),
+  shape("content-key-24-bytes", "a 24-byte content key (AES-192-GCM under the AES-256-GCM label)", N,
+    sealWithKeyBytes(24)),
+  shape("same-recipient-twice", "the same kid in two recipient entries (the AAD binds [kid, kid], so it opens unless refused)", N,
+    JSON.stringify(twice)),
+  // ---- shape: malformed outright ----
+  shape("missing-enc-alg", "a required member is absent", N,
+    edit(envelope, (e) => { delete e.enc_alg; })),
+  shape("alg-of-the-other-spec", "enc_alg must be the one that belongs to spec", N,
+    edit(envelope, (e) => { e.enc_alg = FS_ENC_ALG; })),
+  shape("unknown-spec", "an envelope version this specification does not define", N,
+    edit(envelope, (e) => { e.spec = "sje-envelope/0.3.0"; })),
+  shape("payload-nonce-13-bytes", "nonces are exactly 12 bytes", N,
+    edit(envelope, (e) => { e.payload_nonce = (e.payload_nonce as string) + "00"; })),
+  shape("wrap-nonce-11-bytes", "nonces are exactly 12 bytes", N,
+    edit(envelope, (e) => { e.recipients[0]!.wrap_nonce = (e.recipients[0]!.wrap_nonce as string).slice(2); })),
+  shape("kem-ct-one-byte-short", "an ML-KEM-1024 ciphertext is exactly 1568 bytes", N,
+    edit(envelope, (e) => { e.recipients[0]!.kem_ct = (e.recipients[0]!.kem_ct as string).slice(2); })),
+  shape("payload-shorter-than-a-tag", "the payload carries at least its 16-byte tag", N,
+    edit(envelope, (e) => { e.payload = "00".repeat(15); })),
+  shape("payload-odd-length-hex", "hex is whole bytes", N,
+    edit(envelope, (e) => { e.payload = (e.payload as string) + "0"; })),
+  shape("payload-nonce-null", "null is not a string", N,
+    edit(envelope, (e) => { e.payload_nonce = null; })),
+  shape("kid-not-hex", "kid is 8 bytes of lowercase hex", { kid: "northline-key-01", seed_hex: northSeedHex },
+    edit(envelope, (e) => { e.recipients[0]!.kid = "northline-key-01"; })),
+  shape("recipients-empty", "at least one recipient", N,
+    edit(envelope, (e) => { e.recipients = []; })),
+  shape("recipients-seventeen", "at most 16 recipients", N,
+    edit(envelope, (e) => {
+      const r = e.recipients[0]!;
+      e.recipients = Array.from({ length: 17 }, (_, i) => ({ ...r, kid: i.toString(16).padStart(16, "0") }));
+    })),
+  shape("recipient-as-array", "a recipient entry written positionally, as an array", N,
+    edit(envelope, (e) => {
+      const r = e.recipients[0]!;
+      (e as Record<string, unknown>).recipients = [[r.kid, r.kem_ct, r.wrap_nonce, r.wrapped_cek]];
+    })),
+  shape("envelope-as-array", "the envelope itself written as an array", N,
+    JSON.stringify([envelope.spec, envelope.enc_alg, envelope.payload_nonce, envelope.payload, envelope.recipients])),
+  shape("fs-prekey-id-with-nul", "prekey_id is 1-64 of [A-Za-z0-9._-]; it is concatenated into the key-derivation label", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.prekey_id = `northline-ot-1${NUL}x`; })),
+  shape("fs-prekey-id-too-long", "prekey_id is at most 64 characters", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.prekey_id = "p".repeat(65); })),
+  shape("fs-recipient-without-prekey-id", "a 0.2.0 recipient must name its one-time prekey", F,
+    edit(fsEnvelope, (e) => { delete e.recipients[0]!.prekey_id; })),
+  shape("static-recipient-in-fs-envelope", "0.1.0 recipient members under a 0.2.0 spec", F,
+    edit(fsEnvelope, (e) => { e.recipients = structuredClone(envelope.recipients) as Record<string, unknown>[]; })),
+  // ---- crypto: shape-valid, must not open ----
+  crypto_("payload-bit-flipped", "one payload bit changed", N,
+    edit(envelope, (e) => { e.payload = flip(e.payload as string); })),
+  crypto_("payload-nonce-altered", "a different payload nonce", N,
+    edit(envelope, (e) => { e.payload_nonce = flip(e.payload_nonce as string); })),
+  crypto_("wrapped-cek-bit-flipped", "one bit of the wrapped content key changed", N,
+    edit(envelope, (e) => { e.recipients[0]!.wrapped_cek = flip(e.recipients[0]!.wrapped_cek as string); })),
+  crypto_("kem-ct-bit-flipped", "one bit of the ML-KEM ciphertext changed (implicit rejection, then the wrap tag fails)", N,
+    edit(envelope, (e) => { e.recipients[0]!.kem_ct = flip(e.recipients[0]!.kem_ct as string); })),
+  crypto_("two-recipients-reordered", "the payload AAD binds the ORDERED recipient set", N,
+    edit(two, (e) => { e.recipients.reverse(); })),
+  crypto_("two-recipients-one-dropped", "the payload AAD binds the WHOLE recipient set", N,
+    edit(two, (e) => { e.recipients = [e.recipients[0]!]; })),
+  crypto_("two-recipients-one-dropped-other-side", "the remaining recipient cannot open either", S,
+    edit(two, (e) => { e.recipients = [e.recipients[1]!]; })),
+  crypto_("two-recipients-keys-swapped", "each wrapped key is bound to its own kid", N,
+    edit(two, (e) => {
+      const [a, b] = [e.recipients[0]!, e.recipients[1]!];
+      [a.wrapped_cek, b.wrapped_cek] = [b.wrapped_cek, a.wrapped_cek];
+    })),
+  crypto_("recipient-relabelled", "an entry sealed for one kid, relabelled with another's kid", S,
+    edit(envelope, (e) => { e.recipients[0]!.kid = kidS; })),
+  crypto_("fs-prekey-id-relabelled", "prekey_id is bound into the key derivation and the payload AAD", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.prekey_id = "northline-ot-2"; })),
+  crypto_("fs-onetime-ct-bit-flipped", "one bit of the one-time ciphertext changed", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.kem_ct_onetime = flip(e.recipients[0]!.kem_ct_onetime as string); })),
+  crypto_("fs-static-ct-bit-flipped", "one bit of the static ciphertext changed", F,
+    edit(fsEnvelope, (e) => { e.recipients[0]!.kem_ct_static = flip(e.recipients[0]!.kem_ct_static as string); })),
+  crypto_("fs-payload-bit-flipped", "one payload bit changed", F,
+    edit(fsEnvelope, (e) => { e.payload = flip(e.payload as string); })),
+];
+
+const envelopeCases = {
+  note:
+    "Envelope accept/reject cases for both envelope specs. `text` is the envelope's JSON text " +
+    "exactly as on the wire; `kid`/`seed_hex` (and `onetime_seed_hex` for 0.2.0) say who opens it. " +
+    "accept: MUST pass the shape check and open to plaintext_utf8. reject with stage \"shape\": MUST " +
+    "be refused by the shape check alone, before any key is used. reject with stage \"crypto\": MUST " +
+    "pass the shape check and MUST fail to open. See docs/ENVELOPE-DRAFT.md (Wire shape).",
+  plaintext_utf8: envPlaintext,
+  accept: envAccept,
+  reject: envReject,
+};
+// Written with every non-ASCII character escaped, so the byte-order mark in one case is
+// visible in a diff instead of an invisible character in the file.
+writeFileSync(
+  `${here}/signatures/envelope-cases.json`,
+  JSON.stringify(envelopeCases, null, 2).replace(
+    /[^\n -~]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  ) + "\n",
+);
+console.log(`envelope cases written (${envAccept.length} accept, ${envReject.length} reject)`);

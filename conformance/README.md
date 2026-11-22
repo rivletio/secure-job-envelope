@@ -10,7 +10,9 @@ implementation proves itself the same way.
 | `canonical.json` → `valid[]` | For each `value`, produce exactly `canonical` (bytes) and `sha384` |
 | `canonical.json` → `invalid[]` | Refuse to canonicalize `value` (do not hash, do not substitute) |
 | `travelers/*.json` + `travelers/expected.json` | Parse each traveler; produce exactly `traveler_hash` and `level` |
-| `travelers/reject/*.json` | Refuse the document at parse time |
+| `travelers/reject/*.json` + `travelers/reject-reasons.json` | Refuse the document at parse time — **parsed from the file's bytes** (some vectors, e.g. a byte-order mark or a repeated member name, exist only in the text). `reject-reasons.json` pins, per vector and per implementation, a fragment the refusal must mention, so a vector cannot pass by being refused for some other defect |
+| `signatures/envelope-cases.json` → `accept[]` | The envelope `text` passes the shape check and opens (as `kid`, with `seed_hex` / `onetime_seed_hex`) to `plaintext_utf8` |
+| `signatures/envelope-cases.json` → `reject[]` | `stage: "shape"`: refused by the shape check alone, before any key is used. `stage: "crypto"`: passes the shape check and fails to open |
 
 Runners: `src/lib/traveler/vectors.test.ts` (TypeScript),
 `crates/secure-job-envelope/tests/vectors.rs` (Rust).

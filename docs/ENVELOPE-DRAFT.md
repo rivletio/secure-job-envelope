@@ -101,6 +101,35 @@ opaque payload). Byte fields are lowercase hex.
   traveler_id, org names, or part information in the clear. Filename SHOULD be
   random, not `{traveler_id}.sje`.
 
+### Wire shape (normative, both envelope versions)
+
+AES-GCM authenticates the payload and each wrapped key. It does **not** authenticate
+the JSON around them: an extra member, a hex string in the other letter case, a
+13-byte nonce, or a 16-byte content key are all outside what the tags cover or decide.
+An implementation MUST therefore refuse an envelope that is not exactly this shape,
+**before any key is used**:
+
+| Element | Rule |
+|---|---|
+| Text | UTF-8, no byte-order mark, at most 4,325,376 bytes (2 × the 2 MiB archive limit + 128 KiB); a member name appears at most once in any object; nothing follows the envelope value |
+| Envelope | an object with **exactly** `spec`, `enc_alg`, `payload_nonce`, `payload`, `recipients` |
+| `spec` / `enc_alg` | `sje-envelope/0.1.0` with `ML-KEM-1024+HKDF-SHA-384+AES-256-GCM`, or `sje-envelope/0.2.0` with `ML-KEM-1024x2+HKDF-SHA-384+AES-256-GCM` — the algorithm string must be the one that belongs to the spec |
+| `recipients` | an array of 1–16 entries; no `kid` appears twice |
+| Recipient (0.1.0) | an object with **exactly** `kid`, `kem_ct`, `wrap_nonce`, `wrapped_cek` |
+| Recipient (0.2.0) | an object with **exactly** `kid`, `prekey_id`, `kem_ct_onetime`, `kem_ct_static`, `wrap_nonce`, `wrapped_cek` |
+| Hex fields | lowercase, whole bytes, exact lengths: `payload_nonce` and `wrap_nonce` 12 bytes; `kid` 8 bytes; each ML-KEM-1024 ciphertext 1568 bytes; `wrapped_cek` 48 bytes (the 32-byte content key + the 16-byte tag — so the content key is always an AES-256 key); `payload` at least 16 bytes (its tag) and at most 2 MiB + 16 |
+| `prekey_id` | 1–64 characters of `A–Z a–z 0–9 . _ -` (it is concatenated into the key-derivation label, so it cannot contain a separator) |
+
+Member order and insignificant whitespace are not part of the shape. The same rules
+apply to an envelope handed over as an already-parsed value.
+
+Both reference implementations enforce this table identically
+(`envelope.ts::assertEnvelopeShape`, `envelope.rs::check_shape`), and
+`conformance/signatures/envelope-cases.json` holds the cases that prove it: envelopes
+both must open, envelopes both must refuse **at the shape check** (most of which would
+decrypt successfully if the check were missing), and shape-valid envelopes both must
+fail to open (a flipped bit, a reordered, dropped or relabelled recipient).
+
 ## Forward secrecy (`sje-envelope/0.2.0`)
 
 The 0.1 envelope encapsulates only to a recipient's long-lived static key, so a
@@ -177,3 +206,6 @@ in CI (see `docs/CLAIMS.md` PQ4, PQ7–PQ9):
   (verify against the directory; tampered prekey / out-of-window / wrong root).
 - `conformance/signatures/fs-envelope.json` — 0.2 forward-secret envelope
   (two-KEM combine; re-seal byte-for-byte + open with both keys + negative cases).
+- `conformance/signatures/envelope-cases.json` — accept / reject cases for both
+  versions, each reject case tagged with the stage that must refuse it (`shape` or
+  `crypto`); includes two-recipient envelopes (open as either; reorder, drop, swap).

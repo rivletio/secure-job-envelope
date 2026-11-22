@@ -9,6 +9,11 @@ export const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const MAX_TRAVELER_JSON_BYTES = 512 * 1024;
 export const MAX_ARCHIVE_BYTES = 2 * 1024 * 1024;
+/** Most recipient entries one envelope may carry. */
+export const MAX_ENVELOPE_RECIPIENTS = 16;
+/** An envelope's JSON text, in UTF-8 bytes: the hex of a maximal archive (two characters
+ *  per byte) plus room for the recipient entries (~6.5 KB each at most). */
+export const MAX_ENVELOPE_JSON_BYTES = 2 * MAX_ARCHIVE_BYTES + 128 * 1024;
 export const MAX_STRING = 2000;
 export const MAX_NAME = 128;
 

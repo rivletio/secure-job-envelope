@@ -184,6 +184,13 @@ impl<'de> Deserialize<'de> for Blob {
     }
 }
 
+/// Parse JSON text into a `Value`, refusing a repeated member name at any depth (plain
+/// `Value` deserialization keeps the last). serde_json itself already refuses a
+/// byte-order mark, nesting past its recursion limit, and anything after the value.
+pub(crate) fn strict_value(text: &str) -> Result<Value, serde_json::Error> {
+    serde_json::from_str::<Blob>(text).map(|b| b.0)
+}
+
 /// A present, non-nullable free-form blob (`quote.assumptions`, `quote.capacity`):
 /// refuses an explicit `null` like `present_some`, and a repeated member name.
 pub(crate) fn blob_present<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Value>, D::Error> {
