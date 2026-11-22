@@ -162,11 +162,26 @@ struct:
    shortest text it could have arrived as. The limit is in bytes, not in characters or
    UTF-16 code units.
 
+9. **Containers nest at most 127 deep.** Counting the traveler itself, no object or
+   array has more than 126 containers around it; a text in which a 128th nested
+   container opens is refused. (Only a free-form blob can be that deep. Parsers differ
+   here by default — one has a recursion limit, another has none — so the limit is a
+   rule of the format, not a property of a library.)
+
+10. **Every string is well-formed Unicode.** No string and no member name contains a
+    lone surrogate (an escape `\uD800`–`\uDBFF` not followed by `\uDC00`–`\uDFFF`, or
+    the reverse). Such text has no UTF-8 encoding; one parser refuses it, another
+    substitutes U+FFFD or keeps an ill-formed string, and the two would then hash
+    different bytes.
+
+11. **Every number is a finite binary64 value,** including numbers inside the free-form
+    blobs. A literal that rounds to infinity (`1e309`) is refused.
+
 An implementation MUST apply rules 6–8 to the bytes as received — a traveler read from
 a file, from an archive member, or from a decrypted envelope is parsed from those bytes,
 not from a value some earlier layer already parsed leniently.
 
-All eight rules are held across the two implementations by the conformance vectors
+All eleven rules are held across the two implementations by the conformance vectors
 (`travelers/l0-intfloat.json`; `travelers/reject/*` — each reject vector's refusal
 *reason* is pinned per implementation in `travelers/reject-reasons.json`, so a vector
 cannot pass by being refused for some other defect; both runners parse every vector
@@ -190,6 +205,9 @@ required: quote_id, seller, traveler_hash_quoted, created_at,
 pricing.required: currency, lines[]
 lines[]: { qty >= 1, unit: integer minor units, 0 .. 1e12 }
 ```
+
+A quote's `valid_until` MUST be later than its `created_at`, compared as instants; a
+quote that is not is refused.
 
 A quote is **bound** when `traveler_hash_quoted` equals the current traveler
 hash. Guards a conforming desk enforces at bind/award time: quote expiry
@@ -419,3 +437,17 @@ self-declaration and a root's attestation — not an export-control determinatio
 
 `public/schemas/traveler-0.1.0.json` and `public/schemas/quote-0.1.0.json`
 (JSON Schema 2020-12, `$id` under `https://securejobenvelope.org/schemas/`).
+
+The schemas accept every traveler the reference implementations accept, and refuse
+every traveler they refuse **except** for the rules a JSON Schema cannot state: rules
+about the wire text (parsing rules 6–11), comparisons between members (a quote's
+`valid_until` must be later than its `created_at`), uniqueness by one member (rule 5),
+and serialized size. Those rules are listed, each with the reason and the reject vectors
+that break it, in `public/schemas/not-expressible-0.1.0.json`. **Validate against the
+schemas, then apply those rules** — a validator that stops at the schemas accepts
+documents a conforming implementation refuses.
+
+The schemas judge numbers as binary64 values, string lengths in Unicode code points and
+patterns as ECMA-262 regular expressions. `src/lib/traveler/schema-contract.test.ts`
+holds the schemas to the implementation: field for field, on every conformance vector,
+and on single-edit probes at every field.

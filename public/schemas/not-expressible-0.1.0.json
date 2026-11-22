@@ -51,7 +51,7 @@
     {
       "rule": "nesting-depth",
       "kind": "wire-text",
-      "spec": "src/lib/traveler/wire.ts (MAX_JSON_DEPTH), crates/secure-job-envelope (serde_json recursion limit); not yet stated in docs/SPEC.md",
+      "spec": "docs/SPEC.md, Parsing rule 9",
       "requires": "At most 127 containers (objects or arrays) are nested inside one another, counting the traveler itself. Only a free-form object (as_built, assumptions, capacity) can be that deep.",
       "why": "JSON Schema has no keyword for nesting depth. A bound could only be spelled out as one definition per level, 127 definitions for each place a free-form object may start; these schemas do not attempt it.",
       "refusal": { "ts": ["nesting exceeds the maximum depth"] },
@@ -61,7 +61,7 @@
     {
       "rule": "lone-surrogate",
       "kind": "wire-text",
-      "spec": "src/lib/traveler/conformance.ts (assertUtf8Safe), crates/secure-job-envelope (serde_json refuses the escape); not yet stated in docs/SPEC.md",
+      "spec": "docs/SPEC.md, Parsing rule 10",
       "requires": "No string or member name contains a lone surrogate: an escape \\uD800-\\uDBFF not followed by an escape \\uDC00-\\uDFFF, or the reverse. Such text has no UTF-8 encoding.",
       "why": "In the JSON data model a string is a sequence of Unicode characters; a lone surrogate is not one. What a validator receives for the escape depends on its parser (a refusal, U+FFFD, or an ill-formed string), so no schema can constrain it portably, and a pattern on every string and member name of a free-form object is not something these schemas attempt.",
       "refusal": { "ts": ["lone surrogate"] },
@@ -70,7 +70,7 @@
     {
       "rule": "number-not-binary64",
       "kind": "wire-text",
-      "spec": "docs/SPEC.md, Canonical JSON rule 4 (non-finite numbers are refused); src/lib/traveler/conformance.ts (assertUtf8Safe)",
+      "spec": "docs/SPEC.md, Parsing rule 11",
       "requires": "Every number, including those inside a free-form object, rounds to a finite IEEE-754 binary64 value. A literal such as 1e309 is refused.",
       "why": "The rule is about what a decimal literal rounds to. The exact threshold (2^1024 - 2^970) is not a binary64 value, so a schema cannot carry it as a bound and still be read by a binary64 JSON reader. The nearest bound that can be written, the largest finite binary64, would state the rule only for a validator that reads numbers as binary64; a validator that reads them exactly would refuse literals just above that bound, which both implementations accept (they round down to it). Every typed number in these schemas is already bounded far below this; only numbers inside a free-form object can reach it.",
       "refusal": { "ts": ["non-finite number"] },
@@ -79,7 +79,7 @@
     {
       "rule": "quote-validity-window",
       "kind": "cross-member",
-      "spec": "src/lib/traveler/schema.ts (quoteSchema), crates/secure-job-envelope/src/validate.rs (quote); not yet stated in docs/SPEC.md",
+      "spec": "docs/SPEC.md, Quotes (the validity rule)",
       "requires": "A quote's valid_until is later than its created_at, compared as instants.",
       "why": "JSON Schema 2020-12 cannot compare the value of one member with the value of another.",
       "refusal": { "ts": ["valid_until must be after created_at"] },
