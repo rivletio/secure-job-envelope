@@ -136,8 +136,8 @@ describe("one quote per seller, per revision", () => {
     S().upsert(t);
     S().addQuote(t.traveler_id, quoteFor(t, "org_huron"));
     const again = quoteFor(held(t.traveler_id), "org_huron");
-    assert.equal(cannotQuote(held(t.traveler_id), again), "This seller already has a quote on this revision.");
-    assert.throws(() => S().addQuote(t.traveler_id, again), /already has a quote on this revision/);
+    assert.equal(cannotQuote(held(t.traveler_id), again), "This seller already has a live quote on this revision.");
+    assert.throws(() => S().addQuote(t.traveler_id, again), /already has a live quote on this revision/);
     assert.equal(held(t.traveler_id).quotes!.length, 1);
   });
 

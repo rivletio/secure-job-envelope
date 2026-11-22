@@ -5,6 +5,7 @@ import { seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote, locked } from "./guards.ts";
 import { quoteContentHash, verificationReport } from "./authenticity.ts";
 import type { Directory } from "./directory.ts";
+import { pricedLine } from "./format.ts";
 import { travelerHash } from "./hash.ts";
 import { decideImport, type ImportDecision, type ImportKind } from "./import-policy.ts";
 import { isoNow } from "./ids.ts";
@@ -137,6 +138,14 @@ export function sanitizeAudit(list: unknown): AuditEvent[] {
   );
 }
 
+/** Fired on `window` when a write to browser storage fails (see `safeStorage`). */
+export const STORAGE_WRITE_FAILED = "sje:storage-write-failed";
+let storageWriteFailed = false;
+/** Whether the most recent write to browser storage failed. */
+export function lastStorageWriteFailed(): boolean {
+  return storageWriteFailed;
+}
+
 /** localStorage that never throws: a quota-exceeded write, a blocked or absent
  *  store (private mode, SSR), or a disabled origin degrades to a no-op / null
  *  rather than crashing the desk. The traveler file is the source of truth;
@@ -152,8 +161,12 @@ export const safeStorage = {
   setItem: (name: string, value: string): void => {
     try {
       if (typeof localStorage !== "undefined") localStorage.setItem(name, value);
+      storageWriteFailed = false;
     } catch {
-      /* quota exceeded or storage blocked — drop the write, don't crash */
+      // Quota exceeded or storage blocked. Don't crash — but don't stay silent either:
+      // the desk would go on looking saved while the next reload threw the work away.
+      storageWriteFailed = true;
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(STORAGE_WRITE_FAILED));
     }
   },
   removeItem: (name: string): void => {
@@ -264,6 +277,11 @@ export const useTravelerStore = create<TravelerState>()(
         if (!quote) throw new Error("Award references a quote that is not on the traveler.");
         const err = cannotAward(traveler, quote);
         if (err) throw new Error(err);
+        // The award's own quantity must be one the quote prices: an award for a quantity
+        // with no price line commits to no amount at all (and no longer verifies).
+        if (!pricedLine(quote.pricing.lines, award.qty)) {
+          throw new Error(`The quote has no unit price at qty ${String(award.qty)}.`);
+        }
         if (!ops.length) throw new Error("List at least one op.");
         if (!shipTo.name.trim() || !shipTo.line1.trim() || !shipTo.city.trim() || !shipTo.country) {
           throw new Error("Ship-to is incomplete.");
@@ -361,10 +379,17 @@ export const useTravelerStore = create<TravelerState>()(
         audit: s.audit,
       }),
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<TravelerState>;
+        // Nothing persisted is spread into state unexamined: storage is editable by
+        // anything on this origin, and every member below is read by code that assumes
+        // its type.
+        const p = (persisted ?? {}) as Partial<Record<keyof TravelerState, unknown>>;
         return {
           ...current,
-          ...p,
+          role: p.role === "buyer" || p.role === "seller" ? p.role : current.role,
+          sellerOrgId:
+            typeof p.sellerOrgId === "string" && SHOPS.some((shop) => shop.org_id === p.sellerOrgId)
+              ? p.sellerOrgId
+              : current.sellerOrgId,
           travelers: Array.isArray(p.travelers)
             ? sanitizeTravelers(p.travelers)
             : current.travelers,

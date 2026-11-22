@@ -62,7 +62,7 @@ export function awardStanding(traveler: Traveler): AwardStanding {
   return { state: "incomplete", quote, missing: info.missing };
 }
 
-export function cannotQuote(traveler: Traveler, quote: Quote): string | null {
+export function cannotQuote(traveler: Traveler, quote: Quote, now = new Date()): string | null {
   if (locked(traveler)) return "Executable travelers cannot take new quotes.";
   if (quote.traveler_hash_quoted !== travelerHash(traveler)) {
     return "Quote is not bound to the current traveler hash.";
@@ -74,8 +74,16 @@ export function cannotQuote(traveler: Traveler, quote: Quote): string | null {
   // A stale quote is history from an earlier revision: counting it stopped a seller
   // from ever re-quoting after an amend, and let anyone lock a rival out by planting an
   // unbound quote under the rival's org_id.
-  if (boundQuotes(traveler).some((q) => q.seller.org_id && q.seller.org_id === quote.seller.org_id && q.quote_id !== quote.quote_id)) {
-    return "This seller already has a quote on this revision.";
+  // …and only quotes that are still LIVE: an expired quote can no longer be awarded, so
+  // it must not stop its own seller from replacing it (it used to — the seller was shut
+  // out of the revision for good once its quote lapsed).
+  const holdsTheSlot = (q: Quote) =>
+    !isQuoteExpired(q, now) &&
+    Boolean(q.seller.org_id) &&
+    q.seller.org_id === quote.seller.org_id &&
+    q.quote_id !== quote.quote_id;
+  if (boundQuotes(traveler).some(holdsTheSlot)) {
+    return "This seller already has a live quote on this revision.";
   }
   return null;
 }

@@ -1,4 +1,3 @@
-import { format, parseISO } from "date-fns";
 import type { PriceLine } from "./types.ts";
 
 // ---------------------------------------------------------------------------------
@@ -104,14 +103,17 @@ export function pricedLine(
   return lines[0];
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A calendar day for display: "30 Oct 2026". The day shown is the one WRITTEN in the
+ *  document — its UTC date — never shifted into the viewer's time zone. (It used to go
+ *  through a local-time formatter: a need-by of 2026-10-30 read "29 Oct 2026" to anyone
+ *  west of UTC, and two people looking at one traveler saw two different dates.) */
 export function formatDay(iso?: string | null): string {
   if (!iso) return "—";
-  try {
-    const d = iso.length <= 10 ? parseISO(`${iso}T00:00:00Z`) : parseISO(iso);
-    return format(d, "d MMM yyyy");
-  } catch {
-    return iso;
-  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(iso);
+  const month = m ? MONTHS[Number(m[2]) - 1] : undefined;
+  return m && month ? `${Number(m[3])} ${month} ${m[1]}` : iso;
 }
 
 export function processLabel(code: string): string {

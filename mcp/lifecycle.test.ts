@@ -82,7 +82,7 @@ describe("sje mcp lifecycle", () => {
     // The rule itself still stands: one quote per seller on a given revision.
     const again = await call("sje_quote", { traveler: requoted.traveler, ...QUOTE_ARGS });
     assert.equal(again.isError, true);
-    assert.match(again.error!, /already has a quote on this revision/);
+    assert.match(again.error!, /already has a live quote on this revision/);
   });
 
   it("reports locked exactly when the level is L2 or above", async () => {
