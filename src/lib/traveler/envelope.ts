@@ -23,7 +23,7 @@ import { sha384 } from "@noble/hashes/sha2.js";
 import { gcm } from "@noble/ciphers/aes.js";
 import { bytesToHex, hexToBytes, randomBytes, utf8ToBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
-import { entryByOrg, type Directory } from "./directory.ts";
+import { encryptionEntryByOrg, type Directory } from "./directory.ts";
 import { verifyPrekeyBundle, prekeyById, type PrekeyBundle } from "./prekeys.ts";
 import { MAX_ARCHIVE_BYTES, MAX_ENVELOPE_RECIPIENTS } from "./types.ts";
 
@@ -88,11 +88,13 @@ export function encKid(encPublicKeyHex: string): string {
 /** Resolve a recipient from the signed directory: the attested, in-window ML-KEM
  *  key for an org, keyed by its derived enc kid. Prefer this over caller-supplied
  *  bytes so a sealer encrypts to a key the trust root bound to the org, not to
- *  whatever bytes an attacker substituted out of band. Returns undefined if the
- *  org has no in-window entry carrying an ML-KEM-1024 key. The caller must first
- *  verify the directory against the trust root (verifyDirectory). */
+ *  whatever bytes an attacker substituted out of band. When the org has several
+ *  usable entries (key rotation), the most recently started one is chosen — never
+ *  "whichever is listed first". Returns undefined if the org has no in-window entry
+ *  carrying an ML-KEM-1024 key. The caller must first verify the directory against
+ *  the trust root (verifyDirectory). */
 export function recipientByOrg(dir: Directory, orgId: string, at?: Date): SealRecipient | undefined {
-  const e = entryByOrg(dir, orgId, at);
+  const e = encryptionEntryByOrg(dir, orgId, at);
   if (!e || e.enc_alg !== KEM_ALG || !e.enc_public_key) return undefined;
   return { kid: encKid(e.enc_public_key), public_key: e.enc_public_key };
 }

@@ -99,7 +99,7 @@ fn money(field: &str, v: i64) -> Result<(), Error> {
 }
 
 /// org_id: /^[a-z][a-z0-9_]{1,63}$/ (total length 2..=64).
-fn org_id_ok(s: &str) -> bool {
+pub(crate) fn org_id_ok(s: &str) -> bool {
     let b = s.as_bytes();
     (2..=64).contains(&b.len())
         && b[0].is_ascii_lowercase()
@@ -322,7 +322,7 @@ fn signature(s: &Signature) -> Result<(), Error> {
     Ok(())
 }
 
-fn quote(q: &Quote) -> Result<(), Error> {
+pub(crate) fn quote(q: &Quote) -> Result<(), Error> {
     if !id_ok(&q.quote_id) {
         return Err(err("invalid quote_id"));
     }

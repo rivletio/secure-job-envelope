@@ -300,6 +300,25 @@ pub fn parse_traveler(json: &str) -> Result<Traveler, Error> {
     Ok(traveler)
 }
 
+/// Parse a standalone quote as strictly as a quote inside a traveler: no unknown or
+/// repeated members, no positional structs, and the full field validation. (The
+/// ITAR-seller and hash-binding rules need the traveler; they are `bound_quotes`.)
+pub fn parse_quote(json: &str) -> Result<Quote, Error> {
+    if json.len() > MAX_TRAVELER_JSON_BYTES {
+        return Err(Error::Invalid("quote json exceeds 512 KiB".into()));
+    }
+    let quote: Quote = serde_json::from_str(json)?;
+    let raw: Value = serde_json::from_str(json)?;
+    let typed = serde_json::to_value(&quote)?;
+    if !validate::no_positional_structs(&raw, &typed) {
+        return Err(Error::Invalid(
+            "a JSON array was supplied where an object is required".into(),
+        ));
+    }
+    validate::quote(&quote)?;
+    Ok(quote)
+}
+
 pub(crate) fn id_ok(id: &str) -> bool {
     let bytes = id.as_bytes();
     if bytes.len() < 10 || bytes.len() > 28 {
@@ -617,6 +636,13 @@ pub(crate) fn iso_day_ok(s: &str) -> bool {
 /// instant used for bind/expiry decisions. A leniently-parsed timestamp (single
 /// digits, second 60, 2026-02-31, a trailing offset) is refused rather than
 /// silently coerced.
+/// Milliseconds since the Unix epoch for a canonical UTC datetime
+/// (`YYYY-MM-DDTHH:MM:SS[.fff…]Z`), or None — the one datetime form a traveler, a
+/// directory or a prekey bundle may carry.
+pub fn datetime_millis(iso: &str) -> Option<i64> {
+    rfc3339_millis(iso)
+}
+
 pub(crate) fn rfc3339_millis(iso: &str) -> Option<i64> {
     let body = iso.strip_suffix('Z')?;
     let (date, time) = body.split_once('T')?;

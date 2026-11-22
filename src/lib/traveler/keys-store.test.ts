@@ -175,10 +175,25 @@ describe("sanitizeTrust (defensive hydration)", () => {
     assert.equal(sanitizeTrust({ rootPublicKeyHex: "x", directory: {} }), undefined, "entries not an array");
     assert.equal(sanitizeTrust({ rootPublicKeyHex: 5, directory: { entries: [] } }), undefined, "root not a string");
 
-    const out = sanitizeTrust({ rootPublicKeyHex: "abcd", directory: { entries: [] }, bundles: {} });
-    assert.ok(out && out.rootPublicKeyHex === "abcd" && Array.isArray(out.directory.entries));
+    // "Has an entries array" is not a directory: everything that renders or resolves
+    // entries relies on the exact shape, so a persisted anchor must have it.
+    assert.equal(
+      sanitizeTrust({ rootPublicKeyHex: "abcd", directory: { entries: [] }, bundles: {} }),
+      undefined,
+      "an entries array alone is not a directory",
+    );
+    const directory = (
+      JSON.parse(
+        readFileSync(new URL("../../../conformance/signatures/directory.json", import.meta.url), "utf8"),
+      ) as { directory: Directory }
+    ).directory;
+    const withNull = { ...directory, entries: [null, ...directory.entries] };
+    assert.equal(sanitizeTrust({ rootPublicKeyHex: "abcd", directory: withNull }), undefined, "entries: [null]");
+
+    const out = sanitizeTrust({ rootPublicKeyHex: "abcd", directory, bundles: {} });
+    assert.ok(out && out.rootPublicKeyHex === "abcd" && out.directory.entries.length === 3);
     // A well-shaped anchor missing `bundles` defaults it to an empty map.
-    const out2 = sanitizeTrust({ rootPublicKeyHex: "abcd", directory: { entries: [] } });
+    const out2 = sanitizeTrust({ rootPublicKeyHex: "abcd", directory });
     assert.deepEqual(out2?.bundles, {});
   });
 });

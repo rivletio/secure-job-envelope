@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { parseStrictJson } from "@/lib/traveler/wire";
 import { buildDemoTrust } from "@/lib/traveler/demo-trust";
 import { useKeysStore } from "@/lib/traveler/keys-store";
 import type { PublicPrekey } from "@/lib/traveler/keystore";
@@ -114,10 +115,11 @@ function KeysPage() {
 
   function onLoadAnchor() {
     try {
-      // Cap before JSON.parse so a very large paste can't freeze the tab (the .sje
-      // import is already size-capped). A real directory + bundles is well under 1 MiB.
-      if (anchorText.length > 1_000_000) throw new Error("Trust anchor is too large (max ~1 MB).");
-      const parsed = JSON.parse(anchorText) as {
+      // Read strictly, like every other document that crosses a company boundary: a size
+      // cap (so a very large paste can't freeze the tab — a real directory + bundles is
+      // well under 1 MB), no byte-order mark, and no repeated member name (a second
+      // `directory` or `root_public_key_hex` would silently win under JSON.parse).
+      const parsed = parseStrictJson(anchorText, { maxBytes: 1_000_000, label: "Trust anchor" }) as {
         root_public_key_hex?: string;
         rootPublicKeyHex?: string;
         directory?: unknown;

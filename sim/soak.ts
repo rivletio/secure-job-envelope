@@ -255,7 +255,8 @@ function crypto(seed: number, trust: ReturnType<typeof buildTrust>) {
   const base = genTraveler(rng, { level: "L0", itar: false });
   const t: Traveler = { ...base, buyer: { ...base.buyer, org_id: "org_northline" } };
   t.signatures = [signTraveler(t, buyer.kid, buyer.signer.secretKey)];
-  ok(verifyTravelerSignatures(t, directory, rootPublicKeyHex, at).every((c) => c.ok), `#${seed} buyer signature verifies`);
+  // `some`, not `every`: an empty list of checks (an unsigned traveler) satisfies `every`.
+  ok(verifyTravelerSignatures(t, directory, rootPublicKeyHex, at).some((c) => c.ok), `#${seed} buyer signature verifies`);
   const tampered: Traveler = { ...t, revision: t.revision + 1 };
   ok(!verifyTravelerSignatures(tampered, directory, rootPublicKeyHex, at).some((c) => c.ok), `#${seed} tampered traveler fails authenticity`);
   const wrongOrg: Traveler = { ...t, buyer: { ...t.buyer, org_id: "org_summitfab" } };
