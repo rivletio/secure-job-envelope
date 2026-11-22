@@ -1,0 +1,11 @@
+{"spec"	
+:"sje/0.1.0","traveler_id":"tvl_g5o3j7jwbncwi5m48hn7","revision":42,"created_at":"2026-02-28T07:17:36.749Z",
+
+"buyer":{"name":"Zakład Łódź","org_id":"org_huron"
+		,"city"
+
+:"Somewhere","certs":["AS9100","ISO 9001"
+]},"part":{"family":"Machined housing","part_number":"NL-TY3A-4318","material":{"spec":"Delrin","thickness_mm":5.837405495647341},"qty":{"target":9414,"breaks":[2,478]},"processes":["brake","powder","weld","laser"],"description":"Café Müller GmbH","notes":"line one\nline two\tZakład Łódź"},"itar":false,"need_by"
+
+
+:"2027-07-18T18:27:47.174Z"}

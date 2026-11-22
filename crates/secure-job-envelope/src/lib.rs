@@ -390,7 +390,11 @@ fn quoteable_part(part: &Part) -> Part {
 
 pub fn quoteable_from(traveler: &Traveler) -> Quoteable {
     Quoteable {
-        spec: traveler.spec.clone(),
+        // The constant, not `traveler.spec`: this is the body of an sje/0.1.0 traveler,
+        // and the TypeScript reference writes the constant too. For a parsed traveler
+        // the two are equal (`parse_traveler` refuses any other spec); for a value built
+        // in memory they used to differ, and so did the two implementations' hashes.
+        spec: SPEC.to_string(),
         traveler_id: traveler.traveler_id.clone(),
         revision: traveler.revision,
         created_at: traveler.created_at.clone(),
@@ -402,20 +406,27 @@ pub fn quoteable_from(traveler: &Traveler) -> Quoteable {
     }
 }
 
+/// The deepest a canonical value may nest: 127 containers (objects or arrays) inside
+/// one another, the outermost included. This is exactly the limit serde_json puts on
+/// wire text (its recursion limit refuses the 128th), and the TypeScript reference
+/// applies the same number in its parser and its canonicalizer (SPEC, parsing rule 9).
+/// So a value has a canonical form only if its text could be read by both
+/// implementations. (The guard used to allow 129: a value nested 128 or 129 deep
+/// canonicalized in TypeScript after a plain `JSON.parse`, while this core could not
+/// even parse it.) Scalars do not count; only containers nest.
+pub const MAX_CANONICAL_NESTING: usize = 127;
+
 /// RFC 8785-ish: sorted keys, compact JSON, JS NumberToJSON for numbers.
 /// Integer-valued floats emit without a trailing `.0` so Rust matches `JSON.stringify`.
-/// Defense-in-depth bound on nesting; mirrors the TypeScript canonicalizer.
-/// serde_json already caps parse depth, but canonical_json is public.
-const MAX_CANONICAL_DEPTH: usize = 128;
-
 pub fn canonical_json(value: &Value) -> Result<String, Error> {
     let mut out = String::new();
     write_canonical(&mut out, value, 0)?;
     Ok(out)
 }
 
+/// `depth` is the number of containers around `value`.
 fn write_canonical(out: &mut String, value: &Value, depth: usize) -> Result<(), Error> {
-    if depth > MAX_CANONICAL_DEPTH {
+    if matches!(value, Value::Array(_) | Value::Object(_)) && depth >= MAX_CANONICAL_NESTING {
         return Err(Error::Invalid(
             "canonical JSON nesting exceeds the maximum depth".into(),
         ));
@@ -823,6 +834,68 @@ mod tests {
         assert_eq!(canonical_json(&n).unwrap(), r#"{"t":9.53}"#);
         let z = serde_json::json!({"t": -0.0f64});
         assert_eq!(canonical_json(&z).unwrap(), r#"{"t":0}"#);
+    }
+
+    #[test]
+    fn a_value_has_a_canonical_form_only_127_containers_deep() {
+        // Built in memory, with no parser in front: this is the canonicalizer's own
+        // limit. It is the limit serde_json puts on wire text, so nothing canonicalizes
+        // here that this core could not have parsed (and nothing canonicalizes in the
+        // TypeScript reference that this core cannot read).
+        fn arrays(n: usize, bottom: Option<Value>) -> Value {
+            let mut v = bottom;
+            for _ in 0..n {
+                v = Some(Value::Array(v.into_iter().collect()));
+            }
+            v.expect("at least one level")
+        }
+        fn objects(n: usize, bottom: Value) -> Value {
+            let mut v = bottom;
+            for _ in 0..n {
+                v = serde_json::json!({ "a": v });
+            }
+            v
+        }
+        assert_eq!(MAX_CANONICAL_NESTING, 127);
+        assert_eq!(
+            canonical_json(&arrays(127, None)).unwrap(),
+            format!("{}{}", "[".repeat(127), "]".repeat(127))
+        );
+        let too_deep = canonical_json(&arrays(128, None)).unwrap_err().to_string();
+        assert_eq!(too_deep, "canonical JSON nesting exceeds the maximum depth");
+        // 126 wrappers around `{}` are 127 objects; one more is too many.
+        assert_eq!(canonical_json(&objects(126, serde_json::json!({}))).unwrap().len(), 126 * 6 + 2);
+        assert!(canonical_json(&objects(127, serde_json::json!({}))).is_err());
+        // Only containers nest: a scalar at the bottom of 127 is not a 128th level.
+        assert_eq!(
+            canonical_json(&arrays(127, Some(serde_json::json!(1)))).unwrap(),
+            format!("{}1{}", "[".repeat(127), "]".repeat(127))
+        );
+        assert!(canonical_json(&arrays(128, Some(serde_json::json!(1)))).is_err());
+        // And it is the same number the parser uses: 127 reads, 128 does not.
+        let text = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+        assert!(serde_json::from_str::<Value>(&text(127)).is_ok());
+        assert!(serde_json::from_str::<Value>(&text(128)).is_err());
+    }
+
+    #[test]
+    fn the_hashed_body_names_this_format_whatever_the_value_says() {
+        // A traveler built in memory (not parsed) with some other `spec`: the hash is of
+        // an sje/0.1.0 body, as it is in the TypeScript reference. `parse_traveler`
+        // refuses any other spec, so for a parsed traveler nothing changes.
+        let raw = r#"{
+          "spec":"sje/0.1.0",
+          "traveler_id":"tvl_specconst1",
+          "revision":1,
+          "created_at":"2026-09-08T15:12:00.000Z",
+          "buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}}
+        }"#;
+        let parsed = parse_traveler(raw).unwrap();
+        let mut other = parsed.clone();
+        other.spec = "sje/9.9.9".into();
+        assert_eq!(traveler_hash(&other).unwrap(), traveler_hash(&parsed).unwrap());
+        assert_eq!(quoteable_from(&other).spec, SPEC);
     }
 
     #[test]

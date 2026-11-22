@@ -10,9 +10,8 @@
 //!   * String length limits count Unicode code points (`str::chars().count()`),
 //!     because zod v4's `.min`/`.max` on a string count code points, not UTF-16
 //!     code units (e.g. `z.string().max(3)` accepts "😀😀😀" — three code points,
-//!     six UTF-16 units). The one exception is the `jsonBlob` 8 KiB cap, which
-//!     mirrors zod's `JSON.stringify(v).length` and so counts UTF-16 code units
-//!     (see `json_blob`).
+//!     six UTF-16 units). The cap on a free-form object is in neither unit: it is
+//!     8 KiB of the object's canonical JSON, in UTF-8 bytes (see `json_blob`).
 //!   * `.trim()` fields are validated, not transformed: a string with leading or
 //!     trailing whitespace is *rejected* rather than silently trimmed, so the two
 //!     implementations never hash a different byte string for the "same" document.
@@ -38,13 +37,6 @@ fn err(msg: impl Into<String>) -> Error {
 /// user string field.
 fn cp_len(s: &str) -> usize {
     s.chars().count()
-}
-
-/// UTF-16 code-unit length, matching JavaScript's `String.prototype.length`.
-/// Used only for the `jsonBlob` 8 KiB cap, which zod measures with
-/// `JSON.stringify(v).length`.
-fn utf16_len(s: &str) -> usize {
-    s.chars().map(char::len_utf16).sum()
 }
 
 /// The ECMAScript `String.prototype.trim` whitespace set (WhiteSpace +
@@ -170,7 +162,23 @@ pub(crate) fn no_positional_structs(raw: &Value, typed: &Value) -> bool {
     }
 }
 
-/// zod `jsonBlob`: a JSON object whose compact serialization is <= 8 KiB.
+/// The cap on a free-form object, in bytes of its canonical JSON (UTF-8).
+pub const MAX_BLOB_BYTES: usize = 8192;
+
+/// A free-form object (`as_built`, a quote's `assumptions` and `capacity`): anything a
+/// writer likes, on two conditions every implementation can check the same way.
+///
+///   1. It has a canonical form: every number in it is a canonical number. A quote's
+///      blobs are inside the quote's content hash and signature, so a number with no
+///      canonical form made a quote that parsed but could never be hashed.
+///   2. That canonical form is at most 8 KiB of UTF-8.
+///
+/// The size used to be measured on each implementation's own re-serialization
+/// (`serde_json::to_string` here, `JSON.stringify` in TypeScript), and the two write
+/// numbers at different lengths (`1e15` is 18 characters in one and 16 in the other),
+/// so a blob of a few hundred numbers was accepted by one side and refused by the
+/// other. The canonical form is the one serialization both sides already have to
+/// produce byte for byte.
 fn json_blob(field: &str, v: &Value) -> Result<(), Error> {
     if !v.is_object() {
         return Err(err(format!("{field} must be a JSON object")));
@@ -178,11 +186,14 @@ fn json_blob(field: &str, v: &Value) -> Result<(), Error> {
     if has_proto_member(v) {
         return Err(err(format!("{field} contains a member named __proto__")));
     }
-    let s = serde_json::to_string(v).map_err(|_| err(format!("{field} is not serializable")))?;
-    // Count UTF-16 code units (not UTF-8 bytes) to match zod's JSON.stringify(v).length,
-    // so a large non-ASCII blob is accepted/rejected identically on both sides. (The cap
-    // is on the blob's own serialization; blobs are not hashed, so there is no hash impact.)
-    if utf16_len(&s) > 8192 {
+    let canonical = crate::canonical_json(v).map_err(|e| {
+        let why = match e {
+            Error::Invalid(why) => why,
+            other => other.to_string(),
+        };
+        err(format!("{field} has no canonical form: {why}"))
+    })?;
+    if canonical.len() > MAX_BLOB_BYTES {
         return Err(err(format!("{field} exceeds 8 KiB")));
     }
     Ok(())
@@ -505,14 +516,47 @@ mod tests {
         let n128: String = "😀".repeat(128);
         let n129: String = "😀".repeat(129);
         assert_eq!(cp_len(&n128), 128);
-        assert_eq!(utf16_len(&n128), 256);
+        assert_eq!(n128.encode_utf16().count(), 256);
         assert!(trimmed("family", &n128, MAX_NAME).is_ok());
         assert!(trimmed("family", &n129, MAX_NAME).is_err());
         // The no-trim `sized` fields count code points too.
         assert!(sized("code", &"😀".repeat(32), 1, 32).is_ok());
         assert!(sized("code", &"😀".repeat(33), 1, 32).is_err());
-        // The blob cap deliberately still counts UTF-16 units (JSON.stringify length).
-        assert_eq!(utf16_len("😀"), 2);
+    }
+
+    #[test]
+    fn a_blob_is_measured_on_its_canonical_form_in_bytes() {
+        use serde_json::json;
+        // The cap is 8,192 bytes of the canonical JSON. `{"k":"…"}` costs 8 bytes of
+        // framing, so 8,184 ASCII characters fit and 8,185 do not.
+        assert!(json_blob("as_built", &json!({ "k": "x".repeat(8184) })).is_ok());
+        let over = json_blob("as_built", &json!({ "k": "x".repeat(8185) })).unwrap_err();
+        assert_eq!(over.to_string(), "as_built exceeds 8 KiB");
+        // Bytes, not characters or UTF-16 units: U+6F22 is one unit and three bytes.
+        assert!(json_blob("as_built", &json!({ "k": "\u{6f22}".repeat(2728) })).is_ok());
+        assert!(json_blob("as_built", &json!({ "k": "\u{6f22}".repeat(2729) })).is_err());
+        // The canonical form, not this library's own rendering of a number. Written as
+        // `1.0`, 4,092 ones are 16,375 characters here and 8,191 canonical bytes: accepted.
+        let list = |item: &str, n: usize| -> Value {
+            serde_json::from_str(&format!("{{\"k\":[{}]}}", vec![item; n].join(","))).unwrap()
+        };
+        let ones = list("1.0", 4092);
+        assert!(serde_json::to_string(&ones).unwrap().len() > 2 * MAX_BLOB_BYTES - 16);
+        assert_eq!(crate::canonical_json(&ones).unwrap().len(), 8191);
+        assert!(json_blob("as_built", &ones).is_ok());
+        // `1e15` is sixteen canonical digits (this library would write eighteen
+        // characters): 481 of them fit in 8,184 bytes, 482 do not.
+        assert_eq!(crate::canonical_json(&list("1e15", 481)).unwrap().len(), 8184);
+        assert!(json_blob("as_built", &list("1e15", 481)).is_ok());
+        assert!(json_blob("as_built", &list("1e15", 482)).is_err());
+        // A number with no canonical form has no size to measure: the blob is refused,
+        // and for that reason.
+        for (text, why) in [("1e20", "exceeds 2^53-1"), ("1e-7", "below 1e-5"), ("9007199254740993", "exceeds 2^53-1")] {
+            let v: Value = serde_json::from_str(&format!("{{\"k\":{text}}}")).unwrap();
+            let refusal = json_blob("assumptions", &v).unwrap_err().to_string();
+            assert!(refusal.starts_with("assumptions has no canonical form: "), "{refusal}");
+            assert!(refusal.contains(why), "{text}: {refusal}");
+        }
     }
 
     #[test]

@@ -1,0 +1,219 @@
+
+{"spec"	 : 	"sje/0.1.0"	
+, 
+ "traveler_id"
+  :	"tvl_cocwfhe1h36"
+,	
+"revision"
+:
+	4	,
+"created_at"	
+:"2026-10-21T00:54:46.954Z"
+,
+"buyer"
+:
+{
+"name"
+
+	:
+"Summit Fabrication"
+,	"org_id" : 
+"org_summitfab"	 } 	,
+"part"	:{"family"
+ : "Turned shaft"
+
+,	 
+"part_number"
+ : "NL-AFOF-1886"
+	,
+		"material"
+: {
+
+"spec"
+
+
+:
+
+"17-4 PH"
+
+,
+ 	"form"
+:
+"tube" 	
+}
+ ,		 "qty"
+	:	
+{ "target"	
+:2146  	,"breaks"
+:[
+
+
+11
+,
+725
+
+  ]
+
+
+
+ }  }
+, 	 "itar"
+
+:
+false
+
+ ,"quotes" : [
+
+{ "quote_id" :		"qot_35e6na6ve5oveudueo9hiea"
+	,
+ "seller"
+:{
+"name"
+
+:
+ "Huron Precision"
+	 ,	 "org_id"	:
+ "org_huron" ,
+"region":
+ "MI"
+	,
+"certs"
+
+: 
+[
+ "ITAR"
+
+,	
+"ISO 9001"	
+
+
+]	,
+"itar"
+:	
+true
+
+	}
+ ,	 "traveler_hash_quoted" : 	"sha384:f07c6ba8090da91269c11dee9d3c225e3343dadea0f26bd1310978a11ac893b44367f1660d96a4b00b2e13bf1984f3ea"
+ 
+,"created_at"
+  : "2026-12-16T23:56:55.331Z"	
+	,
+
+"valid_until" :
+
+"2027-06-01T05:10:59.163Z" ,"lead_time_days"
+
+:
+ 296 , 	"pricing" :	{	"currency"
+	:	 
+"GBP"	
+,	
+	"lines"	:
+ [
+{"qty"
+ :
+
+2727
+,
+"unit": 
+314248
+ }  
+]
+
+,
+
+	"nre"
+
+:
+4820203
+,
+	 "freight_estimate" 	:
+
+467790 
+
+
+
+
+}
+ }
+
+
+
+
+] 	,
+
+"award"
+:	{
+
+"quote_id"
+
+
+:
+ "qot_35e6na6ve5oveudueo9hiea"
+,"awarded_at"
+
+: "2028-01-05T03:48:52.617Z"
+,"qty"	 :
+418
+
+ }	,	
+"ops"	
+:	[
+{	"seq"
+
+:
+
+1
+,	
+
+"code"
+:	"laser" 
+	}		
+,
+ { 
+"seq" :
+ 2
+ 
+,
+
+
+"code"
+:			"cnc-mill" 		
+} 
+	,	{ "seq"	:
+
+ 3,	 
+"code"	
+:	"deburr"	 }
+
+
+ 
+ ]
+
+,
+
+"ship_to":	{	 "name"
+:
+ "Northline Equipment — Dock 4"
+, 
+"line1"
+
+:"1800 Industrial Way"		, 
+"city"
+ 
+:	
+
+"Reno"
+
+,	
+ "region"
+:
+"NV"  ,	"postal":	
+"89502" ,
+"country"
+:
+
+
+"US"	
+	}		}
+

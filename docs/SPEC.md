@@ -82,6 +82,14 @@ RFC 8785-inspired, restricted for cross-language byte equality:
    field, `thickness_mm`, bounded `≥ 1e-4` so it always renders in canonical
    fixed notation. The canonicalizer is the final gate and refuses anything
    outside the range regardless.
+5. **A value nests at most 127 containers deep** (objects or arrays inside one
+   another, the outermost included; scalars do not count). A deeper value has no
+   canonical form. This is the same limit parsing rule 9 puts on wire text, on
+   purpose: a value canonicalizes only if its text could have been read by every
+   conforming parser. (The two reference canonicalizers used to allow 129 while
+   one parser stopped at 127 and the other had no limit, so a signed document
+   nested 128 deep verified in one implementation and could not be read by the
+   other.) Conformance vectors `nesting-127-*` and `nesting-128-*` pin both sides.
 
 The hash is `"sha384:" + lowercase-hex(SHA-384(canonical_json_bytes))`.
 
@@ -177,11 +185,28 @@ struct:
 11. **Every number is a finite binary64 value,** including numbers inside the free-form
     blobs. A literal that rounds to infinity (`1e309`) is refused.
 
+12. **A free-form blob has a canonical form of at most 8 KiB.** `as_built`, and a
+    quote's `assumptions` and `capacity`, are objects whose members the format does not
+    name. Two conditions make them something every implementation judges alike:
+    - every number inside one, at any depth, is a canonical number (Canonical JSON
+      rule 4) — so the blob has a canonical form; and
+    - that canonical form is at most 8,192 bytes of UTF-8.
+
+    The size is measured on the canonical form because it is the one serialization
+    every implementation must already produce byte for byte. It is not the size of the
+    text as sent (`1.0` and `1`, `"A"` and `"\u0041"` are the same blob), and it is not
+    the size of an implementation's own re-serialization: the two reference
+    implementations used to measure exactly that, and since one writes `1e15` in 16
+    characters and the other in 18, a blob of a few hundred numbers was accepted by one
+    and refused by the other. A quote's blobs are inside the quote's content hash, so a
+    number with no canonical form used to make a quote that parsed and could never be
+    hashed or awarded; it is now refused when the document is read.
+
 An implementation MUST apply rules 6–8 to the bytes as received — a traveler read from
 a file, from an archive member, or from a decrypted envelope is parsed from those bytes,
 not from a value some earlier layer already parsed leniently.
 
-All eleven rules are held across the two implementations by the conformance vectors
+All twelve rules are held across the two implementations by the conformance vectors
 (`travelers/l0-intfloat.json`; `travelers/reject/*` — each reject vector's refusal
 *reason* is pinned per implementation in `travelers/reject-reasons.json`, so a vector
 cannot pass by being refused for some other defect; both runners parse every vector
@@ -442,7 +467,7 @@ The schemas accept every traveler the reference implementations accept, and refu
 every traveler they refuse **except** for the rules a JSON Schema cannot state: rules
 about the wire text (parsing rules 6–11), comparisons between members (a quote's
 `valid_until` must be later than its `created_at`), uniqueness by one member (rule 5),
-and serialized size. Those rules are listed, each with the reason and the reject vectors
+and serialized size (rules 8 and 12). Those rules are listed, each with the reason and the reject vectors
 that break it, in `public/schemas/not-expressible-0.1.0.json`. **Validate against the
 schemas, then apply those rules** — a validator that stops at the schemas accepts
 documents a conforming implementation refuses.

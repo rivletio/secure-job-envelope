@@ -170,16 +170,24 @@
       }
     },
     "freeForm": {
-      "description": "A free-form JSON object. Its compact serialization may not exceed 8 KiB. Not expressible here: see not-expressible-0.1.0.json, rule blob-size.",
+      "description": "A free-form JSON object: any members, on three conditions. No member, at any depth, is named __proto__. Every number in it, at any depth, is a canonical number, so that the object has a canonical form (docs/SPEC.md, Canonical JSON rule 4). And that canonical form is at most 8,192 bytes of UTF-8, which is not expressible here: see not-expressible-0.1.0.json, rule blob-size.",
       "type": "object",
-      "allOf": [{ "$ref": "#/$defs/noProtoMember" }]
+      "allOf": [{ "$ref": "#/$defs/freeFormValue" }]
     },
-    "noProtoMember": {
-      "description": "Applies to any JSON value: no object inside it, at any depth, has a member named __proto__.",
+    "freeFormValue": {
+      "description": "Applies to any JSON value, at any depth inside a free-form object. An object has no member named __proto__. A number is canonical: of magnitude at most 9007199254740991 (2^53-1), and either an integer or of magnitude at least 0.00001.",
       "$comment": "The rule reaches every member through patternProperties (the empty pattern matches every name) rather than additionalProperties, on purpose. A clean-up pass that deletes whatever a schema's properties do not list (ajv removeAdditional: \"all\") treats additionalProperties as an instruction to delete, and would empty every free-form object.",
       "propertyNames": { "not": { "const": "__proto__" } },
-      "patternProperties": { "": { "$ref": "#/$defs/noProtoMember" } },
-      "items": { "$ref": "#/$defs/noProtoMember" }
+      "patternProperties": { "": { "$ref": "#/$defs/freeFormValue" } },
+      "items": { "$ref": "#/$defs/freeFormValue" },
+      "if": { "type": "number" },
+      "then": {
+        "anyOf": [
+          { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+          { "type": "number", "minimum": 0.00001, "maximum": 9007199254740991 },
+          { "type": "number", "minimum": -9007199254740991, "maximum": -0.00001 }
+        ]
+      }
     }
   }
 }

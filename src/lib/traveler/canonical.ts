@@ -14,27 +14,28 @@
  *  be a silent cross-implementation divergence.
  */
 
-function canonicalNumber(value: number): string {
-  // Numbers must land byte-identical across implementations AND survive a
-  // JSON round-trip in every language. The format therefore admits only:
-  // finite values, |x| <= 2^53-1 (exact in an f64 and in JS), and
-  // non-integers of magnitude >= 1e-5 (below that, Rust's ryu switches to
-  // exponential notation while JS stays fixed — the renderings diverge).
-  // Mirrored exactly in the Rust core; refused rather than hashed
-  // ambiguously. (The Rust crate enables serde_json's `float_roundtrip` so its
-  // float *parse* also matches ECMAScript's, not just its render.)
-  if (!Number.isFinite(value)) {
-    throw new Error("non-finite number is not canonical");
-  }
+/** Why a number has no canonical form — or `null` if it has one.
+ *
+ *  Numbers must land byte-identical across implementations AND survive a JSON
+ *  round-trip in every language. The format therefore admits only: finite values,
+ *  |x| <= 2^53-1 (exact in an f64 and in JS), and non-integers of magnitude >= 1e-5
+ *  (below that, Rust's ryu switches to exponential notation while JS stays fixed — the
+ *  renderings diverge). Mirrored exactly in the Rust core; refused rather than hashed
+ *  ambiguously. (The Rust crate enables serde_json's `float_roundtrip` so its float
+ *  *parse* also matches ECMAScript's, not just its render.) */
+export function canonicalNumberProblem(value: number): string | null {
+  if (!Number.isFinite(value)) return "non-finite number is not canonical";
   const abs = Math.abs(value);
-  if (abs > 9007199254740991) {
-    throw new Error("number exceeds 2^53-1 and is not canonical in sje/0.1.0");
-  }
+  if (abs > 9007199254740991) return "number exceeds 2^53-1 and is not canonical in sje/0.1.0";
   if (!Number.isInteger(value) && abs < 1e-5) {
-    throw new Error(
-      "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.1.0",
-    );
+    return "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.1.0";
   }
+  return null;
+}
+
+function canonicalNumber(value: number): string {
+  const problem = canonicalNumberProblem(value);
+  if (problem) throw new Error(problem);
   const rendered = JSON.stringify(value);
   if (rendered.includes("e") || rendered.includes("E")) {
     throw new Error("number outside the canonical fixed-notation range of sje/0.1.0");
@@ -74,15 +75,18 @@ function compareCodePoints(a: string, b: string): number {
   }
 }
 
-// Defense-in-depth bound on nesting. The hashed body is fixed-shape and small,
-// and JSON.parse already caps input depth, but canonicalJson is exported, so a
-// hand-built deeply-nested object cannot be allowed to blow the stack.
-const MAX_CANONICAL_DEPTH = 128;
+/** The deepest a canonical value may nest: 127 containers (objects or arrays) inside one
+ *  another, the outermost included. This is exactly the limit the parsers put on wire
+ *  text (SPEC, parsing rule 9; `MAX_JSON_DEPTH` in wire.ts; serde_json's recursion limit),
+ *  so a value has a canonical form only if its text could have been read by both
+ *  implementations. It used to be looser (129 containers): a value read with a plain
+ *  `JSON.parse` — which has no limit — and nested 128 or 129 deep canonicalized here
+ *  and was refused by the Rust core, which cannot even parse it. One signed document,
+ *  two verdicts. Scalars do not count; only containers nest. */
+export const MAX_CANONICAL_NESTING = 127;
 
+/** `depth` is the number of containers around `value`. */
 function writeCanonical(value: unknown, depth = 0): string {
-  if (depth > MAX_CANONICAL_DEPTH) {
-    throw new Error("canonical JSON nesting exceeds the maximum depth");
-  }
   if (value === null) return "null";
   switch (typeof value) {
     case "boolean":
@@ -92,6 +96,9 @@ function writeCanonical(value: unknown, depth = 0): string {
     case "string":
       return canonicalString(value);
     case "object": {
+      if (depth >= MAX_CANONICAL_NESTING) {
+        throw new Error("canonical JSON nesting exceeds the maximum depth");
+      }
       if (Array.isArray(value)) {
         // JSON.stringify semantics: undefined array members serialize as null.
         return `[${value.map((v) => (v === undefined ? "null" : writeCanonical(v, depth + 1))).join(",")}]`;

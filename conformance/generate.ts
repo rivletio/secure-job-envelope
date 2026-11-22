@@ -8,7 +8,7 @@
 import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/hash.ts";
-import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
+import { parseTraveler, parseTravelerJson, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signature.ts";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
 import {
@@ -93,6 +93,9 @@ const here = new URL(".", import.meta.url).pathname;
   const str = (body: string): string => `{"s":"${body}"}`;
   /** A JSON `\uXXXX` escape, as text. */
   const esc = (code: number): string => `\\u${code.toString(16).padStart(4, "0")}`;
+  /** `open` written `n` times, then `bottom`, then `close` written `n` times. */
+  const nest = (open: string, close: string, n: number, bottom = ""): string =>
+    open.repeat(n) + bottom + close.repeat(n);
 
   const valid: ValidCase[] = [
     { name: "sorted-keys", value: { b: 1, a: 2 } },
@@ -194,15 +197,36 @@ const here = new URL(".", import.meta.url).pathname;
     { name: "array-order-is-kept", text: '[3,1,2,{"b":1,"a":2},[],"x",null,true,false]' },
     { name: "top-level-number", text: "10.0" },
     { name: "top-level-string", text: `"${esc(0x41)}"` },
+
+    // ---- nesting: 127 containers inside one another is the deepest value there is.
+    //      Scalars do not count; only containers nest. (Text cases: a value this deep
+    //      could not be written into this file without the file itself being too deep
+    //      for a strict reader.) ----
+    { name: "nesting-127-arrays", text: nest("[", "]", 127) },
+    { name: "nesting-127-arrays-around-a-number", text: nest("[", "]", 127, "1") },
+    { name: "nesting-127-objects", text: nest('{"a":', "}", 126, "{}") },
+    { name: "nesting-127-objects-around-a-string", text: nest('{"a":', "}", 127, '"x"') },
+    { name: "nesting-127-mixed", text: nest('[{"a":', "}]", 63, "[]") },
   ];
 
   const TOO_BIG = { ts: "exceeds 2^53-1", rs: "exceeds 2^53-1" };
   const TOO_SMALL = { ts: "below 1e-5", rs: "below 1e-5" };
   const OVERFLOW = { ts: "non-finite number", rs: "number out of range" };
   const RAW_CONTROL = { ts: "not JSON", rs: "control character" };
+  const TOO_DEEP = { ts: "nesting exceeds the maximum depth", rs: "recursion limit exceeded" };
   const exponential = "renders exponential in at least one implementation";
 
   const invalid: InvalidCase[] = [
+    // ---- nesting: a 128th container. One implementation's parser stops here and the
+    //      other's has no limit at all, so the canonicalizer holds the same line: a value
+    //      has a canonical form only if both could have read its text. ----
+    { name: "nesting-128-arrays", text: nest("[", "]", 128), reason: "128 containers nested", refusal: TOO_DEEP },
+    { name: "nesting-128-arrays-around-a-number", text: nest("[", "]", 128, "1"), reason: "128 containers nested", refusal: TOO_DEEP },
+    { name: "nesting-128-objects", text: nest('{"a":', "}", 127, "{}"), reason: "128 containers nested", refusal: TOO_DEEP },
+    { name: "nesting-128-mixed", text: nest('[{"a":', "}]", 63, "[[]]"), reason: "128 containers nested", refusal: TOO_DEEP },
+    { name: "nesting-129-arrays", text: nest("[", "]", 129), reason: "129 containers nested", refusal: TOO_DEEP },
+    { name: "nesting-1000-arrays", text: nest("[", "]", 1000), reason: "1,000 containers nested", refusal: TOO_DEEP },
+
     { name: "exp-large", value: { t: 1e21 }, reason: "renders exponential (1e+21 vs 1e21)", refusal: TOO_BIG },
     { name: "exp-small", value: { t: 1e-7 }, reason: "renders exponential", refusal: TOO_SMALL },
     { name: "below-min-fraction", value: { t: 0.000001 }, reason: "ryu renders 1e-6, JS stays fixed", refusal: TOO_SMALL },
@@ -565,6 +589,54 @@ expected["l0-intfloat.json"] = {
   traveler_hash: travelerHash(intFloatParsed),
   level: levelOf(intFloatParsed).code,
 };
+
+// Free-form blobs are measured on their canonical form, in bytes (docs/SPEC.md, parsing
+// rule 12). Authored as text, because how the blob is SPELLED is the point: the same
+// blob has one canonical size however its numbers and characters were written.
+{
+  /** A copy of the L0 vector with `as_built` holding one member `k`, spelled as given. */
+  const withBlob = (travelerId: string, k: string): string =>
+    JSON.stringify({ ...structuredClone(l0), traveler_id: travelerId, as_built: { k: "@@" } }, null, 2).replace(
+      '"@@"',
+      k,
+    ) + "\n";
+  const blobVectors: [file: string, text: string, canonicalBytes: number][] = [
+    // The first document the byte-level fuzzer found the two implementations split on,
+    // exactly as it was found (the smallest valid traveler, no whitespace): 431 numbers
+    // written `1e15`. Canonically they are sixteen digits each — 7,333 bytes. One
+    // implementation's own JSON writer made them eighteen characters each and refused.
+    [
+      "l0-blob-numbers-respelled.json",
+      '{"spec":"sje/0.1.0","traveler_id":"tvl_aaaaaa","revision":1,"created_at":"2026-01-01T00:00:00Z",' +
+        '"buyer":{"name":"B"},"part":{"family":"F","part_number":"P","material":{"spec":"M"},"qty":{"target":1}},' +
+        `"as_built":{"":[${Array.from({ length: 431 }, () => "1e15").join(",")}]}}`,
+      7333,
+    ],
+    // Exactly at the cap, in bytes: 2,728 three-byte characters (written here as escapes)
+    // and eight bytes of framing are 8,192. In UTF-16 units it would be 2,736.
+    [
+      "l0-blob-at-cap.json",
+      withBlob("tvl_blobatcap01", `"${"\\u6f22".repeat(2728)}"`),
+      8192,
+    ],
+    // Twice the cap as written, under it canonically: 4,092 ones written `1.0` are
+    // 16,375 characters of wire text and 8,191 canonical bytes.
+    [
+      "l0-blob-canonical-size.json",
+      withBlob("tvl_blobcanon01", `[${Array.from({ length: 4092 }, () => "1.0").join(",")}]`),
+      8191,
+    ],
+  ];
+  for (const [file, text, canonicalBytes] of blobVectors) {
+    const parsed = parseTravelerJson(text);
+    const measured = utf8ToBytes(canonicalJson(parsed.as_built)).length;
+    if (measured !== canonicalBytes) {
+      throw new Error(`${file}: its blob is ${measured} canonical bytes, not the ${canonicalBytes} the vector is for`);
+    }
+    expected[file] = { traveler_hash: travelerHash(parsed), level: levelOf(parsed).code };
+    writeFileSync(`${here}/travelers/${file}`, text);
+  }
+}
 
 writeFileSync(`${here}/travelers/expected.json`, JSON.stringify(expected, null, 2) + "\n");
 

@@ -1,0 +1,327 @@
+
+	
+{
+
+	"spec"	: "sje/0.1.0"	,
+ "traveler_id"  :	
+	"tvl_93dixp"	
+, 
+"revision" : 17
+, "created_at"
+
+ :	 "2026-08-16T20:23:21.984Z"
+	,  
+"buyer"	:
+
+{	
+"name"
+
+:
+ "Cascade CNC"
+
+,	"org_id"
+:
+
+"org_cascade"
+ ,
+		"region" :
+	
+"OR" 
+	,
+ "contact"
+: "buyer@northline.example"	  
+}
+	,
+"part"	:  
+{
+
+
+"family"	
+:
+ 
+"Machined housing"
+,	"part_number"
+
+:
+	"NL-D6SQ-1613"
+, "material" 	 :
+{
+"spec"
+:
+
+
+"17-4 PH"		 ,
+"thickness_mm" : 48
+
+
+
+}
+	,
+"qty"
+ 	:	
+{
+"target"
+
+:	 4063  
+} , 
+"description": 
+
+"Café Müller GmbH"
+
+, 
+	"tolerances"	
+:
+
+"Zakład Łódź"	 }
+
+
+,  "itar"
+ : false 
+
+,
+"need_by"
+	
+:
+	"2028-03-11"
+ , "incoterms"	 : "FOB"
+
+,
+
+"quotes"
+: 
+[
+
+{	"quote_id":
+"qot_1tuk0lc8a"
+,	
+"seller":
+{
+"name" 
+: "Summit Fabrication"
+,
+"org_id" :
+
+
+"org_summitfab"	
+,
+
+"region"
+
+: "NV"	
+, 	
+"certs" 	
+:
+[
+"ITAR"	
+
+]
+
+	
+} ,	
+"traveler_hash_quoted"	
+	:"sha384:eaf9c9ec56186f92e646db295df089d842f05eea362ee979d9aea2b5c662f79329b1affd93c90729d84ccd23c4264e7d" 	,		"created_at"	
+:
+	"2026-10-01T14:15:43.751Z"	,  "valid_until" 	
+: "2028-04-02T02:05:16.467Z"
+
+,
+"lead_time_days"
+	 :	354,  "pricing":
+{  "currency"	
+:
+ "JPY"
+,	
+"lines" :
+
+[ 
+{  "qty"
+
+:	
+3445
+
+,
+ "unit"
+
+:	135152	
+
+ } ,
+{
+
+"qty"
+:	4041
+
+	,
+
+"unit"
+
+:
+
+	295551
+ 
+
+}
+, 
+{"qty"
+ 
+:
+	3968 ,"unit"
+:71375
+
+ 
+}
+,
+
+{"qty"
+:
+
+3007
+,
+"unit"		:
+
+444704	
+
+} ,
+{
+
+"qty"	:	
+4813 ,
+
+"unit"
+:251238
+
+	}
+ 
+]
+
+
+}	 ,"assumptions"
+:
+{
+ "material_cert"
+
+:"\ude00\ud83d",
+ "material_cert"
+
+:
+true 		,		 "min_order"
+	:12	,  "stock"	
+: 
+{"form"
+ : 	"plate"
+,
+
+	"sizes_mm":
+
+[	6
+,
+
+
+6.35
+, 
+12.7
+ ]   	} 	,	 
+"note": "精密機械"
+	
+
+	}	 ,
+"capacity"
+
+
+: 	{
+"weeks"	
+
+: [	 
+3
+,	
+6
+
+ ]	,	"shift"
+
+
+:
+"2nd" , 
+"ok"
+ :
+
+	null
+
+}
+
+ }
+	
+ ]
+
+,	
+
+"award" 	: { 
+"quote_id"		:		"qot_1tuk0lc8a",
+"awarded_at"	:
+"2027-03-12T16:38:30.051Z"
+
+,"qty" 
+	:726 	
+
+}
+, 
+
+"ops"	:[
+ {	"seq"  	:	
+1	,
+"code" :
+"laser"	 	,	"notes"
+	: "Металл"
+	}
+	
+,
+
+{ "seq":2
+,  "code"
+	
+:
+
+"cnc-mill"
+
+
+
+
+}
+
+	,	{	"seq"	 :
+3
+
+	,		"code"
+
+
+:
+"deburr"	
+
+}	
+]
+	,"ship_to"
+
+
+: { 
+"name"	:
+
+
+"Northline Equipment — Dock 4"
+,
+
+"line1" 
+: "1800 Industrial Way"		,
+"city": 
+"Reno"	 ,
+	"region"
+:  "NV"
+
+	,	 "postal" 
+:
+"89502" ,"country" :	
+	"US"
+
+
+
+
+}}
+
+	

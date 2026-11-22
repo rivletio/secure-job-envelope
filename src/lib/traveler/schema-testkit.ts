@@ -572,7 +572,7 @@ export const pointerOf = (path: readonly PropertyKey[]): string =>
   path.map((name) => `/${escaped(name)}`).join("");
 
 /** Where the published schema objects to the value a validator was last run on, as JSON
- *  Pointers. A validator's errors are adjusted in three ways, so that a place is named
+ *  Pointers. A validator's errors are adjusted in four ways, so that a place is named
  *  the way the implementation names it:
  *
  *   - a missing member is reported on the object that lacks it, and named here as the
@@ -580,15 +580,22 @@ export const pointerOf = (path: readonly PropertyKey[]): string =>
  *   - the error that sums up a failed `if` or `anyOf` repeats, on the enclosing value,
  *     what the errors beneath it say exactly, and is left out;
  *   - so is "must be null" from the null alternative of `as_built`: the errors of the
- *     other alternative say what is wrong with a value that is not null.
+ *     other alternative say what is wrong with a value that is not null;
+ *   - errors inside a list that is itself too long are left out: the implementation
+ *     refuses such a list for its length and does not go on to examine its items (a
+ *     validator reporting every error examines all 5,000 of them).
  *
- *  Nothing else is left out, so a refusal these three account for entirely comes back as
- *  no place at all, which no refusal by the implementation equals. */
+ *  Nothing else is left out, so a refusal these account for entirely comes back as no
+ *  place at all, which no refusal by the implementation equals. */
 export function schemaObjections(v: ValidateFunction): string[] {
   const places = new Set<string>();
+  const tooLong = (v.errors ?? [])
+    .filter((e) => e.keyword === "maxItems")
+    .map((e) => `${e.instancePath}/`);
   for (const e of v.errors ?? []) {
     if (e.keyword === "if" || e.keyword === "anyOf") continue;
     if (e.keyword === "type" && e.params.type === "null") continue;
+    if (tooLong.some((list) => e.instancePath.startsWith(list))) continue;
     places.add(
       e.keyword === "required"
         ? `${e.instancePath}/${escaped(e.params.missingProperty as string)}`

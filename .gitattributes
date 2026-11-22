@@ -1,0 +1,7 @@
+# Fuzz cases and finding reproducers are exact wire BYTES. Some are deliberately not
+# UTF-8, start with a byte-order mark, or end in CR, LF or NUL; both implementations
+# replay them from the bytes, and the corpus manifest pins a SHA-384 of each. Git must
+# never normalize line endings in them or treat them as text to merge.
+conformance/fuzz/cases/*  binary
+sim/findings/*.json       -text
+sim/findings/*.bin        binary

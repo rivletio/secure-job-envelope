@@ -1,0 +1,1 @@
+{"spec":"sje/0.1.0","traveler_id":"tvl_jyv6mgcmh9sbizg","revision":30,"created_at":"2027-01-22T04:22:55.310Z","buyer":{"name":"Summit Fabrication","org_id":"org_summitfab","region":"NV","city":"Somewhere"},"part":{"family":"Weldment","part_number":"NL-JYQS-7556","material":{"spec":"17-4 PH"},"qty":{"target":3589,"breaks":[63,258]},"processes":["inspect","powder"]},"itar":false}

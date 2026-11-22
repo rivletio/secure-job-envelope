@@ -1,0 +1,1 @@
+{"spec":"sje/0.1.0","traveler_id":"tvl_rs2k3guqlk3whm8eebj","revision":4,"created_at":"2027-01-10T12:45:26.549Z","buyer":{"name":"Cascade CNC","org_id":"org_cascade","region":"OR"},"part":{"family":"Weldment","part_number":"NL-QDTN-9256","material":{"spec":"CRS 16ga","thickness_mm":1000000},"qty":{"target":7634,"breaks":[62,260]},"processes":["laser"]},"itar":false}

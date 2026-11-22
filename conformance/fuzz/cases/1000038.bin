@@ -1,0 +1,1 @@
+{"spec":"sje/0.1.0","traveler_id":"tvl_0bfrher","revision":39,"created_at":"2027-02-02T15:16:37.569Z","buyer":{"name":"Red River Machining","org_id":"org_redriver","city":"Somewhere"},"part":{"family":"Turned shaft","part_number":"NL-7A95-8662","material":{"spec":"304 SS","thickness_mm":222},"qty":{"target":8458},"processes":["weld�"],"finish":"anodize ברג"},"itar":false}
