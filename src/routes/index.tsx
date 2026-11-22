@@ -3,13 +3,14 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ImportReviewDialog } from "@/components/import-review-dialog";
 import { TravelerCard } from "@/components/traveler-card";
 import { Button } from "@/components/ui/button";
 import { levelOf } from "@/lib/traveler/conformance";
 import { itarExportWarning } from "@/lib/traveler/guards";
 import { useKeysStore } from "@/lib/traveler/keys-store";
 import { useTravelerStore } from "@/lib/traveler/store";
-import { openTraveler, parseSjeEnvelope } from "@/lib/traveler/transport";
+import { openTravelerDeferred, parseSjeEnvelope } from "@/lib/traveler/transport";
 import { MAX_ENVELOPE_JSON_BYTES, type Traveler } from "@/lib/traveler/types";
 import { importTravelerFile } from "@/lib/traveler/zip";
 import { cn } from "@/lib/utils";
@@ -18,14 +19,26 @@ export const Route = createFileRoute("/")({ component: Desk });
 
 type Filter = "all" | "L0" | "L1" | "L2";
 
+/** A received traveler waiting on the reader's acknowledgment. */
+type PendingImport = {
+  traveler: Traveler;
+  /** "Opened" / "Decrypted" — for the confirmation toast. */
+  verb: string;
+  /** Spends the envelope's one-time key; called only after the traveler is stored. */
+  commit?: () => Promise<void>;
+  notes: string[];
+  statements: string[];
+};
+
 function Desk() {
   const travelers = useTravelerStore((s) => s.travelers);
   const role = useTravelerStore((s) => s.role);
   const hydrated = useTravelerStore((s) => s.hydrated);
   const importOne = useTravelerStore((s) => s.importOne);
+  const previewImport = useTravelerStore((s) => s.previewImport);
   const resetDesk = useTravelerStore((s) => s.resetDesk);
   const [filter, setFilter] = useState<Filter>("all");
-  const [pendingTraveler, setPendingTraveler] = useState<Traveler | null>(null);
+  const [pending, setPending] = useState<PendingImport | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
 
   const counts = useMemo(() => {
@@ -47,17 +60,66 @@ function Desk() {
     return code === filter;
   });
 
-  function admit(traveler: Traveler, note: string) {
-    if (itarExportWarning(traveler)) {
-      setPendingTraveler(traveler);
+  /** The trust anchor to verify received travelers against, if one is loaded. */
+  function trustNow() {
+    const t = useKeysStore.getState().trust;
+    return t ? { directory: t.directory, rootPublicKeyHex: t.rootPublicKeyHex } : undefined;
+  }
+
+  /** Store an admitted traveler, then — only then — spend the one-time key its envelope
+   *  used. Decrypting is not accepting: a refusal or a declined review leaves the
+   *  envelope openable again. */
+  async function complete(p: PendingImport, acknowledged: boolean) {
+    let outcome;
+    try {
+      outcome = importOne(p.traveler, { trust: trustNow(), acknowledged });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open traveler");
       return;
     }
-    importOne(traveler);
-    toast.success(`${note} ${traveler.traveler_id}`);
+    toast.success(`${p.verb} ${outcome.traveler.traveler_id}`, {
+      description: outcome.notes.join(" "),
+    });
+    try {
+      await p.commit?.();
+    } catch (err) {
+      toast.error(
+        `The traveler was opened, but its one-time key could not be deleted from this browser's storage (${
+          err instanceof Error ? err.message : "write failed"
+        }). The same envelope can still be decrypted with this keystore.`,
+      );
+    }
+  }
+
+  /** Run a received traveler through the receive policy: refuse it, ask the reader to
+   *  acknowledge what is unproven, or store it. */
+  async function admit(traveler: Traveler, verb: string, commit?: () => Promise<void>) {
+    let decision;
+    try {
+      decision = previewImport(traveler, { trust: trustNow() });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open traveler");
+      return;
+    }
+    if (decision.action === "refuse") {
+      toast.error(decision.reason);
+      return;
+    }
+    const itar = itarExportWarning(traveler);
+    const statements = [
+      ...(itar ? [`${itar} Import it onto this local desk anyway?`] : []),
+      ...decision.acknowledge,
+    ];
+    const p: PendingImport = { traveler, verb, commit, notes: decision.notes, statements };
+    if (statements.length > 0) {
+      setPending(p);
+      return;
+    }
+    await complete(p, false);
   }
 
   /** Open a sealed `.sje`: decrypt with the unlocked desk keystore, then run the same
-   *  defensive import as a plaintext traveler. Needs an unlocked identity. */
+   *  receive policy as a plaintext traveler. Needs an unlocked identity. */
   async function ingestSje(file: File) {
     const unlocked = useKeysStore.getState().unlocked;
     if (!unlocked) {
@@ -78,23 +140,17 @@ function Desk() {
       toast.error("Not a recognized SJE envelope");
       return;
     }
-    let traveler: Traveler;
+    let opened;
     try {
-      traveler = await openTraveler(envelope, unlocked, {
+      opened = await openTravelerDeferred(envelope, unlocked, {
         persistKeystore: (ks) => useKeysStore.getState().persistKeystore(ks),
       });
     } catch {
       toast.error("Could not open envelope (wrong recipient, tampered, or not addressed to this desk)");
       return;
     }
-    // Decryption succeeded; import errors (e.g. an id that collides with a locked L2
-    // traveler) are NOT crypto failures, so surface their own message rather than
-    // misattributing them to tampering — as the plaintext import path already does.
-    try {
-      admit(traveler, "Decrypted");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not import the decrypted traveler");
-    }
+    // Decrypted — which says nothing about who sealed it. The receive policy decides.
+    await admit(opened.traveler, "Decrypted", opened.commit);
   }
 
   async function ingest(file: File) {
@@ -102,22 +158,27 @@ function Desk() {
       await ingestSje(file);
       return;
     }
+    let traveler;
     try {
-      admit(await importTravelerFile(file), "Opened");
+      traveler = await importTravelerFile(file);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not open traveler");
+      return;
     }
+    await admit(traveler, "Opened");
   }
 
-  function confirmItarImport() {
-    if (!pendingTraveler) return;
-    try {
-      importOne(pendingTraveler);
-      toast.success(`Opened ${pendingTraveler.traveler_id}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not open traveler");
-    } finally {
-      setPendingTraveler(null);
+  function confirmPending() {
+    const p = pending;
+    setPending(null);
+    if (p) void complete(p, true);
+  }
+
+  function declinePending() {
+    const p = pending;
+    setPending(null);
+    if (p?.commit) {
+      toast.message("Not opened. The envelope was left untouched and can be opened again.");
     }
   }
 
@@ -208,16 +269,14 @@ function Desk() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={Boolean(pendingTraveler)}
-        onOpenChange={(v) => {
-          if (!v) setPendingTraveler(null);
-        }}
-        title="ITAR self-declaration"
-        body="This traveler is self-declared ITAR. The desk does not implement export-control, deemed-export screening, or a Technology Control Plan. Do not transfer it to foreign persons. Import onto this local desk anyway?"
-        confirmLabel="Import anyway"
-        destructive
-        onConfirm={confirmItarImport}
+      <ImportReviewDialog
+        review={
+          pending
+            ? { travelerId: pending.traveler.traveler_id, notes: pending.notes, statements: pending.statements }
+            : null
+        }
+        onCancel={declinePending}
+        onConfirm={confirmPending}
       />
       <ConfirmDialog
         open={resetOpen}

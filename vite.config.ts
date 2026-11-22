@@ -14,6 +14,11 @@ const deskBase = process.env.DESK_BASE ?? "/secure-job-envelope/desk/";
 
 export default defineConfig(({ command, isPreview }) => ({
   base: deskStatic ? deskBase : "/",
+  // Resolve the `@/…` alias from tsconfig.json `paths`. A production build resolved it
+  // without this; the dev server did not, so `npm run dev` answered every request with a
+  // 500 ("Cannot find module '@/lib/error-component'") — unnoticed, because nothing in
+  // CI ever started the dev server. scripts/dev-smoke.mjs now does.
+  resolve: { tsconfigPaths: true },
   plugins: [
     tailwindcss(),
     tanstackStart(
