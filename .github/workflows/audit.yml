@@ -1,0 +1,50 @@
+name: Audit
+
+# Dependency advisories for both implementations. This used to be a job inside CI
+# that printed advisories and exited 0 — so a real RustSec advisory in the
+# constant-time primitive under ML-KEM/ML-DSA (RUSTSEC-2026-0385, ctutils) sat in
+# a green log for weeks. An audit that cannot fail is not an audit:
+#
+#   * every job here FAILS when an advisory applies;
+#   * it also runs weekly, so a newly published advisory surfaces without anyone
+#     having to push a commit.
+#
+# If an advisory has no fix yet, record a time-boxed exception with its
+# justification (`cargo audit --ignore RUSTSEC-…` below, or an npm override) in a
+# reviewed commit — never by making the job non-blocking again.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-advisories:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit (RustSec advisory database)
+        working-directory: crates/secure-job-envelope
+        run: cargo audit
+
+  npm-advisories:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Reads package-lock.json only; no install needed. The full report is printed
+      # first for the record, then high/critical advisories fail the job.
+      - name: npm audit (full report)
+        run: npm audit || true
+      - name: npm audit (fail on high or critical)
+        run: npm audit --audit-level=high

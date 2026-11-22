@@ -16,6 +16,8 @@ export default tseslint.config(
       ".nitro/**",
       "node_modules/**",
       "src/routeTree.gen.ts",
+      // Local planning notes and scratch scripts — gitignored, not part of the repo.
+      "tasks/**",
     ],
   },
   js.configs.recommended,

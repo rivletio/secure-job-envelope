@@ -12,6 +12,13 @@ crates/secure-job-envelope/target/
 .env
 .env.*
 
+# Key material and sealed/packed job files are working artifacts, never source:
+# an encrypted keystore blob, a sealed envelope, or a packed traveler archive must
+# not be committed by accident (`git add -A` in a directory you were testing in).
+*.keystore.json
+*.sje
+*.traveler.zip
+
 # shalt
 .shalt/cucumber.json
 
