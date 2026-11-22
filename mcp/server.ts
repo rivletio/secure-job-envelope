@@ -40,9 +40,10 @@ import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/tra
 import { isoNow, newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
 import { sealTraveler, openTraveler, parseSjeEnvelope } from "../src/lib/traveler/transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "../src/lib/traveler/keystore.ts";
-import { MAX_ENVELOPE_JSON_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
+import { MAX_ENVELOPE_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
+import { exceedsUtf8Bytes } from "../src/lib/traveler/wire.ts";
 import type { Award, Op, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
-import type { Directory } from "../src/lib/traveler/directory.ts";
+import { MAX_DIRECTORY_JSON_BYTES, type Directory } from "../src/lib/traveler/directory.ts";
 import type { PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
 import { readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync } from "node:fs";
 
@@ -383,10 +384,11 @@ async function handle(name: string, args: Args) {
       if (!args.directory || typeof args.directory !== "object") {
         return fail("sje_seal needs the signed key directory.");
       }
-      // Bound the untrusted directory's size before canonicalizing/verifying it, for
-      // consistency with the traveler/quote inputs (verifyDirectory already fails closed
-      // on bad shapes — this just caps work on a hostile oversized blob).
-      if (JSON.stringify(args.directory).length > MAX_TRAVELER_JSON_BYTES) {
+      // Bound the untrusted directory's size before canonicalizing/verifying it
+      // (verifyDirectory already fails closed on bad shapes — this caps work on a hostile
+      // oversized blob). The bound is the DIRECTORY's, not a traveler's: an entry is ~9 KB
+      // of key material, so the traveler cap refused any directory of more than ~60 orgs.
+      if (exceedsUtf8Bytes(JSON.stringify(args.directory), MAX_DIRECTORY_JSON_BYTES)) {
         return fail("Signed directory exceeds size limit.");
       }
       const rootHex = String(args.root_public_key_hex ?? "");

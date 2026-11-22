@@ -152,7 +152,9 @@ describe("award signature — normative requirements (SHALL)", () => {
     t.award = { ...t.award!, sig: { ...t.award!.sig!, alg: "ML-DSA-65" } as Signature };
     const check = verifyAwardSignature(t, dir, rootPk, at);
     assert.equal(check?.ok, false);
-    assert.match(check?.reason ?? "", /unsupported alg/);
+    // Refused before any key is consulted: the document itself is not a valid traveler
+    // (a signature object must declare the one algorithm this version defines).
+    assert.match(check?.reason ?? "", /not a valid traveler/);
   });
 
   it("AW-10 (MUST, fail closed): a non-canonicalizable body returns 'not verified', never throws", () => {

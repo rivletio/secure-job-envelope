@@ -78,13 +78,33 @@ describe("traveler authenticity (end to end)", () => {
     assert.equal(travelerIsAuthentic(bound, dir, rootPk, at), true);
   });
 
-  it("gates ITAR on the directory-attested capability, not seller self-declaration", () => {
+  it("gates ITAR on the attested capability of the seller that SIGNED the quote", () => {
     const base = parseTraveler(vec.traveler);
     const itarT: Traveler = { ...base, itar: true };
-    // org_huron is ITAR-attested; org_summitfab is not
-    assert.equal(itarAttestationBlocker(itarT, quoteFor("org_huron"), dir, rootPk, at), null);
-    assert.ok(itarAttestationBlocker(itarT, quoteFor("org_summitfab"), dir, rootPk, at));
-    // a non-ITAR traveler imposes no gate
+    const huron = keypairFromSeed(hexToBytes("22".repeat(32))); // ITAR-attested in the directory
+    const summit = keypairFromSeed(hexToBytes("33".repeat(32))); // enrolled, not ITAR-attested
+    const signedBy = (q: Quote, kid: string, secretKey: Uint8Array): Quote => ({
+      ...q,
+      sig: signQuote(q, kid, secretKey),
+    });
+    const gate = (q: Quote) => itarAttestationBlocker(itarT, q, dir, rootPk, at);
+
+    // Signed by the attested seller it names: allowed.
+    assert.equal(gate(signedBy(quoteFor("org_huron"), "huron-2026", huron.secretKey)), null);
+    // The same quote unsigned. `seller.org_id` is a field the quote's author types; an
+    // unsigned quote naming an attested org used to pass this gate.
+    assert.match(gate(quoteFor("org_huron")) ?? "", /not signed by the seller it names/);
+    // Names the attested org, but signed with ANOTHER enrolled org's real key.
+    assert.match(
+      gate(signedBy(quoteFor("org_huron"), "summit-2026", summit.secretKey)) ?? "",
+      /not signed by the seller it names/,
+    );
+    // Properly signed by the seller it names — who is not attested for ITAR.
+    assert.match(
+      gate(signedBy(quoteFor("org_summitfab"), "summit-2026", summit.secretKey)) ?? "",
+      /not attested for ITAR/,
+    );
+    // A non-ITAR traveler imposes no gate.
     assert.equal(
       itarAttestationBlocker({ ...base, itar: false }, quoteFor("org_summitfab"), dir, rootPk, at),
       null,

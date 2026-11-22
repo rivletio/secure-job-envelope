@@ -24,7 +24,7 @@ import {
   type DirectoryEntryPublic,
   type PublicPrekey,
 } from "./keystore.ts";
-import { verifyDirectory, type Directory } from "./directory.ts";
+import { directoryShapeError, verifyDirectory, type Directory } from "./directory.ts";
 import { verifyPrekeyBundle, type PrekeyBundle } from "./prekeys.ts";
 import { safeStorage } from "./store.ts";
 
@@ -45,12 +45,9 @@ export function sanitizeTrust(t: unknown): TrustAnchor | undefined {
   if (!t || typeof t !== "object") return undefined;
   const a = t as Partial<TrustAnchor>;
   const dir = a.directory as Directory | undefined;
-  if (
-    typeof a.rootPublicKeyHex !== "string" ||
-    !dir ||
-    typeof dir !== "object" ||
-    !Array.isArray(dir.entries)
-  ) {
+  // The persisted directory is held to the exact directory shape, not just "has an
+  // entries array": everything that renders or resolves entries may then rely on it.
+  if (typeof a.rootPublicKeyHex !== "string" || directoryShapeError(dir) !== null || !dir) {
     return undefined;
   }
   const bundles = a.bundles && typeof a.bundles === "object" ? a.bundles : {};

@@ -254,6 +254,131 @@ examined; a streaming extractor that walks local headers instead can surface con
 this reader never saw. Open archives with a conforming reader, not a general-purpose
 unzip tool.
 
+## Signatures, the key directory and verification (0.1, normative)
+
+Everything in this section is held across the two reference implementations by
+`conformance/signatures/directory-cases.json` and `verify-cases.json`: documents both
+must accept, and documents both must refuse **for the stated reason**.
+
+### What is signed
+
+A signature is ML-DSA-87 (FIPS 204) over `domain ‖ 0x00 ‖ body`, where `domain` is an
+ASCII tag and `body` is the UTF-8 canonical JSON (§Canonical JSON) of:
+
+| Signature | `domain` | `body` |
+|---|---|---|
+| Buyer authorship (`signatures[]`) | `sje-sig/traveler/0.1.0` | the quoteable body — the `traveler_hash` preimage |
+| Seller quote (`quotes[].sig`) | `sje-sig/quote/0.1.0` | the quote with its `sig` member removed |
+| Buyer award (`award.sig`) | `sje-sig/award/0.1.0` | `{ spec, traveler_id, traveler_hash, award, ship_to }` — `award` with its `sig` removed, `ship_to` as on the traveler or `null` |
+| Directory (`sig`) | `sje-sig/directory/0.1.0` | the directory with its `sig` removed |
+| Prekey bundle (`sig`) | `sje-sig/prekeys/0.1.0` | the bundle with its `sig` removed |
+
+A signature object is exactly `{ "alg": "ML-DSA-87", "kid", "sig" }`, `sig` in lowercase
+hex. `award.quote_hash` is `sha384:` + hex of SHA-384 over the seller-quote body above —
+the content of the awarded quote. The reference signers use the deterministic ML-DSA
+variant; a verifier accepts either variant.
+
+What is **not** signed: `ops`, `as_built`, the set of quotes a traveler carries, and —
+before an award — `ship_to`.
+
+### Key directory (`sje-directory/0.1.0`)
+
+A directory binds `org_id` → keys and is signed by a trust root whose public key the
+verifier holds out of band. A root's signature says the root signed these bytes; it does
+not make them well-formed. A directory MUST be exactly this shape, or it does not verify
+— **even when its signature is genuine**:
+
+| Element | Rule |
+|---|---|
+| Text | UTF-8, no byte-order mark, at most 8 MiB; a member name appears at most once in any object |
+| Directory | an object with exactly `spec`, `issued_at`, `valid_until`, `root_kid`, `entries`, `sig` |
+| `spec` | `sje-directory/0.1.0` |
+| `issued_at`, `valid_until` | canonical UTC datetimes (as in a traveler), `issued_at` before `valid_until`; the directory is usable for instants in `[issued_at, valid_until)` |
+| `root_kid` | 1–64 characters of `A–Z a–z 0–9 . _ -` |
+| `sig` | lowercase hex, 4627 bytes |
+| `entries` | an array of at most 512 entries; no `kid` appears on two entries |
+| Entry | an object with `org_id`, `kid`, `alg`, `public_key`, `valid_from`, `valid_until`, `status`, and optionally `capabilities`, `enc_alg`, `enc_public_key` — nothing else |
+| `org_id` | as in a traveler (`^[a-z][a-z0-9_]{1,63}$`) |
+| `kid` | 1–64 characters of `A–Z a–z 0–9 . _ -` |
+| `alg`, `public_key` | `ML-DSA-87`; lowercase hex, 2592 bytes |
+| `valid_from`, `valid_until` | canonical UTC datetimes, `valid_from` before `valid_until` |
+| `status` | `active` or `revoked` |
+| `capabilities` | `{}` or `{ "itar": true \| false }` — a boolean, not a string |
+| `enc_alg`, `enc_public_key` | both or neither: `ML-KEM-1024`; lowercase hex, 1568 bytes |
+
+An entry is **usable** at an instant `t` iff `status` is `active` and
+`valid_from ≤ t < valid_until`. An org may have several usable entries (key rotation).
+
+- **To verify a signature** naming `kid`: the entry with that kid must be usable.
+- **A capability** holds for an org iff any of its usable entries carries it.
+- **To encrypt to an org**: among its usable entries that carry an encryption key, use the
+  one with the latest `valid_from`; if two start together, the one with the greater `kid`.
+  The choice MUST NOT depend on the order of `entries`.
+
+### Prekey bundle (`sje-prekeys/0.1.0`)
+
+Exactly `{ spec, org_id, kid, enc_alg, issued_at, valid_until, prekeys, sig }`: `org_id`
+and `kid` as above, `enc_alg` `ML-KEM-1024`, the window as for a directory, `sig` 4627
+bytes of lowercase hex, and `prekeys` an array of at most 256 objects that are exactly
+`{ prekey_id, public_key }` — `prekey_id` 1–64 characters of `A–Z a–z 0–9 . _ -` (it is
+concatenated into an envelope's key-derivation label), no id twice, `public_key` 1568
+bytes of lowercase hex. Text at most 1 MiB. A bundle verifies iff it has this shape, the
+directory verifies, the instant is inside the bundle's window, `kid` names a usable entry
+**whose org is the bundle's `org_id`**, and that entry's key verifies the signature.
+
+### Verification
+
+Verification takes a document, a directory, a trust-root public key and an instant, and
+reports — it never repairs. Each signature yields a **check**: passed (with the `kid` and
+the `org_id` the directory binds it to) or refused with a reason. The reasons are
+normative; an implementation that refuses a case for a different reason is applying a
+different rule.
+
+A signature check, for a signature claimed on behalf of org `A` (`buyer.org_id` for
+authorship and awards, `seller.org_id` for a quote), in this order:
+
+| Condition | Reason |
+|---|---|
+| The directory is not well-formed, not in its window, or not signed by the trust root | `directory does not verify against the trust root` |
+| The document is not a valid traveler / quote | `not a valid traveler` / `not a valid quote` |
+| The author names no `org_id` | `author names no org_id to bind the signature to` |
+| No usable entry has the signature's `kid` | `no active in-window directory entry for kid` |
+| That entry's `org_id` is not `A` | `signer org does not match author org` |
+| The key does not verify the signed message | `signature does not verify` |
+
+An **award** is additionally refused — after its signature has passed — when it does not
+commit to something determinate:
+
+| Condition | Reason |
+|---|---|
+| An award is present with no `sig` | `award is present but not signed by the buyer` |
+| `award.quote_hash` is absent | `signed award does not bind a quote_hash` |
+| No quote on the traveler has `award.quote_id` | `awarded quote is not present to verify its priced content` |
+| That quote's content hash is not `award.quote_hash` | `awarded quote content does not match the buyer-signed quote_hash` |
+| That quote's `traveler_hash_quoted` is not this traveler's hash | `awarded quote is not bound to this revision` |
+| That quote has no price line whose `qty` is `award.qty` | `awarded quote has no price for the awarded quantity` |
+
+"No award" and "an award that failed" are different answers and MUST be reported
+differently. A traveler is **verified** iff at least one authorship check passes and, if
+it carries an award, the award check passes.
+
+**What a passed check means.** It means the org the directory names for that key signed
+these bytes, as the org the document names as its author. It does **not** mean that org
+is the counterparty the reader believes it is dealing with: any enrolled org can author a
+traveler under its own `org_id` and any display name, and that traveler verifies — as
+that org (`verify-cases.json`, `reissued-under-another-org`). A receiver MUST compare the
+reported `org_id` with the org it expects, and a display name is never evidence.
+
+### The ITAR gate
+
+For an `itar: true` traveler a quote is admissible only if, in this order: the traveler
+is a valid traveler (a document that is not is refused, never read as "not ITAR"); the
+directory verifies; the quote is a valid quote; its seller names an `org_id`; **the
+quote's seller signature passes** (`seller.org_id` is a field the quote's author types —
+unsigned, it establishes nothing); and that org holds the `itar` capability. A traveler
+that is not `itar: true` imposes no gate. This is a consistency rule between a traveler's
+self-declaration and a root's attestation — not an export-control determination.
+
 ## Export control & commercial reality
 
 - `itar: true` is a self-declaration that the traveler contains

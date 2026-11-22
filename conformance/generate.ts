@@ -11,9 +11,30 @@ import { travelerHash, hashQuoteable, quoteableBody } from "../src/lib/traveler/
 import { parseTraveler, levelOf } from "../src/lib/traveler/conformance.ts";
 import { keypairFromSeed, signBody, SIG_DOMAIN } from "../src/lib/traveler/signature.ts";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "../src/lib/traveler/bytes.ts";
-import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
-import { signTraveler, signQuote, signAward, quoteContentHash } from "../src/lib/traveler/authenticity.ts";
-import { PREKEY_BUNDLE_SPEC, signPrekeyBundle, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
+import {
+  signDirectory,
+  verifyDirectory,
+  parseDirectoryJson,
+  DIRECTORY_SPEC,
+  type Directory,
+  type DirectoryEntry,
+} from "../src/lib/traveler/directory.ts";
+import {
+  signTraveler,
+  signQuote,
+  signAward,
+  quoteContentHash,
+  verificationReport,
+  itarAttestationBlocker,
+  type SigCheck,
+} from "../src/lib/traveler/authenticity.ts";
+import {
+  PREKEY_BUNDLE_SPEC,
+  signPrekeyBundle,
+  verifyPrekeyBundle,
+  parsePrekeyBundleJson,
+  type PrekeyBundle,
+} from "../src/lib/traveler/prekeys.ts";
 import {
   kemKeypairFromSeed,
   sealEnvelopeDeterministic,
@@ -940,3 +961,475 @@ writeFileSync(
   ) + "\n",
 );
 console.log(`envelope cases written (${envAccept.length} accept, ${envReject.length} reject)`);
+
+/* ---------- verification cases: directories, bundles, recipients, travelers, ITAR ---------- */
+// The golden vectors prove both implementations ACCEPT the same signed documents. These
+// prove they REFUSE the same ones, for the same reason — including the cases the golden
+// vectors could not see: a document signed with ANOTHER enrolled org's real key, a
+// revoked or expired signer, an award that binds nothing determinate, and directories
+// the root really signed but that are not well-formed.
+//
+// Every case states what MUST happen (`want`). The generator checks the TypeScript
+// implementation against it before writing, so a wrong implementation fails generation
+// instead of being baked into the vector; the Rust runner then checks the same file.
+const eq = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
+function must(label: string, actual: unknown, want: unknown): void {
+  if (!eq(actual, want)) {
+    throw new Error(
+      `case ${label}: implementation says ${JSON.stringify(actual)}, the case requires ${JSON.stringify(want)}`,
+    );
+  }
+}
+const rootHex = bytesToHex(rootKp.publicKey);
+const otherRoot = keypairFromSeed(fill(0x77));
+const AT = Date.parse("2027-01-01T00:00:00.000Z");
+/** Sign `body` as a directory with the real root — whatever its shape. */
+const rootSigned = (body: unknown): Record<string, unknown> => ({
+  ...(body as Record<string, unknown>),
+  sig: signDirectory(body as Directory, rootKp.secretKey),
+});
+const signedDir = (mutate: (d: Directory) => void = () => {}): Directory => {
+  const d = structuredClone(directory);
+  mutate(d);
+  return rootSigned(d) as unknown as Directory;
+};
+const entryOf = (d: Directory, org: string) => d.entries.find((e) => e.org_id === org)!;
+
+// Named directories the traveler / ITAR / recipient cases refer to.
+const NEW_KEM = kemKeypairFromSeed(new Uint8Array(64).fill(0x54)); // northline's rotated-to key
+const rotated = (newFirst: boolean, newFrom = "2026-06-01T00:00:00.000Z", newKid = "northline-2027") =>
+  signedDir((d) => {
+    const old = entryOf(d, "org_northline");
+    const next: DirectoryEntry = {
+      ...structuredClone(old),
+      kid: newKid,
+      valid_from: newFrom,
+      enc_public_key: bytesToHex(NEW_KEM.publicKey),
+    };
+    d.entries = d.entries.filter((e) => e !== old);
+    d.entries.push(...(newFirst ? [next, old] : [old, next]));
+  });
+const directories: Record<string, Directory> = {
+  main: directoryVector.directory as Directory,
+  "northline-revoked": signedDir((d) => { entryOf(d, "org_northline").status = "revoked"; }),
+  "northline-expired-2026-07": signedDir((d) => { entryOf(d, "org_northline").valid_until = "2026-07-01T00:00:00.000Z"; }),
+  "northline-from-2028": signedDir((d) => { entryOf(d, "org_northline").valid_from = "2028-01-01T00:00:00.000Z"; }),
+  "huron-revoked": signedDir((d) => { entryOf(d, "org_huron").status = "revoked"; }),
+  "huron-itar-on-a-second-entry": signedDir((d) => {
+    const h = entryOf(d, "org_huron");
+    h.capabilities = {};
+    d.entries.push({ ...structuredClone(h), kid: "huron-2027", public_key: bytesToHex(summitKp.publicKey), capabilities: { itar: true } });
+  }),
+  "northline-no-encryption-key": signedDir((d) => {
+    const n = entryOf(d, "org_northline");
+    delete n.enc_alg;
+    delete n.enc_public_key;
+  }),
+  "rotation-new-listed-last": rotated(false),
+  "rotation-new-listed-first": rotated(true),
+  "rotation-same-start": rotated(true, "2026-01-01T00:00:00.000Z"),
+  "rotation-same-start-lesser-kid": rotated(false, "2026-01-01T00:00:00.000Z", "northline-2025"),
+};
+
+// ---- directory cases: shape, then trust ----
+type DirCase = { name: string; why: string; text: string; root?: string; at_ms: number; shape_ok: boolean; verifies: boolean };
+const small = (): Directory => {
+  const d = structuredClone(directory);
+  const n = structuredClone(entryOf(d, "org_northline"));
+  delete n.enc_alg;
+  delete n.enc_public_key;
+  d.entries = [n];
+  return d;
+};
+/** A directory the root really signed whose body breaks the shape. */
+const malformed = (name: string, why: string, mutate: (d: Record<string, any>) => void): DirCase => {
+  const d = small() as unknown as Record<string, any>;
+  mutate(d);
+  return { name, why, text: JSON.stringify(rootSigned(d)), at_ms: AT, shape_ok: false, verifies: false };
+};
+const smallSigned = JSON.stringify(rootSigned(small()));
+const empty = JSON.stringify(rootSigned({ ...small(), entries: [] }));
+const dirCases: DirCase[] = [
+  { name: "valid", why: "well-formed, in its window, signed by the trusted root", text: smallSigned, at_ms: AT, shape_ok: true, verifies: true },
+  { name: "valid-with-no-entries", why: "an empty directory is well-formed", text: empty, at_ms: AT, shape_ok: true, verifies: true },
+  { name: "valid-three-entries-with-encryption-keys", why: "the directory the other vectors use", text: JSON.stringify(directories.main), at_ms: AT, shape_ok: true, verifies: true },
+  { name: "signed-by-another-root", why: "well-formed, but not signed by the root this verifier trusts", text: smallSigned, root: bytesToHex(otherRoot.publicKey), at_ms: AT, shape_ok: true, verifies: false },
+  { name: "before-issued-at", why: "evaluated before the directory's own window opens", text: smallSigned, at_ms: Date.parse("2025-06-01T00:00:00.000Z"), shape_ok: true, verifies: false },
+  { name: "at-valid-until", why: "the window is half-open: valid_until itself is outside", text: smallSigned, at_ms: Date.parse("2030-01-01T00:00:00.000Z"), shape_ok: true, verifies: false },
+  { name: "altered-after-signing", why: "a capability added without re-signing", text: JSON.stringify({ ...rootSigned(small()), entries: [{ ...small().entries[0]!, capabilities: { itar: true } }] }), at_ms: AT, shape_ok: true, verifies: false },
+  // Root-signed, yet not well-formed: the signature is genuine and MUST NOT be enough.
+  malformed("entries-contains-null", "an entry that is not an object", (d) => { d.entries = [null, ...d.entries]; }),
+  malformed("capability-itar-as-string", "itar: \"false\" is not a boolean (a truthiness test would grant ITAR)", (d) => { d.entries[0].capabilities = { itar: "false" }; }),
+  malformed("capability-unknown-member", "an unknown capability", (d) => { d.entries[0].capabilities = { itar: true, ear: true }; }),
+  malformed("capabilities-as-array", "capabilities must be an object", (d) => { d.entries[0].capabilities = [true]; }),
+  malformed("duplicate-kid", "one kid on two entries: which org signed is ambiguous", (d) => { d.entries.push({ ...d.entries[0], org_id: "org_summitfab" }); }),
+  malformed("unknown-top-level-member", "an unknown member on the directory", (d) => { d.comment = "x"; }),
+  malformed("unknown-entry-member", "an unknown member on an entry", (d) => { d.entries[0].name = "Northline Equipment"; }),
+  malformed("missing-entry-member", "an entry without a status", (d) => { delete d.entries[0].status; }),
+  malformed("public-key-uppercase-hex", "hex must be lowercase", (d) => { d.entries[0].public_key = d.entries[0].public_key.toUpperCase(); }),
+  malformed("public-key-wrong-length", "an ML-DSA-87 key is exactly 2592 bytes", (d) => { d.entries[0].public_key = d.entries[0].public_key.slice(2); }),
+  malformed("alg-not-ml-dsa-87", "the one signature algorithm this version defines", (d) => { d.entries[0].alg = "ML-DSA-65"; }),
+  malformed("status-unknown", "status is active or revoked", (d) => { d.entries[0].status = "suspended"; }),
+  malformed("entry-window-inverted", "valid_from must be before valid_until", (d) => { d.entries[0].valid_from = d.entries[0].valid_until; }),
+  malformed("entry-valid-until-as-array", "a datetime written as a one-element array", (d) => { d.entries[0].valid_until = [d.entries[0].valid_until]; }),
+  malformed("issued-at-with-offset", "datetimes are canonical UTC (Z), no offsets", (d) => { d.issued_at = "2026-01-01T00:00:00.000+00:00"; }),
+  malformed("enc-alg-without-key", "enc_alg and enc_public_key come together or not at all", (d) => { d.entries[0].enc_alg = "ML-KEM-1024"; }),
+  malformed("enc-key-wrong-length", "an ML-KEM-1024 key is exactly 1568 bytes", (d) => { d.entries[0].enc_alg = "ML-KEM-1024"; d.entries[0].enc_public_key = "ab".repeat(1567); }),
+  malformed("enc-alg-unknown", "the one encapsulation algorithm this version defines", (d) => { d.entries[0].enc_alg = "ML-KEM-768"; d.entries[0].enc_public_key = bytesToHex(northlineKem.publicKey); }),
+  malformed("org-id-uppercase", "org_id has the same form as in a traveler", (d) => { d.entries[0].org_id = "ORG_NORTHLINE"; }),
+  malformed("kid-with-space", "a kid is 1-64 of [A-Za-z0-9._-]", (d) => { d.entries[0].kid = "northline 2026"; }),
+  malformed("root-kid-empty", "root_kid is 1-64 of [A-Za-z0-9._-]", (d) => { d.root_kid = ""; }),
+  malformed("entries-as-object", "entries must be an array", (d) => { d.entries = { "0": d.entries[0] }; }),
+  malformed("unsupported-spec", "a directory version this specification does not define", (d) => { d.spec = "sje-directory/0.2.0"; }),
+  { name: "sig-uppercase-hex", why: "the signature bytes are right but the hex is uppercase", text: smallSigned.replace(/"sig":"([0-9a-f]+)"/, (_m, h: string) => `"sig":"${h.toUpperCase()}"`), at_ms: AT, shape_ok: false, verifies: false },
+  { name: "sig-missing", why: "an unsigned directory", text: JSON.stringify(small()), at_ms: AT, shape_ok: false, verifies: false },
+  { name: "repeated-member", why: "a repeated member name: a last-wins reader sees the valid directory and never reads the first status", text: smallSigned.replace('"status":"active"', '"status":"revoked","status":"active"'), at_ms: AT, shape_ok: false, verifies: false },
+  { name: "byte-order-mark", why: "a UTF-8 byte-order mark before the directory", text: String.fromCharCode(0xfeff) + smallSigned, at_ms: AT, shape_ok: false, verifies: false },
+  { name: "as-array", why: "a directory written positionally, as an array", text: JSON.stringify(Object.values(rootSigned(small()))), at_ms: AT, shape_ok: false, verifies: false },
+];
+for (const c of dirCases) {
+  let shapeOk = true;
+  let verifies = false;
+  try {
+    verifies = verifyDirectory(parseDirectoryJson(c.text), c.root ?? rootHex, new Date(c.at_ms));
+  } catch {
+    shapeOk = false;
+  }
+  must(`directory/${c.name}`, { shape_ok: shapeOk, verifies }, { shape_ok: c.shape_ok, verifies: c.verifies });
+}
+
+// ---- prekey bundle cases ----
+type BundleCase = { name: string; why: string; text: string; directory: string; root?: string; at_ms: number; shape_ok: boolean; verifies: boolean };
+const BUNDLE_AT = Date.parse("2026-06-01T00:00:00.000Z");
+const bundleBody = (): PrekeyBundle => {
+  const { sig: _omit, ...body } = structuredClone(prekeyBundle);
+  void _omit;
+  return body as PrekeyBundle;
+};
+const signedBundle = (mutate: (b: Record<string, any>) => void, secretKey = northlineKp.secretKey): string => {
+  const b = bundleBody() as unknown as Record<string, any>;
+  mutate(b);
+  return JSON.stringify({ ...b, sig: signPrekeyBundle(b as unknown as PrekeyBundle, secretKey) });
+};
+const bundleText = JSON.stringify(prekeyBundle);
+const bundleCases: BundleCase[] = [
+  { name: "valid", why: "signed by the org it names, in window", text: bundleText, directory: "main", at_ms: BUNDLE_AT, shape_ok: true, verifies: true },
+  { name: "valid-with-no-prekeys", why: "an exhausted bundle is well-formed", text: signedBundle((b) => { b.prekeys = []; }), directory: "main", at_ms: BUNDLE_AT, shape_ok: true, verifies: true },
+  { name: "signed-by-another-org-real-key", why: "names org_northline but is signed by org_summitfab's enrolled key: the signer's org is not the bundle's org", text: signedBundle((b) => { b.kid = "summit-2026"; }, summitKp.secretKey), directory: "main", at_ms: BUNDLE_AT, shape_ok: true, verifies: false },
+  { name: "prekey-swapped-after-signing", why: "a prekey replaced without re-signing", text: JSON.stringify({ ...prekeyBundle, prekeys: [{ ...prekeyBundle.prekeys[0]!, public_key: bytesToHex(NEW_KEM.publicKey) }, prekeyBundle.prekeys[1]!] }), directory: "main", at_ms: BUNDLE_AT, shape_ok: true, verifies: false },
+  { name: "after-valid-until", why: "evaluated outside the bundle's own window", text: bundleText, directory: "main", at_ms: Date.parse("2027-06-01T00:00:00.000Z"), shape_ok: true, verifies: false },
+  { name: "signer-revoked", why: "the signing key is revoked in the directory", text: bundleText, directory: "northline-revoked", at_ms: BUNDLE_AT, shape_ok: true, verifies: false },
+  { name: "untrusted-directory", why: "the directory is not signed by the trusted root", text: bundleText, directory: "main", root: bytesToHex(otherRoot.publicKey), at_ms: BUNDLE_AT, shape_ok: true, verifies: false },
+  // Signed by the org, yet not well-formed.
+  { name: "prekey-id-with-separator", why: "prekey_id is 1-64 of [A-Za-z0-9._-]; it is concatenated into a key-derivation label", text: signedBundle((b) => { b.prekeys[0].prekey_id = `ot${String.fromCharCode(0)}1`; }), directory: "main", at_ms: BUNDLE_AT, shape_ok: false, verifies: false },
+  { name: "prekey-id-repeated", why: "two prekeys with one id", text: signedBundle((b) => { b.prekeys[1].prekey_id = b.prekeys[0].prekey_id; }), directory: "main", at_ms: BUNDLE_AT, shape_ok: false, verifies: false },
+  { name: "prekey-key-wrong-length", why: "an ML-KEM-1024 key is exactly 1568 bytes", text: signedBundle((b) => { b.prekeys[0].public_key = b.prekeys[0].public_key.slice(2); }), directory: "main", at_ms: BUNDLE_AT, shape_ok: false, verifies: false },
+  { name: "unknown-member", why: "an unknown member on the bundle", text: signedBundle((b) => { b.note = "x"; }), directory: "main", at_ms: BUNDLE_AT, shape_ok: false, verifies: false },
+  { name: "prekey-as-array", why: "a prekey written positionally", text: signedBundle((b) => { b.prekeys[0] = [b.prekeys[0].prekey_id, b.prekeys[0].public_key]; }), directory: "main", at_ms: BUNDLE_AT, shape_ok: false, verifies: false },
+  { name: "repeated-member", why: "a repeated member name", text: bundleText.replace('"org_id":', '"org_id":"org_summitfab","org_id":'), directory: "main", at_ms: BUNDLE_AT, shape_ok: false, verifies: false },
+];
+for (const c of bundleCases) {
+  let shapeOk = true;
+  let verifies = false;
+  try {
+    const b = parsePrekeyBundleJson(c.text);
+    verifies = verifyPrekeyBundle(b, directories[c.directory]!, c.root ?? rootHex, new Date(c.at_ms)) !== undefined;
+  } catch {
+    shapeOk = false;
+  }
+  must(`bundle/${c.name}`, { shape_ok: shapeOk, verifies }, { shape_ok: c.shape_ok, verifies: c.verifies });
+}
+
+// ---- recipient resolution: which key to ENCRYPT to ----
+const oldKey = { kid: envRecipient.kid, public_key: envRecipient.public_key };
+const NEW_PUB = bytesToHex(NEW_KEM.publicKey);
+const newKey = { kid: bytesToHex(sha384(NEW_KEM.publicKey)).slice(0, 16), public_key: NEW_PUB };
+type RecipientCase = { name: string; why: string; directory: string; org_id: string; at_ms: number; want: { kid: string; public_key: string } | null };
+const recipientCases: RecipientCase[] = [
+  { name: "single-entry", why: "the org's one usable entry", directory: "main", org_id: "org_northline", at_ms: AT, want: oldKey },
+  { name: "rotation-new-listed-last", why: "two usable entries: the most recently started wins", directory: "rotation-new-listed-last", org_id: "org_northline", at_ms: AT, want: newKey },
+  { name: "rotation-new-listed-first", why: "...whatever order the root listed them in", directory: "rotation-new-listed-first", org_id: "org_northline", at_ms: AT, want: newKey },
+  { name: "rotation-before-the-new-key-starts", why: "the new entry is not usable yet", directory: "rotation-new-listed-first", org_id: "org_northline", at_ms: Date.parse("2026-03-01T00:00:00.000Z"), want: oldKey },
+  { name: "same-start-greater-kid", why: "equal start: the greater kid wins (northline-2027 > northline-2026)", directory: "rotation-same-start", org_id: "org_northline", at_ms: AT, want: newKey },
+  { name: "same-start-lesser-kid", why: "equal start: the greater kid wins (northline-2026 > northline-2025)", directory: "rotation-same-start-lesser-kid", org_id: "org_northline", at_ms: AT, want: oldKey },
+  { name: "revoked", why: "a revoked entry is never a recipient", directory: "northline-revoked", org_id: "org_northline", at_ms: AT, want: null },
+  { name: "expired", why: "an expired entry is never a recipient", directory: "northline-expired-2026-07", org_id: "org_northline", at_ms: AT, want: null },
+  { name: "no-encryption-key", why: "an org that publishes no encryption key cannot be sealed to", directory: "northline-no-encryption-key", org_id: "org_northline", at_ms: AT, want: null },
+  { name: "unknown-org", why: "an org the directory does not list", directory: "main", org_id: "org_nobody", at_ms: AT, want: null },
+];
+for (const c of recipientCases) {
+  must(`recipient/${c.name}`, recipientByOrg(directories[c.directory]!, c.org_id, new Date(c.at_ms)) ?? null, c.want);
+}
+
+writeFileSync(
+  `${here}/signatures/directory-cases.json`,
+  JSON.stringify(
+    {
+      note:
+        "Directory, prekey-bundle and recipient-resolution cases. directory_cases / bundle_cases: `text` is the " +
+        "JSON text as on the wire; `shape_ok` says whether it is well-formed (checked without any key), `verifies` " +
+        "whether it is then trusted at at_ms under `root` (default root_public_key_hex) - a document that is not " +
+        "well-formed MUST NOT verify even when its signature is genuine. recipient_cases: the (kid, public_key) to " +
+        "encrypt to for org_id in the named directory at at_ms, or null. See docs/SPEC.md (Key directory).",
+      root_public_key_hex: rootHex,
+      directories,
+      directory_cases: dirCases,
+      bundle_cases: bundleCases,
+      recipient_cases: recipientCases,
+    },
+    null,
+    2,
+  ).replace(/[^\n -~]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`) + "\n",
+);
+console.log(`directory cases written (${dirCases.length} directory, ${bundleCases.length} bundle, ${recipientCases.length} recipient)`);
+
+// ---- traveler cases: authorship, award, quote signatures ----
+type WantCheck = { ok: true; kid: string; org_id: string } | { ok: false; reason: string };
+type WantReport = {
+  authorship: WantCheck[];
+  award: WantCheck | null;
+  quotes: { quote_id: string; check: WantCheck | null }[];
+  verified: boolean;
+};
+type TravelerCase = { name: string; why: string; traveler: string; directory: string; root?: string; at_ms: number; want: WantReport };
+const okBy = (kid: string, org_id: string): WantCheck => ({ ok: true, kid, org_id });
+const no = (reason: string): WantCheck => ({ ok: false, reason });
+const NORTH = okBy("northline-2026", "org_northline");
+const R = {
+  directory: "directory does not verify against the trust root",
+  traveler: "not a valid traveler",
+  noOrg: "author names no org_id to bind the signature to",
+  noEntry: "no active in-window directory entry for kid",
+  wrongOrg: "signer org does not match author org",
+  bad: "signature does not verify",
+  unsigned: "award is present but not signed by the buyer",
+  noQuoteHash: "signed award does not bind a quote_hash",
+  quoteAbsent: "awarded quote is not present to verify its priced content",
+  quoteChanged: "awarded quote content does not match the buyer-signed quote_hash",
+  quoteStale: "awarded quote is not bound to this revision",
+  unpriced: "awarded quote has no price for the awarded quantity",
+};
+const slim = (c: SigCheck | undefined): WantCheck | null =>
+  c === undefined ? null : c.ok ? { ok: true, kid: c.kid, org_id: c.org_id! } : { ok: false, reason: c.reason! };
+const tcase = (name: string, why: string, t: unknown, want: WantReport, over: Partial<TravelerCase> = {}): TravelerCase => ({
+  name,
+  why,
+  traveler: JSON.stringify(t),
+  directory: "main",
+  at_ms: AT,
+  want,
+  ...over,
+});
+const authoredOnly = (authorship: WantCheck[], verified: boolean): WantReport => ({ authorship, award: null, quotes: [], verified });
+const AWARD_QUOTES = [{ quote_id: awardedQuote.quote_id, check: null }];
+const awardWant = (award: WantCheck, authorship: WantCheck[] = [NORTH]): WantReport => ({
+  authorship,
+  award,
+  quotes: AWARD_QUOTES,
+  verified: authorship.some((c) => c.ok) && award.ok,
+});
+/** Re-sign a traveler's authorship and award as the buyer after editing it. */
+const resign = (t: Traveler, awardKey = northlineKp.secretKey, awardKid = "northline-2026"): Traveler => {
+  const out = structuredClone(t);
+  delete out.signatures;
+  if (out.award) delete out.award.sig;
+  out.signatures = [signTraveler(out, "northline-2026", northlineKp.secretKey)];
+  if (out.award) out.award.sig = signAward(out, awardKid, awardKey);
+  return out;
+};
+const editAward = (f: (t: Traveler) => void, sign = true): Traveler => {
+  const t = structuredClone(awardTraveler);
+  f(t);
+  return sign ? resign(t) : t;
+};
+
+// A traveler carrying three quotes: properly signed, signed by the wrong org, unsigned.
+const threeQuotes: Traveler = (() => {
+  const t = structuredClone(signedTraveler);
+  const h = travelerHash(t);
+  const mk = (id: string, org: string, name: string): Quote => ({
+    quote_id: id,
+    seller: { org_id: org, name },
+    traveler_hash_quoted: h,
+    created_at: "2026-02-01T00:00:00.000Z",
+    valid_until: "2027-06-01T00:00:00.000Z",
+    lead_time_days: 14,
+    pricing: { currency: "USD", lines: [{ qty: t.part.qty.target, unit: 1500 }] },
+  });
+  const a = mk("qot_verify0001", "org_huron", "Huron Precision");
+  a.sig = signQuote(a, "huron-2026", huronKp.secretKey);
+  const b = mk("qot_verify0002", "org_huron", "Huron Precision");
+  b.sig = signQuote(b, "summit-2026", summitKp.secretKey); // names huron, signed by summit's real key
+  const c = mk("qot_verify0003", "org_summitfab", "Summit Fabrication");
+  const d = mk("qot_verify0004", "org_summitfab", "Summit Fabrication");
+  d.sig = signQuote(d, "summit-2026", summitKp.secretKey);
+  d.lead_time_days = 2; // altered after signing
+  t.quotes = [a, b, c, d];
+  return t;
+})();
+
+const reissued: Traveler = (() => {
+  // An enrolled bidder re-issues the buyer's traveler under ITS OWN org_id, keeping the
+  // buyer's display name, and signs with its own (real, enrolled) key.
+  const t = structuredClone(signedTraveler);
+  delete t.signatures;
+  t.buyer = { ...t.buyer, org_id: "org_summitfab" };
+  t.signatures = [signTraveler(t, "summit-2026", summitKp.secretKey)];
+  return t;
+})();
+
+const travelerCases: TravelerCase[] = [
+  tcase("authored", "signed by the buyer the traveler names", signedTraveler, authoredOnly([NORTH], true)),
+  tcase("unsigned", "no signature: nothing is established", { ...signedTraveler, signatures: undefined }, authoredOnly([], false)),
+  tcase("signed-by-another-org-real-key", "the buyer's exact body, signed with ANOTHER enrolled org's real key: a valid signature by the wrong org",
+    { ...signedTraveler, signatures: [signTraveler(signedTraveler, "summit-2026", summitKp.secretKey)] },
+    authoredOnly([no(R.wrongOrg)], false)),
+  tcase("buyer-org-relabelled", "buyer.org_id changed to another org, the original signature kept",
+    { ...signedTraveler, buyer: { ...signedTraveler.buyer, org_id: "org_summitfab" } },
+    authoredOnly([no(R.wrongOrg)], false)),
+  tcase("reissued-under-another-org", "VERIFIES - as org_summitfab. Verification establishes WHICH org signed, never that it is the org a reader expects: a caller MUST compare org_id with the buyer it is dealing with",
+    reissued, authoredOnly([okBy("summit-2026", "org_summitfab")], true)),
+  tcase("body-altered", "the part changed after signing",
+    { ...signedTraveler, part: { ...signedTraveler.part, notes: "altered" } }, authoredOnly([no(R.bad)], false)),
+  tcase("revision-bumped", "the revision changed after signing",
+    { ...signedTraveler, revision: signedTraveler.revision + 1 }, authoredOnly([no(R.bad)], false)),
+  tcase("unknown-kid", "a kid the directory does not list",
+    { ...signedTraveler, signatures: [{ ...signedTraveler.signatures![0]!, kid: "nobody-2026" }] }, authoredOnly([no(R.noEntry)], false)),
+  tcase("buyer-names-no-org", "a signature with no org to bind it to",
+    (() => { const t = structuredClone(signedTraveler); delete t.buyer.org_id; return t; })(), authoredOnly([no(R.noOrg)], false)),
+  tcase("signer-revoked", "the buyer's key is revoked in the directory", signedTraveler, authoredOnly([no(R.noEntry)], false), { directory: "northline-revoked" }),
+  tcase("signer-expired", "the buyer's entry expired before at_ms (the directory itself is still valid)", signedTraveler, authoredOnly([no(R.noEntry)], false), { directory: "northline-expired-2026-07" }),
+  tcase("signer-in-window-earlier", "the same directory, evaluated while the entry was valid", signedTraveler, authoredOnly([NORTH], true), { directory: "northline-expired-2026-07", at_ms: Date.parse("2026-03-01T00:00:00.000Z") }),
+  tcase("signer-not-yet-valid", "the buyer's entry starts after at_ms", signedTraveler, authoredOnly([no(R.noEntry)], false), { directory: "northline-from-2028" }),
+  tcase("untrusted-directory", "the directory is not signed by the trusted root: nothing in it is believed", signedTraveler, authoredOnly([no(R.directory)], false), { root: bytesToHex(otherRoot.publicKey) }),
+  tcase("not-a-valid-traveler", "a signature declaring another algorithm makes the document itself invalid",
+    { ...signedTraveler, signatures: [{ ...signedTraveler.signatures![0]!, alg: "ML-DSA-65" }] }, authoredOnly([no(R.traveler)], false)),
+  tcase("two-signatures-one-valid", "one signature by the wrong org, one by the buyer: authorship holds",
+    { ...signedTraveler, signatures: [signTraveler(signedTraveler, "summit-2026", summitKp.secretKey), signedTraveler.signatures![0]!] },
+    authoredOnly([no(R.wrongOrg), NORTH], true)),
+  {
+    ...tcase("quote-signatures", "four quotes: signed by its seller; naming one org but signed by another's real key; unsigned; altered after signing", threeQuotes, {
+      authorship: [NORTH],
+      award: null,
+      quotes: [
+        { quote_id: "qot_verify0001", check: okBy("huron-2026", "org_huron") },
+        { quote_id: "qot_verify0002", check: no(R.wrongOrg) },
+        { quote_id: "qot_verify0003", check: null },
+        { quote_id: "qot_verify0004", check: no(R.bad) },
+      ],
+      verified: true,
+    }),
+  },
+  // ---- awards ----
+  tcase("award-verified", "the buyer signed this award and it binds the awarded quote", awardTraveler, awardWant(NORTH)),
+  tcase("award-unsigned", "an award with no signature is a failure, not an absence",
+    editAward((t) => { delete t.award!.sig; }, false), awardWant(no(R.unsigned))),
+  tcase("award-forged-by-a-bidder-real-key", "the award body signed with an enrolled BIDDER's real key (kid summit-2026): a valid signature, not the buyer's",
+    resign(awardTraveler, summitKp.secretKey, "summit-2026"), awardWant(no(R.wrongOrg))),
+  tcase("award-ship-to-redirected", "ship_to changed after the buyer signed",
+    editAward((t) => { t.ship_to = { ...t.ship_to!, line1: "1 Elsewhere Road" }; }, false), awardWant(no(R.bad))),
+  tcase("award-quantity-changed", "award.qty changed after the buyer signed",
+    editAward((t) => { t.award!.qty = 500; }, false), awardWant(no(R.bad))),
+  tcase("award-moved-to-another-revision", "the revision changed: neither signature covers it",
+    editAward((t) => { t.revision += 1; }, false), awardWant(no(R.bad), [no(R.bad)])),
+  tcase("award-without-quote-hash", "the buyer signed an award that commits to no quote content",
+    editAward((t) => { delete t.award!.quote_hash; }), awardWant(no(R.noQuoteHash))),
+  tcase("awarded-quote-removed", "the awarded quote stripped from the traveler: its price cannot be checked",
+    editAward((t) => { t.quotes = []; }, false), { ...awardWant(no(R.quoteAbsent)), quotes: [] }),
+  tcase("awarded-quote-price-swapped", "the awarded (unsigned) quote's unit price changed after the award was signed",
+    editAward((t) => { t.quotes![0]!.pricing.lines = t.quotes![0]!.pricing.lines.map((l) => ({ ...l, unit: l.unit + 1 })); }, false),
+    awardWant(no(R.quoteChanged))),
+  tcase("awarded-quote-for-another-revision", "buyer-signed, but the awarded quote was made against a different revision of the part",
+    editAward((t) => {
+      t.quotes![0]!.traveler_hash_quoted = `sha384:${"0".repeat(96)}`;
+      t.award!.quote_hash = quoteContentHash(t.quotes![0]!);
+    }), awardWant(no(R.quoteStale))),
+  tcase("awarded-quantity-unpriced", "buyer-signed, but the awarded quote has no price line for the awarded quantity",
+    editAward((t) => { t.award!.qty = 1_000_000; }), awardWant(no(R.unpriced))),
+  tcase("award-signer-revoked", "the buyer's key is revoked", awardTraveler, awardWant(no(R.noEntry), [no(R.noEntry)]), { directory: "northline-revoked" }),
+  tcase("award-untrusted-directory", "the directory is not trusted", awardTraveler,
+    { authorship: [no(R.directory)], award: no(R.directory), quotes: [], verified: false }, { root: bytesToHex(otherRoot.publicKey) }),
+];
+for (const c of travelerCases) {
+  const t = JSON.parse(c.traveler) as Traveler;
+  const r = verificationReport(t, directories[c.directory]!, c.root ?? rootHex, new Date(c.at_ms));
+  must(
+    `traveler/${c.name}`,
+    {
+      authorship: r.authorship.map(slim),
+      award: slim(r.award),
+      quotes: r.quotes.map((q) => ({ quote_id: q.quote_id, check: slim(q.check) })),
+      verified: r.verified,
+    },
+    c.want,
+  );
+}
+
+// ---- ITAR gate ----
+type ItarCase = { name: string; why: string; traveler: string; quote: string; directory: string; root?: string; at_ms: number; want: string | null };
+const ITAR_AT = Date.parse("2026-06-01T00:00:00.000Z");
+const itarTraveler: Traveler = { ...structuredClone(l0), itar: true };
+const plainTraveler: Traveler = { ...structuredClone(l0), itar: false };
+const unsignedHuron: Quote = (() => { const { sig: _omit, ...q } = signedQuote; void _omit; return q; })();
+const bySummitNamingHuron: Quote = { ...unsignedHuron, sig: signQuote(unsignedHuron, "summit-2026", summitKp.secretKey) };
+const summitQuote: Quote = (() => {
+  const q: Quote = { ...unsignedHuron, quote_id: "qot_itar000002", seller: { org_id: "org_summitfab", name: "Summit Fabrication", itar: true } };
+  return { ...q, sig: signQuote(q, "summit-2026", summitKp.secretKey) };
+})();
+const noOrgQuote: Quote = { ...unsignedHuron, seller: { name: "Huron Precision", itar: true } };
+const huronSecondKey: Quote = { ...unsignedHuron, sig: signQuote(unsignedHuron, "huron-2027", summitKp.secretKey) };
+const I = {
+  notSigned: "ITAR traveler: quote is not signed by the seller it names",
+  notAttested: "ITAR traveler: seller is not attested for ITAR in the directory",
+  noOrg: "ITAR traveler: seller has no org_id to attest against the directory",
+  directory: "ITAR traveler: key directory does not verify against the trust root",
+  traveler: "ITAR gate: not a valid traveler",
+  quote: "ITAR gate: not a valid quote",
+};
+const icase = (name: string, why: string, t: unknown, q: unknown, want: string | null, over: Partial<ItarCase> = {}): ItarCase => ({
+  name, why, traveler: JSON.stringify(t), quote: JSON.stringify(q), directory: "main", at_ms: ITAR_AT, want, ...over,
+});
+const itarCases: ItarCase[] = [
+  icase("signed-by-an-attested-seller", "the quote is signed by the seller it names, and the directory attests that seller for ITAR", itarTraveler, signedQuote, null),
+  icase("unsigned-quote-naming-an-attested-org", "seller.org_id is a field anyone can type: unsigned, it proves nothing", itarTraveler, unsignedHuron, I.notSigned),
+  icase("signed-by-another-org-naming-an-attested-org", "names the attested org, signed with another enrolled org's real key", itarTraveler, bySummitNamingHuron, I.notSigned),
+  icase("signed-by-an-unattested-seller", "properly signed, by a seller the directory does not attest for ITAR", itarTraveler, summitQuote, I.notAttested),
+  icase("seller-names-no-org", "nothing to attest", itarTraveler, noOrgQuote, I.noOrg),
+  icase("not-an-itar-traveler", "a non-ITAR traveler imposes no gate, even on an unsigned quote", plainTraveler, unsignedHuron, null),
+  icase("untrusted-directory", "an attestation from a directory the root did not sign is worth nothing", itarTraveler, signedQuote, I.directory, { root: bytesToHex(otherRoot.publicKey) }),
+  icase("attested-seller-revoked", "the seller's entry is revoked: its signature no longer resolves", itarTraveler, signedQuote, I.notSigned, { directory: "huron-revoked" }),
+  icase("attestation-on-another-entry-of-the-org", "the org holds ITAR on a different usable entry than the key that signed (key rotation): the capability is the org's", itarTraveler, huronSecondKey, null, { directory: "huron-itar-on-a-second-entry" }),
+  icase("traveler-fragment", "a fragment that says itar:true but is not a traveler is refused, not read as 'not ITAR'... or as ITAR", { itar: true }, signedQuote, I.traveler),
+  icase("traveler-itar-not-boolean", "itar: 1 is not a traveler", { ...itarTraveler, itar: 1 }, signedQuote, I.traveler),
+  icase("not-a-valid-quote", "a quote with a negative price is not a quote", itarTraveler, { ...signedQuote, lead_time_days: -1 }, I.quote),
+];
+for (const c of itarCases) {
+  must(
+    `itar/${c.name}`,
+    itarAttestationBlocker(JSON.parse(c.traveler) as Traveler, JSON.parse(c.quote) as Quote, directories[c.directory]!, c.root ?? rootHex, new Date(c.at_ms)),
+    c.want,
+  );
+}
+
+writeFileSync(
+  `${here}/signatures/verify-cases.json`,
+  JSON.stringify(
+    {
+      note:
+        "Signature-verification cases. traveler_cases: verify `traveler` (JSON text) against the named directory of " +
+        "directory-cases.json at at_ms under `root` (default root_public_key_hex) and produce exactly `want`: one check " +
+        "per buyer signature, the award check (null: no award), one check per quote (null: unsigned), and `verified` " +
+        "(a valid buyer signature and, if there is an award, a valid award). A passing check carries the signing kid " +
+        "and the org the directory binds it to; a refused check carries the REASON, which is normative - an " +
+        "implementation that refuses for a different reason has a different rule. itar_cases: the ITAR gate's answer " +
+        "for (traveler, quote): null (allowed) or the reason it is refused.",
+      root_public_key_hex: rootHex,
+      directories: "directory-cases.json#/directories",
+      traveler_cases: travelerCases,
+      itar_cases: itarCases,
+    },
+    null,
+    2,
+  ) + "\n",
+);
+console.log(`verify cases written (${travelerCases.length} traveler, ${itarCases.length} itar)`);

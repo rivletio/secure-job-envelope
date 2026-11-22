@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import {
   verifyDirectory,
-  entryByOrg,
+  encryptionEntryByOrg,
   entryByKid,
   orgHasCapability,
   signDirectory,
@@ -42,7 +42,7 @@ describe("signed key directory", () => {
   });
 
   it("resolves org and kid entries and attested capabilities", () => {
-    assert.equal(entryByOrg(dir, "org_huron", at)?.kid, "huron-2026");
+    assert.equal(encryptionEntryByOrg(dir, "org_huron", at)?.kid, "huron-2026");
     assert.equal(entryByKid(dir, "summit-2026", at)?.org_id, "org_summitfab");
     // ITAR is attested by the directory, not self-declared by the seller (caveat 3)
     assert.equal(orgHasCapability(dir, "org_huron", "itar", at), true);
@@ -53,8 +53,8 @@ describe("signed key directory", () => {
   it("ignores revoked and out-of-window entries", () => {
     const revoked: Directory = structuredClone(dir);
     revoked.entries[0]!.status = "revoked";
-    assert.equal(entryByOrg(revoked, "org_huron", at), undefined);
-    assert.equal(entryByOrg(dir, "org_huron", new Date("2025-01-01T00:00:00.000Z")), undefined);
+    assert.equal(encryptionEntryByOrg(revoked, "org_huron", at), undefined);
+    assert.equal(encryptionEntryByOrg(dir, "org_huron", new Date("2025-01-01T00:00:00.000Z")), undefined);
   });
 });
 
@@ -153,8 +153,8 @@ describe("trust-root governance — vendor neutrality (GOVERNANCE.md)", () => {
 
     // Each root publishes its own directory (here, even binding the same org to a
     // different key — the two roots are independent naming authorities).
-    const dirA = dirFor(rootA, "aa".repeat(1312));
-    const dirB = dirFor(rootB, "bb".repeat(1312));
+    const dirA = dirFor(rootA, "aa".repeat(2592));
+    const dirB = dirFor(rootB, "bb".repeat(2592));
 
     // Each directory verifies under its own root…
     assert.equal(verifyDirectory(dirA, pkA, when), true);
@@ -168,7 +168,7 @@ describe("trust-root governance — vendor neutrality (GOVERNANCE.md)", () => {
   it("makes the configured root the sole arbiter — swapping it changes which directory is authoritative", () => {
     const incumbent = keypairFromSeed(new Uint8Array(32).fill(0xc3));
     const challenger = keypairFromSeed(new Uint8Array(32).fill(0xd4));
-    const dir = dirFor(incumbent, "cc".repeat(1312));
+    const dir = dirFor(incumbent, "cc".repeat(2592));
     // A verifier that trusts the incumbent accepts it; one that trusts a different
     // root rejects the very same bytes. There is no appeal to a built-in authority.
     assert.equal(verifyDirectory(dir, bytesToHex(incumbent.publicKey), when), true);

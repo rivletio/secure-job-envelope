@@ -80,8 +80,11 @@ const signed: Traveler = {
   signatures: [signTraveler(traveler, "northline-2026", buyerKey.secretKey)],
 };
 const good = verifyTravelerSignatures(signed, directory, rootPublicKeyHex, AT);
-note(`verified=${good.every((c) => c.ok)} · author org=${good[0]?.org_id}`);
-assert.ok(good.every((c) => c.ok));
+// One signature, and it verifies. (`every` alone is true for an UNSIGNED traveler —
+// an empty list of checks — so it must never be the test of authorship.)
+const verified = good.length === 1 && good[0]!.ok;
+note(`verified=${verified} · author org=${good[0]?.org_id}`);
+assert.ok(verified);
 
 /* 3. A one-field tamper breaks the signature. */
 step(3, "A tampered body no longer verifies");

@@ -8,6 +8,7 @@
  *  only ever *verifies* — it must not hold ML-DSA private keys (see SECURITY).
  */
 import { canonicalJson } from "./canonical.ts";
+import { parseQuote, parseTraveler } from "./conformance.ts";
 import { quoteableBody, travelerHash, sha384Hex } from "./hash.ts";
 import { SIG_ALG, SIG_DOMAIN, signBody, verifyBody } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
@@ -74,7 +75,8 @@ function checkSig(
   dir: Directory,
   at?: Date,
 ): SigCheck {
-  if (s.alg !== SIG_ALG) return { kid: s.kid, ok: false, reason: "unsupported alg" };
+  // (No algorithm check here: every caller validates the document first, and a valid
+  // signature object can only declare SIG_ALG.)
   // Authorship must name an org and bind the signature to it. A missing org_id is
   // a hard failure — not an implicit "any directory member will do" — matching the
   // Rust verifier and closing the unbound-author acceptance gap.
@@ -95,10 +97,20 @@ function checkSig(
   return { kid: s.kid, ok, org_id: entry.org_id, reason: ok ? undefined : "signature does not verify" };
 }
 
+function isValid(parse: () => unknown): boolean {
+  try {
+    parse();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The stock "directory failed to verify against the trust root" result, shared by the
  *  three verify* functions so the reason string lives in exactly one place. */
-function dirUnverified(dir: Directory): SigCheck {
-  return { kid: dir.root_kid, ok: false, reason: "directory does not verify against the trust root" };
+function dirUnverified(): SigCheck {
+  // No kid: the only id on hand is one an unverified directory declares for itself.
+  return { kid: "", ok: false, reason: "directory does not verify against the trust root" };
 }
 
 /** Per-signature results for a traveler's buyer authorship signatures. */
@@ -110,7 +122,10 @@ export function verifyTravelerSignatures(
 ): SigCheck[] {
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
-    return [dirUnverified(dir)];
+    return [dirUnverified()];
+  }
+  if (!isValid(() => parseTraveler(t))) {
+    return [{ kid: "", ok: false, reason: "not a valid traveler" }];
   }
   // Fail closed if the body cannot be canonicalized (a non-canonical number in an
   // opaque field, say): a body that cannot be produced cannot have been signed, so
@@ -148,7 +163,12 @@ export function verifyQuoteSignature(
   if (!q.sig) return undefined;
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
-    return dirUnverified(dir);
+    return dirUnverified();
+  }
+  // A signature over something that is not a valid quote establishes nothing (the
+  // Rust verifier parses before it verifies; a typed argument here is only a claim).
+  if (!isValid(() => parseQuote(q))) {
+    return { kid: q.sig.kid, ok: false, reason: "not a valid quote" };
   }
   // Fail closed if the quote body cannot be canonicalized. A quote's opaque
   // assumptions / capacity blobs allow arbitrary values, so a hostile number
@@ -186,7 +206,10 @@ export function verifyAwardSignature(
   if (!t.award) return undefined;
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
-    return dirUnverified(dir);
+    return dirUnverified();
+  }
+  if (!isValid(() => parseTraveler(t))) {
+    return { kid: "", ok: false, reason: "not a valid traveler" };
   }
   if (!t.award.sig) {
     return { kid: "", ok: false, reason: "award is present but not signed by the buyer" };
@@ -216,7 +239,7 @@ export function verifyAwardSignature(
     return {
       ...sigCheck,
       ok: false,
-      reason: `awarded quote ${quoteId} is not present to verify its priced content`,
+      reason: "awarded quote is not present to verify its priced content",
     };
   }
   let computed: string;
@@ -231,6 +254,18 @@ export function verifyAwardSignature(
       ok: false,
       reason: "awarded quote content does not match the buyer-signed quote_hash",
     };
+  }
+  // The award is the buyer's and commits to this quote's content. It must also commit
+  // to something determinate: a quote made against THIS revision of the part (a quote
+  // for an earlier revision prices a different part), carrying a price for the quantity
+  // awarded. Both are facts of the signed bytes, so both implementations decide them
+  // identically.
+  if (awarded.traveler_hash_quoted !== travelerHash(t)) {
+    return { ...sigCheck, ok: false, reason: "awarded quote is not bound to this revision" };
+  }
+  const awardedQty = t.award.qty;
+  if (!awarded.pricing.lines.some((l) => l.qty === awardedQty)) {
+    return { ...sigCheck, ok: false, reason: "awarded quote has no price for the awarded quantity" };
   }
   return sigCheck;
 }
@@ -247,9 +282,14 @@ export function awardIsAuthentic(
 
 /** ITAR gate elevated to directory attestation (caveat 3): an ITAR traveler's
  *  seller must hold the ITAR capability in a directory that itself verifies
- *  against the trust root. Returns null if allowed, or a reason string if
- *  refused. The root check matches its sibling verifiers, so a self-made or
- *  tampered directory cannot grant the capability. */
+ *  against the trust root — and the quote must be SIGNED by that seller. Returns
+ *  null if allowed, or a reason string if refused.
+ *
+ *  The signature is what makes the attestation mean anything: `seller.org_id` is a
+ *  field the quote's author types. Without a verified signature binding the quote to
+ *  that org's directory key, an unsigned quote that merely names an attested org — or
+ *  one signed by some other org — passed this gate. The root check matches its sibling
+ *  verifiers, so a self-made or tampered directory cannot grant the capability. */
 export function itarAttestationBlocker(
   t: Traveler,
   q: Quote,
@@ -257,14 +297,60 @@ export function itarAttestationBlocker(
   rootPublicKeyHex: string,
   at?: Date,
 ): string | null {
+  // Fail closed on a document that is not a traveler at all — never read it as
+  // "not ITAR" (the order and the reasons below are the Rust gate's, exactly).
+  if (!isValid(() => parseTraveler(t))) return "ITAR gate: not a valid traveler";
   if (!t.itar) return null;
   const when = at ?? new Date();
   if (!verifyDirectory(dir, rootPublicKeyHex, when)) {
     return "ITAR traveler: key directory does not verify against the trust root";
   }
+  if (!isValid(() => parseQuote(q))) return "ITAR gate: not a valid quote";
   if (!q.seller.org_id) return "ITAR traveler: seller has no org_id to attest against the directory";
+  if (verifyQuoteSignature(q, dir, rootPublicKeyHex, when)?.ok !== true) {
+    return "ITAR traveler: quote is not signed by the seller it names";
+  }
   if (!orgHasCapability(dir, q.seller.org_id, "itar", when)) {
     return "ITAR traveler: seller is not attested for ITAR in the directory";
   }
   return null;
+}
+
+/** What verification established about a traveler: one function, one answer, for every
+ *  caller that has to decide whether to trust a received document (the desk's panel and
+ *  import gate, the MCP server, a script). Mirrors the Rust core's `verify_report`
+ *  field for field and reason for reason. */
+export type VerificationReport = {
+  /** One check per buyer signature (empty: unsigned). If the directory does not verify,
+   *  or the document is not a valid traveler, a single refused check says so. */
+  authorship: SigCheck[];
+  /** The buyer's award signature; `undefined` iff the traveler carries no award. */
+  award: SigCheck | undefined;
+  /** Per quote, in document order; `check` is `undefined` for an unsigned quote. */
+  quotes: { quote_id: string; check: SigCheck | undefined }[];
+  /** At least one valid buyer signature. */
+  authored: boolean;
+  /** The traveler is the buyer's and, if it carries an award, so is the award. */
+  verified: boolean;
+};
+
+export function verificationReport(
+  t: Traveler,
+  dir: Directory,
+  rootPublicKeyHex: string,
+  at?: Date,
+): VerificationReport {
+  const when = at ?? new Date();
+  const authorship = verifyTravelerSignatures(t, dir, rootPublicKeyHex, when);
+  const award = verifyAwardSignature(t, dir, rootPublicKeyHex, when);
+  // Quotes are only reported for a document verification could proceed on.
+  const established = verifyDirectory(dir, rootPublicKeyHex, when) && isValid(() => parseTraveler(t));
+  const quotes = established
+    ? (t.quotes ?? []).map((q) => ({
+        quote_id: q.quote_id,
+        check: verifyQuoteSignature(q, dir, rootPublicKeyHex, when),
+      }))
+    : [];
+  const authored = authorship.some((c) => c.ok);
+  return { authorship, award, quotes, authored, verified: authored && (award === undefined || award.ok) };
 }

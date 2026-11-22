@@ -11,7 +11,7 @@ use ml_dsa::signature::{Keypair, Signer, Verifier};
 use ml_dsa::{
     EncodedSignature, EncodedVerifyingKey, MlDsa87, Signature, SigningKey, VerifyingKey, B32,
 };
-use serde_json::Value;
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha384};
 
 pub const SIG_ALG: &str = "ML-DSA-87";
@@ -67,310 +67,499 @@ pub fn verify_body(domain: &str, canonical_body: &str, sig_hex: &str, pk_hex: &s
 
 pub const DIRECTORY_SPEC: &str = "sje-directory/0.1.0";
 pub const PREKEY_BUNDLE_SPEC: &str = "sje-prekeys/0.1.0";
+/// Most entries one directory may carry.
+pub const MAX_DIRECTORY_ENTRIES: usize = 512;
+/// A directory's JSON text, in bytes (an entry is ~9 KB of key material).
+pub const MAX_DIRECTORY_JSON_BYTES: usize = 8 * 1024 * 1024;
+/// Most one-time prekeys one bundle may carry.
+pub const MAX_BUNDLE_PREKEYS: usize = 256;
+/// A prekey bundle's JSON text, in bytes.
+pub const MAX_PREKEY_BUNDLE_JSON_BYTES: usize = 1024 * 1024;
+const KEM_ALG: &str = "ML-KEM-1024";
+const ML_DSA_87_PUBLIC_KEY_BYTES: usize = 2592;
+const ML_DSA_87_SIGNATURE_BYTES: usize = 4627;
+const ML_KEM_1024_PUBLIC_KEY_BYTES: usize = 1568;
 
-/// Verify a signed key directory (JSON) against the trust-root public key (hex),
-/// and that `at_ms` falls within the directory's own freshness window
-/// `[issued_at, valid_until)`. The window is part of the signed body, so it
-/// cannot be widened without breaking the root signature; enforcing it here
-/// additionally bounds how long a stale (but validly-signed) directory can be
-/// replayed — the in-band limit on revocation rollback. False on any malformed
-/// or out-of-window input. The signed body is the directory with its own `sig`
-/// removed, then canonicalized — identical bytes to the TypeScript `directoryBody`.
-pub fn verify_directory(dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
-    let Ok(mut v) = serde_json::from_str::<Value>(dir_json) else {
-        return false;
-    };
-    let Some(obj) = v.as_object_mut() else {
-        return false;
-    };
-    if obj.get("spec").and_then(Value::as_str) != Some(DIRECTORY_SPEC) {
-        return false;
-    }
-    let issued = obj
-        .get("issued_at")
-        .and_then(Value::as_str)
-        .and_then(crate::rfc3339_millis);
-    let until = obj
-        .get("valid_until")
-        .and_then(Value::as_str)
-        .and_then(crate::rfc3339_millis);
-    let (Some(issued), Some(until)) = (issued, until) else {
-        return false;
-    };
-    if !(issued <= at_ms && at_ms < until) {
-        return false;
-    }
-    let Some(sig) = obj.remove("sig").and_then(|s| s.as_str().map(str::to_string)) else {
-        return false;
-    };
-    let Ok(canonical) = canonical_json(&v) else {
-        return false;
-    };
-    verify_body(DOMAIN_DIRECTORY, &canonical, &sig, root_pk_hex)
+// ---------------------------------------------------------------------------
+// Shape. A signature says who signed the bytes; it does not say every reader takes
+// the same meaning from them. A root-signed directory with `entries: [null]`, a
+// capability spelled `"itar": "false"`, one kid on two orgs, or a key of the wrong
+// length used to be read by each implementation in its own way. So the directory and
+// the prekey bundle have an exact shape, identical to the TypeScript reference
+// (`directory.ts` `directoryShapeError`, `prekeys.ts` `prekeyBundleShapeError`), and
+// the text is read strictly (no repeated member name, size-capped).
+// ---------------------------------------------------------------------------
+
+/// The object `v` iff its members all come from `required ∪ optional` and include
+/// every one of `required`.
+fn members<'a>(v: &'a Value, required: &[&str], optional: &[&str]) -> Option<&'a Map<String, Value>> {
+    let m = v.as_object()?;
+    let ok = required.iter().all(|k| m.contains_key(*k))
+        && m.keys().all(|k| required.contains(&k.as_str()) || optional.contains(&k.as_str()));
+    ok.then_some(m)
 }
 
-/// Single source of truth for "is this entry usable at `at_ms`": active status,
-/// the expected algorithm, and inside `[valid_from, valid_until)`. Shared by the
-/// kid and org lookups so they can never diverge on what counts as valid (the
-/// TypeScript side shares one `inWindow` the same way). Malformed entries → false.
-fn entry_active_in_window(e: &Value, at_ms: i64) -> bool {
-    (|| -> Option<bool> {
-        if e.get("status").and_then(Value::as_str)? != "active" {
-            return None;
-        }
-        if e.get("alg").and_then(Value::as_str)? != SIG_ALG {
-            return None;
-        }
-        let from = crate::rfc3339_millis(e.get("valid_from")?.as_str()?)?;
-        let until = crate::rfc3339_millis(e.get("valid_until")?.as_str()?)?;
-        Some(from <= at_ms && at_ms < until)
-    })()
-    .unwrap_or(false)
+/// Lowercase hex of exactly `bytes` bytes.
+fn hex_of(v: &Value, bytes: usize) -> Option<&str> {
+    let s = v.as_str()?;
+    (s.len() == 2 * bytes && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))).then_some(s)
 }
 
-/// Look up a directory entry by kid that is active, of the expected algorithm,
-/// and in its validity window at `at_ms`, returning (org_id, public_key_hex).
-/// Mirrors the TypeScript `entryByKid` / `inWindow`, so an expired, not-yet-valid,
-/// revoked, or wrong-algorithm entry never authenticates. Malformed entries are
-/// skipped rather than aborting the search.
-pub fn directory_entry_by_kid(dir_json: &str, kid: &str, at_ms: i64) -> Option<(String, String)> {
-    let v: Value = serde_json::from_str(dir_json).ok()?;
-    v.get("entries")?.as_array()?.iter().find_map(|e| {
-        if e.get("kid").and_then(Value::as_str) != Some(kid) || !entry_active_in_window(e, at_ms) {
-            return None;
-        }
-        Some((
-            e.get("org_id")?.as_str()?.to_string(),
-            e.get("public_key")?.as_str()?.to_string(),
-        ))
-    })
+/// A key id, root id or prekey id: 1–64 of `[A-Za-z0-9._-]`.
+fn key_id(v: &Value) -> Option<&str> {
+    let s = v.as_str()?;
+    let ok = (1..=64).contains(&s.len())
+        && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
+    ok.then_some(s)
 }
 
-/// Verify a traveler's buyer-authorship signature against a signed directory at
-/// `at_ms`. True iff the directory verifies (and is in-window) against
-/// `root_pk_hex`, the buyer names an org_id, and at least one of the traveler's
-/// signatures resolves to an active, in-window directory entry whose org matches
-/// `buyer.org_id` and whose ML-DSA-87 key verifies the canonical quoteable body.
-pub fn verify_traveler_authorship(
-    traveler_json: &str,
-    dir_json: &str,
-    root_pk_hex: &str,
-    at_ms: i64,
-) -> bool {
-    if !verify_directory(dir_json, root_pk_hex, at_ms) {
-        return false;
+fn org_id(v: &Value) -> Option<&str> {
+    v.as_str().filter(|s| crate::validate::org_id_ok(s))
+}
+
+/// `[from, until)` as instants, iff both are canonical datetimes with from < until.
+fn window(from: &Value, until: &Value) -> Option<(i64, i64)> {
+    let a = crate::rfc3339_millis(from.as_str()?)?;
+    let b = crate::rfc3339_millis(until.as_str()?)?;
+    (a < b).then_some((a, b))
+}
+
+struct Entry {
+    org_id: String,
+    kid: String,
+    public_key: String,
+    from: i64,
+    until: i64,
+    active: bool,
+    itar: bool,
+    enc_public_key: Option<String>,
+}
+
+impl Entry {
+    /// Usable at `at_ms`: active and inside `[valid_from, valid_until)`.
+    fn usable(&self, at_ms: i64) -> bool {
+        self.active && self.from <= at_ms && at_ms < self.until
     }
-    let Ok(t) = crate::parse_traveler(traveler_json) else {
-        return false;
-    };
-    let Some(buyer_org) = t.buyer.org_id.clone() else {
-        return false;
-    };
-    let Ok(body_value) = serde_json::to_value(crate::quoteable_from(&t)) else {
-        return false;
-    };
-    let Ok(canonical) = canonical_json(&body_value) else {
-        return false;
-    };
-    for s in t.signatures.as_deref().unwrap_or(&[]) {
-        if s.alg != SIG_ALG {
-            continue;
+}
+
+/// A shape-valid directory. Whether it is *trusted* is `load_directory`'s business.
+struct Directory {
+    issued: i64,
+    until: i64,
+    sig: String,
+    entries: Vec<Entry>,
+}
+
+impl Directory {
+    /// The usable entry with this kid. A kid is on at most one entry.
+    fn by_kid(&self, kid: &str, at_ms: i64) -> Option<&Entry> {
+        self.entries.iter().find(|e| e.kid == kid && e.usable(at_ms))
+    }
+
+    /// Whether any usable entry of the org attests ITAR (order-independent).
+    fn has_itar(&self, org: &str, at_ms: i64) -> bool {
+        self.entries.iter().any(|e| e.org_id == org && e.usable(at_ms) && e.itar)
+    }
+
+    /// The entry to ENCRYPT to for an org: among its usable entries carrying an
+    /// encryption key, the one whose validity started most recently (ties: the greater
+    /// kid) — never "whichever is listed first".
+    fn encryption_entry(&self, org: &str, at_ms: i64) -> Option<&Entry> {
+        self.entries
+            .iter()
+            .filter(|e| e.org_id == org && e.usable(at_ms) && e.enc_public_key.is_some())
+            .max_by(|a, b| a.from.cmp(&b.from).then_with(|| a.kid.cmp(&b.kid)))
+    }
+}
+
+fn directory_from(v: &Value) -> Result<Directory, &'static str> {
+    let d = members(v, &["spec", "issued_at", "valid_until", "root_kid", "entries", "sig"], &[])
+        .ok_or("unexpected or missing members")?;
+    if d["spec"].as_str() != Some(DIRECTORY_SPEC) {
+        return Err("unsupported spec");
+    }
+    let (issued, until) = window(&d["issued_at"], &d["valid_until"]).ok_or("issued_at / valid_until")?;
+    key_id(&d["root_kid"]).ok_or("root_kid")?;
+    let sig = hex_of(&d["sig"], ML_DSA_87_SIGNATURE_BYTES).ok_or("sig")?.to_string();
+    let list = d["entries"].as_array().filter(|l| l.len() <= MAX_DIRECTORY_ENTRIES).ok_or("entries")?;
+    let mut entries: Vec<Entry> = Vec::with_capacity(list.len());
+    for raw in list {
+        let e = members(
+            raw,
+            &["org_id", "kid", "alg", "public_key", "valid_from", "valid_until", "status"],
+            &["capabilities", "enc_alg", "enc_public_key"],
+        )
+        .ok_or("entry has unexpected or missing members")?;
+        let org = org_id(&e["org_id"]).ok_or("entry org_id")?;
+        let kid = key_id(&e["kid"]).ok_or("entry kid")?;
+        if entries.iter().any(|x| x.kid == kid) {
+            return Err("entry kid repeats an earlier entry");
         }
-        if let Some((org, pk)) = directory_entry_by_kid(dir_json, &s.kid, at_ms) {
-            if org == buyer_org && verify_body(DOMAIN_TRAVELER, &canonical, &s.sig, &pk) {
-                return true;
+        if e["alg"].as_str() != Some(SIG_ALG) {
+            return Err("entry alg");
+        }
+        let public_key = hex_of(&e["public_key"], ML_DSA_87_PUBLIC_KEY_BYTES).ok_or("entry public_key")?;
+        let (from, until) = window(&e["valid_from"], &e["valid_until"]).ok_or("entry valid_from / valid_until")?;
+        let active = match e["status"].as_str() {
+            Some("active") => true,
+            Some("revoked") => false,
+            _ => return Err("entry status"),
+        };
+        let itar = match e.get("capabilities") {
+            None => false,
+            Some(c) => {
+                let c = members(c, &[], &["itar"]).ok_or("entry capabilities")?;
+                match c.get("itar") {
+                    None => false,
+                    Some(b) => b.as_bool().ok_or("entry capabilities.itar")?,
+                }
             }
-        }
+        };
+        let enc_public_key = match (e.get("enc_alg"), e.get("enc_public_key")) {
+            (None, None) => None,
+            (Some(alg), Some(key)) => {
+                if alg.as_str() != Some(KEM_ALG) {
+                    return Err("entry enc_alg");
+                }
+                Some(hex_of(key, ML_KEM_1024_PUBLIC_KEY_BYTES).ok_or("entry enc_public_key")?.to_string())
+            }
+            _ => return Err("entry enc_alg / enc_public_key"),
+        };
+        entries.push(Entry {
+            org_id: org.to_string(),
+            kid: kid.to_string(),
+            public_key: public_key.to_string(),
+            from,
+            until,
+            active,
+            itar,
+            enc_public_key,
+        });
     }
-    false
+    Ok(Directory { issued, until, sig, entries })
 }
 
-/// Verify the buyer's signature over an award + ship-to against the signed
-/// directory at `at_ms`. True iff the directory verifies (in-window) against
-/// `root_pk_hex`, the traveler carries an award with an ML-DSA-87 signature, the
-/// buyer names an org_id, and that signature resolves to an active, in-window
-/// directory entry whose org matches `buyer.org_id` and whose key verifies the
-/// canonical award body `{spec, traveler_id, traveler_hash, award (minus sig),
-/// ship_to}`. A party who is not the buyer — e.g. a losing bidder who can seal an
-/// envelope to the winner — cannot produce this, so a forged award or altered
-/// ship-to is refused. The award body includes `award.quote_hash`, and this verifier
-/// additionally requires that binding to hold: the awarded quote MUST be present in
-/// `quotes` and still hash to the signed `quote_hash`, so an absent or unsigned awarded
-/// quote cannot have its priced content swapped under a still-valid award signature (a
-/// stripped awarded quote is a hard failure). Mirrors the TypeScript `verifyAwardSignature`;
-/// false on a missing or unsigned award, a non-buyer signer, an absent/mismatched awarded
-/// quote, or any malformed input.
-pub fn verify_award_signature(
-    traveler_json: &str,
-    dir_json: &str,
-    root_pk_hex: &str,
+/// Strictly read directory text: size-capped, no repeated member name, exact shape.
+fn read_directory(dir_json: &str) -> Result<(Value, Directory), &'static str> {
+    if dir_json.len() > MAX_DIRECTORY_JSON_BYTES {
+        return Err("directory exceeds the size limit");
+    }
+    let v = crate::de::strict_value(dir_json).map_err(|_| "directory is not strict JSON")?;
+    let dir = directory_from(&v)?;
+    Ok((v, dir))
+}
+
+/// Check that `dir_json` is exactly a well-formed signed directory, without using any
+/// key. The error names the rule that failed; nothing from the directory is echoed.
+pub fn directory_shape(dir_json: &str) -> Result<(), &'static str> {
+    read_directory(dir_json).map(|_| ())
+}
+
+/// The directory, iff it is well-formed, `at_ms` is inside its own freshness window
+/// `[issued_at, valid_until)`, and its signature verifies against the trust root.
+fn load_directory(dir_json: &str, root_pk_hex: &str, at_ms: i64) -> Option<Directory> {
+    let (mut v, dir) = read_directory(dir_json).ok()?;
+    if !(dir.issued <= at_ms && at_ms < dir.until) {
+        return None;
+    }
+    // The signed body is the directory with its own `sig` removed, canonicalized —
+    // identical bytes to the TypeScript `directoryBody`.
+    v.as_object_mut()?.remove("sig");
+    let canonical = canonical_json(&v).ok()?;
+    verify_body(DOMAIN_DIRECTORY, &canonical, &dir.sig, root_pk_hex).then_some(dir)
+}
+
+/// Verify a signed key directory (JSON) against the trust-root public key (hex): it
+/// has exactly the specified shape, `at_ms` falls within its own freshness window
+/// `[issued_at, valid_until)`, and the root's signature verifies. The window is part
+/// of the signed body, so it cannot be widened without breaking the root signature;
+/// enforcing it here additionally bounds how long a stale (but validly-signed)
+/// directory can be replayed. False on any malformed or out-of-window input.
+pub fn verify_directory(dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
+    load_directory(dir_json, root_pk_hex, at_ms).is_some()
+}
+
+/// Look up a directory entry by kid that is active and in its validity window at
+/// `at_ms`, returning (org_id, public_key_hex). None for a malformed directory. Does
+/// NOT check the root signature — call `verify_directory` first.
+pub fn directory_entry_by_kid(dir_json: &str, kid: &str, at_ms: i64) -> Option<(String, String)> {
+    let (_, dir) = read_directory(dir_json).ok()?;
+    dir.by_kid(kid, at_ms).map(|e| (e.org_id.clone(), e.public_key.clone()))
+}
+
+/// The recipient to seal to for an org: `(enc_kid, ml_kem_public_key_hex)` of the
+/// org's most recently started usable entry that carries an encryption key. None if
+/// there is none or the directory is malformed. Does NOT check the root signature —
+/// call `verify_directory` first. Mirrors the TypeScript `recipientByOrg`.
+pub fn recipient_by_org(dir_json: &str, org: &str, at_ms: i64) -> Option<(String, String)> {
+    let (_, dir) = read_directory(dir_json).ok()?;
+    let key = dir.encryption_entry(org, at_ms)?.enc_public_key.clone()?;
+    Some((crate::envelope::enc_kid(&key)?, key))
+}
+
+// ---------------------------------------------------------------------------
+// Verification. Reasons are the same strings the TypeScript reference returns, so the
+// shared cases (conformance/signatures/verify-cases.json) pin not only that a document
+// is refused but which rule refused it, on both sides.
+// ---------------------------------------------------------------------------
+
+/// The result of checking one signature.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Check {
+    pub ok: bool,
+    /// The kid the signature names ("" when there is no signature to name one).
+    pub kid: String,
+    /// The org the directory binds that kid to, when the kid resolved.
+    pub org_id: Option<String>,
+    /// Why it was refused; None when `ok`.
+    pub reason: Option<&'static str>,
+}
+
+impl Check {
+    fn refused(kid: &str, reason: &'static str) -> Self {
+        Check { ok: false, kid: kid.to_string(), org_id: None, reason: Some(reason) }
+    }
+    fn but(mut self, reason: &'static str) -> Self {
+        self.ok = false;
+        self.reason = Some(reason);
+        self
+    }
+}
+
+const R_DIRECTORY: &str = "directory does not verify against the trust root";
+const R_TRAVELER: &str = "not a valid traveler";
+const R_QUOTE: &str = "not a valid quote";
+
+/// Check one signature: the kid must resolve to a usable directory entry, that entry's
+/// org must be the org the document names as its author, and the key must verify the
+/// domain-separated body.
+fn check_sig(
+    dir: &Directory,
+    domain: &str,
+    canonical_body: &str,
+    sig: &crate::Signature,
+    claimed_org: Option<&str>,
     at_ms: i64,
-) -> bool {
-    if !verify_directory(dir_json, root_pk_hex, at_ms) {
-        return false;
+) -> Check {
+    let Some(claimed) = claimed_org else {
+        return Check::refused(&sig.kid, "author names no org_id to bind the signature to");
+    };
+    let Some(entry) = dir.by_kid(&sig.kid, at_ms) else {
+        return Check::refused(&sig.kid, "no active in-window directory entry for kid");
+    };
+    let named = Check { ok: false, kid: sig.kid.clone(), org_id: Some(entry.org_id.clone()), reason: None };
+    if entry.org_id != claimed {
+        return named.but("signer org does not match author org");
     }
-    // Parse: validates the document and yields the traveler_hash that binds the award.
-    let Ok(t) = crate::parse_traveler(traveler_json) else {
-        return false;
+    if !verify_body(domain, canonical_body, &sig.sig, &entry.public_key) {
+        return named.but("signature does not verify");
+    }
+    Check { ok: true, ..named }
+}
+
+/// The canonical bytes of `v` with its own `sig` member removed.
+fn body_without_sig(v: &Value) -> Option<String> {
+    let mut body = v.clone();
+    body.as_object_mut()?.remove("sig");
+    canonical_json(&body).ok()
+}
+
+/// What verification established about a traveler.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Report {
+    /// One check per buyer signature on the traveler (empty: unsigned). A directory
+    /// that does not verify, or a document that is not a valid traveler, yields a
+    /// single refused check saying so.
+    pub authorship: Vec<Check>,
+    /// The buyer's award signature: None iff the traveler carries no award.
+    pub award: Option<Check>,
+    /// Per quote, in document order: its id and its seller-signature check (None:
+    /// the quote is unsigned).
+    pub quotes: Vec<(String, Option<Check>)>,
+}
+
+impl Report {
+    /// At least one valid buyer signature.
+    pub fn authored(&self) -> bool {
+        self.authorship.iter().any(|c| c.ok)
+    }
+    /// The traveler is the buyer's and, if it carries an award, so is the award.
+    pub fn verified(&self) -> bool {
+        self.authored() && self.award.as_ref().map_or(true, |a| a.ok)
+    }
+}
+
+/// Verify everything a traveler carries — buyer authorship, the award, each quote's
+/// seller signature — against a signed directory at `at_ms`. Mirrors the TypeScript
+/// `verifyTravelerSignatures` / `verifyAwardSignature` / `verifyQuoteSignature`.
+pub fn verify_report(traveler_json: &str, dir_json: &str, root_pk_hex: &str, at_ms: i64) -> Report {
+    // Whether an award is present is read from the document as written, before
+    // anything else, so "no award" stays distinct from "an award that failed".
+    let raw = crate::de::strict_value(traveler_json).ok();
+    let has_award = match &raw {
+        Some(v) => v.get("award").is_some_and(|a| !a.is_null()),
+        None => true, // unreadable: nothing is established, including "no award"
     };
-    let Some(award) = t.award.as_ref() else {
-        return false;
+    let all = |reason: &'static str| Report {
+        authorship: vec![Check::refused("", reason)],
+        award: has_award.then(|| Check::refused("", reason)),
+        quotes: Vec::new(),
     };
+    let Some(dir) = load_directory(dir_json, root_pk_hex, at_ms) else {
+        return all(R_DIRECTORY);
+    };
+    let (Ok(t), Some(raw)) = (crate::parse_traveler(traveler_json), raw) else {
+        return all(R_TRAVELER);
+    };
+    let buyer_org = t.buyer.org_id.as_deref();
+
+    // Authorship: the canonical quoteable body (== the traveler_hash preimage).
+    let quoteable = serde_json::to_value(crate::quoteable_from(&t)).ok().and_then(|v| canonical_json(&v).ok());
+    let signatures = t.signatures.as_deref().unwrap_or(&[]);
+    let authorship = match &quoteable {
+        Some(body) => signatures
+            .iter()
+            .map(|s| check_sig(&dir, DOMAIN_TRAVELER, body, s, buyer_org, at_ms))
+            .collect(),
+        None => signatures
+            .iter()
+            .map(|s| Check::refused(&s.kid, "traveler body is not canonicalizable"))
+            .collect(),
+    };
+
+    // Quotes. The signed bytes are built from the document AS WRITTEN (minus `sig`).
+    // That is sound only because parse_traveler has already held it to the strict
+    // schema: no unknown or repeated members, no positional structs, no normalizing
+    // transform — so the raw and the typed document carry the same members and values.
+    let raw_quotes: &[Value] = raw.get("quotes").and_then(Value::as_array).map_or(&[], Vec::as_slice);
+    let quotes = t
+        .quotes
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .zip(raw_quotes)
+        .map(|(q, raw_q)| {
+            let check = q.sig.as_ref().map(|sig| match body_without_sig(raw_q) {
+                Some(body) => check_sig(&dir, DOMAIN_QUOTE, &body, sig, q.seller.org_id.as_deref(), at_ms),
+                None => Check::refused(&sig.kid, "quote body is not canonicalizable"),
+            });
+            (q.quote_id.clone(), check)
+        })
+        .collect();
+
+    let award = t.award.as_ref().map(|award| award_check(&dir, &t, &raw, award, raw_quotes, at_ms));
+    Report { authorship, award, quotes }
+}
+
+/// The buyer's award: signed by the buyer over `{spec, traveler_id, traveler_hash,
+/// award (minus sig), ship_to}`, committing — through `quote_hash` — to the content of
+/// a quote that is present, was made against this revision, and prices the awarded
+/// quantity.
+fn award_check(
+    dir: &Directory,
+    t: &crate::Traveler,
+    raw: &Value,
+    award: &crate::Award,
+    raw_quotes: &[Value],
+    at_ms: i64,
+) -> Check {
     let Some(sig) = award.sig.as_ref() else {
-        return false;
+        return Check::refused("", "award is present but not signed by the buyer");
     };
-    if sig.alg != SIG_ALG {
-        return false;
-    }
-    let Some(buyer_org) = t.buyer.org_id.clone() else {
-        return false;
+    let not_canonical = || Check::refused(&sig.kid, "award body is not canonicalizable");
+    let Ok(traveler_hash) = crate::traveler_hash(t) else {
+        return not_canonical();
     };
-    let Ok(traveler_hash) = crate::traveler_hash(&t) else {
-        return false;
+    let Some(mut award_value) = raw.get("award").cloned() else {
+        return not_canonical();
     };
-    // Build the signed body from the raw JSON (award minus its own sig, plus
-    // ship_to), so the canonical bytes match the TypeScript awardSignatureBody.
-    //
-    // Parity invariant: this reuses the RAW json for `award`/`ship_to` while TS
-    // signs over the PARSED traveler. That is only sound because parse_traveler
-    // (called above) already enforced the strict schema — no unknown keys, and no
-    // normalizing transform on these fields — so the raw and parsed values carry
-    // the same keys and the same scalar content, and canonical_json erases the one
-    // legal difference (integer-valued float vs integer rendering) identically on
-    // both sides. If any award/ship_to field ever gains a serde/zod transform or a
-    // default, this must switch to serializing the parsed struct instead.
-    let Ok(v) = serde_json::from_str::<Value>(traveler_json) else {
-        return false;
-    };
-    let mut award_value = v.get("award").cloned().unwrap_or(Value::Null);
     if let Some(obj) = award_value.as_object_mut() {
         obj.remove("sig");
     }
-    let ship_to = v.get("ship_to").cloned().unwrap_or(Value::Null);
     let body = serde_json::json!({
-        "spec": v.get("spec").cloned().unwrap_or(Value::Null),
-        "traveler_id": v.get("traveler_id").cloned().unwrap_or(Value::Null),
+        "spec": raw.get("spec").cloned().unwrap_or(Value::Null),
+        "traveler_id": raw.get("traveler_id").cloned().unwrap_or(Value::Null),
         "traveler_hash": traveler_hash,
         "award": award_value,
-        "ship_to": ship_to,
+        "ship_to": raw.get("ship_to").cloned().unwrap_or(Value::Null),
     });
     let Ok(canonical) = canonical_json(&body) else {
-        return false;
+        return not_canonical();
     };
-    let Some((org, pk)) = directory_entry_by_kid(dir_json, &sig.kid, at_ms) else {
-        return false;
-    };
-    if !(org == buyer_org && verify_body(DOMAIN_AWARD, &canonical, &sig.sig, &pk)) {
-        return false;
+    let check = check_sig(dir, DOMAIN_AWARD, &canonical, sig, t.buyer.org_id.as_deref(), at_ms);
+    if !check.ok {
+        return check;
     }
-    // Quote-content binding: the signed award body includes `quote_hash` (it rides inside
-    // `award`), so the buyer committed to the exact priced quote. Now require that binding to
-    // hold: a signed award MUST carry a quote_hash, the awarded quote MUST be present in
-    // `quotes`, and it MUST still hash to the signed value — otherwise an absent or unsigned
-    // awarded quote could have its price swapped under a still-valid award signature. The quote
-    // content hash is `sha384:` + hex of canonical(quote minus its own `sig`) — the same bytes
-    // the seller signs, built from the RAW json under the same parity invariant as the award body
-    // above (and as `verify_quote_signature`), so it matches the TypeScript `quoteContentHash`.
+    // The signature is the buyer's. It must also bind a determinate, priced quote.
     let Some(quote_hash) = award.quote_hash.as_deref() else {
-        return false;
+        return check.but("signed award does not bind a quote_hash");
     };
-    let Some(quotes) = v.get("quotes").and_then(Value::as_array) else {
-        return false;
+    let quotes = t.quotes.as_deref().unwrap_or(&[]);
+    let Some(i) = quotes.iter().position(|q| q.quote_id == award.quote_id) else {
+        return check.but("awarded quote is not present to verify its priced content");
     };
-    let Some(awarded) = quotes
-        .iter()
-        .find(|q| q.get("quote_id").and_then(Value::as_str) == Some(award.quote_id.as_str()))
-    else {
-        return false;
+    let Some(canon_quote) = raw_quotes.get(i).and_then(body_without_sig) else {
+        return check.but("awarded quote body is not canonicalizable");
     };
-    let mut awarded_body = awarded.clone();
-    if let Some(obj) = awarded_body.as_object_mut() {
-        obj.remove("sig");
+    if format!("sha384:{}", hex::encode(Sha384::digest(canon_quote.as_bytes()))) != quote_hash {
+        return check.but("awarded quote content does not match the buyer-signed quote_hash");
     }
-    let Ok(canon_quote) = canonical_json(&awarded_body) else {
-        return false;
-    };
-    let computed = format!("sha384:{}", hex::encode(Sha384::digest(canon_quote.as_bytes())));
-    computed == quote_hash
+    if quotes[i].traveler_hash_quoted != traveler_hash {
+        return check.but("awarded quote is not bound to this revision");
+    }
+    if !quotes[i].pricing.lines.iter().any(|l| l.qty == award.qty) {
+        return check.but("awarded quote has no price for the awarded quantity");
+    }
+    check
 }
 
-/// Whether an org is attested — by an active, in-window entry — to hold the ITAR
-/// capability. This is the directory-attested elevation of the self-declared
-/// `seller.itar` flag (caveat 3). Mirrors the TypeScript `orgHasCapability`.
-fn org_has_itar(dir_json: &str, org_id: &str, at_ms: i64) -> bool {
-    let Ok(v) = serde_json::from_str::<Value>(dir_json) else {
-        return false;
+/// True iff the directory verifies and at least one of the traveler's signatures is a
+/// valid buyer-authorship signature (see `verify_report`).
+pub fn verify_traveler_authorship(traveler_json: &str, dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
+    verify_report(traveler_json, dir_json, root_pk_hex, at_ms).authored()
+}
+
+/// True iff the traveler carries an award and it verifies as the buyer's, bound to a
+/// present, current, priced quote (see `verify_report`). False for a missing award —
+/// use `verify_report` to tell "no award" from "an award that failed".
+pub fn verify_award_signature(traveler_json: &str, dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
+    verify_report(traveler_json, dir_json, root_pk_hex, at_ms).award.is_some_and(|c| c.ok)
+}
+
+/// Check a standalone quote's seller signature. None iff the quote is valid and
+/// unsigned; otherwise the check (refused if the directory does not verify or the
+/// document is not a valid quote).
+pub fn quote_check(quote_json: &str, dir_json: &str, root_pk_hex: &str, at_ms: i64) -> Option<Check> {
+    let Some(dir) = load_directory(dir_json, root_pk_hex, at_ms) else {
+        return Some(Check::refused("", R_DIRECTORY));
     };
-    let Some(entries) = v.get("entries").and_then(Value::as_array) else {
-        return false;
+    quote_check_in(&dir, quote_json, at_ms)
+}
+
+fn quote_check_in(dir: &Directory, quote_json: &str, at_ms: i64) -> Option<Check> {
+    let (Ok(q), Ok(raw)) = (crate::parse_quote(quote_json), crate::de::strict_value(quote_json)) else {
+        return Some(Check::refused("", R_QUOTE));
     };
-    entries.iter().any(|e| {
-        e.get("org_id").and_then(Value::as_str) == Some(org_id)
-            && entry_active_in_window(e, at_ms)
-            && e.get("capabilities")
-                .and_then(|c| c.get("itar"))
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
+    let sig = q.sig.as_ref()?;
+    Some(match body_without_sig(&raw) {
+        Some(body) => check_sig(dir, DOMAIN_QUOTE, &body, sig, q.seller.org_id.as_deref(), at_ms),
+        None => Check::refused(&sig.kid, "quote body is not canonicalizable"),
     })
 }
 
-/// Verify a seller's quote signature against the signed directory at `at_ms`.
-/// True iff the quote carries an ML-DSA-87 signature, the directory verifies (and
-/// is in-window) against `root_pk_hex`, and the signature resolves to an active,
-/// in-window entry whose org matches `seller.org_id` and whose key verifies the
-/// canonical quote body (the quote with its own `sig` removed). Mirrors the
-/// TypeScript `verifyQuoteSignature`; the canonical body is built from the raw
-/// JSON field set, so it matches the bytes the TS reference signed.
-pub fn verify_quote_signature(
-    quote_json: &str,
-    dir_json: &str,
-    root_pk_hex: &str,
-    at_ms: i64,
-) -> bool {
-    if !verify_directory(dir_json, root_pk_hex, at_ms) {
-        return false;
-    }
-    let Ok(mut v) = serde_json::from_str::<Value>(quote_json) else {
-        return false;
-    };
-    let Some(obj) = v.as_object_mut() else {
-        return false;
-    };
-    let Some(sig) = obj.get("sig").and_then(Value::as_object).cloned() else {
-        return false;
-    };
-    if sig.get("alg").and_then(Value::as_str) != Some(SIG_ALG) {
-        return false;
-    }
-    let (Some(kid), Some(sig_hex)) = (
-        sig.get("kid").and_then(Value::as_str).map(str::to_string),
-        sig.get("sig").and_then(Value::as_str).map(str::to_string),
-    ) else {
-        return false;
-    };
-    let Some(seller_org) = obj
-        .get("seller")
-        .and_then(|s| s.get("org_id"))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-    else {
-        return false;
-    };
-    obj.remove("sig");
-    let Ok(canonical) = canonical_json(&v) else {
-        return false;
-    };
-    match directory_entry_by_kid(dir_json, &kid, at_ms) {
-        Some((org, pk)) => org == seller_org && verify_body(DOMAIN_QUOTE, &canonical, &sig_hex, &pk),
-        None => false,
-    }
+/// True iff the quote carries a seller signature that verifies (see `quote_check`).
+pub fn verify_quote_signature(quote_json: &str, dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
+    quote_check(quote_json, dir_json, root_pk_hex, at_ms).is_some_and(|c| c.ok)
 }
 
 /// ITAR gate elevated to directory attestation (caveat 3). None if the quote is
 /// allowed; Some(reason) if refused. An ITAR traveler's seller must hold the ITAR
-/// capability in a directory that itself verifies against the trust root — not
-/// merely self-declare `seller.itar`. Fails closed (Some) on any malformed input.
-/// Mirrors the TypeScript `itarAttestationBlocker`.
+/// capability in a directory that verifies against the trust root — and the quote must
+/// be SIGNED by that seller: `seller.org_id` is a field the quote's author types, so
+/// without a verified signature an unsigned quote that merely names an attested org
+/// passed this gate. Fails closed on any malformed input (a traveler that does not
+/// parse is refused, not treated as "not ITAR"). Mirrors the TypeScript
+/// `itarAttestationBlocker`, reason for reason.
 pub fn itar_attestation_blocker(
     traveler_json: &str,
     quote_json: &str,
@@ -378,83 +567,99 @@ pub fn itar_attestation_blocker(
     root_pk_hex: &str,
     at_ms: i64,
 ) -> Option<String> {
-    let Ok(t) = serde_json::from_str::<Value>(traveler_json) else {
-        return Some("ITAR gate: traveler does not parse".into());
+    let Ok(t) = crate::parse_traveler(traveler_json) else {
+        return Some("ITAR gate: not a valid traveler".into());
     };
-    if !t.get("itar").and_then(Value::as_bool).unwrap_or(false) {
+    if t.itar != Some(true) {
         return None; // a non-ITAR traveler imposes no gate
     }
-    if !verify_directory(dir_json, root_pk_hex, at_ms) {
+    let Some(dir) = load_directory(dir_json, root_pk_hex, at_ms) else {
         return Some("ITAR traveler: key directory does not verify against the trust root".into());
-    }
-    let Ok(q) = serde_json::from_str::<Value>(quote_json) else {
-        return Some("ITAR gate: quote does not parse".into());
     };
-    let Some(seller_org) = q
-        .get("seller")
-        .and_then(|s| s.get("org_id"))
-        .and_then(Value::as_str)
-    else {
+    let Ok(q) = crate::parse_quote(quote_json) else {
+        return Some("ITAR gate: not a valid quote".into());
+    };
+    let Some(seller_org) = q.seller.org_id.as_deref() else {
         return Some("ITAR traveler: seller has no org_id to attest against the directory".into());
     };
-    if !org_has_itar(dir_json, seller_org, at_ms) {
+    if !quote_check_in(&dir, quote_json, at_ms).is_some_and(|c| c.ok) {
+        return Some("ITAR traveler: quote is not signed by the seller it names".into());
+    }
+    if !dir.has_itar(seller_org, at_ms) {
         return Some("ITAR traveler: seller is not attested for ITAR in the directory".into());
     }
     None
 }
 
+/// Check that `bundle_json` is exactly a well-formed signed prekey bundle, without
+/// using any key. Mirrors the TypeScript `prekeyBundleShapeError`.
+pub fn prekey_bundle_shape(bundle_json: &str) -> Result<(), &'static str> {
+    read_bundle(bundle_json).map(|_| ())
+}
+
+struct Bundle {
+    org_id: String,
+    kid: String,
+    issued: i64,
+    until: i64,
+    sig: String,
+}
+
+fn read_bundle(bundle_json: &str) -> Result<(Value, Bundle), &'static str> {
+    if bundle_json.len() > MAX_PREKEY_BUNDLE_JSON_BYTES {
+        return Err("prekey bundle exceeds the size limit");
+    }
+    let v = crate::de::strict_value(bundle_json).map_err(|_| "prekey bundle is not strict JSON")?;
+    let b = members(
+        &v,
+        &["spec", "org_id", "kid", "enc_alg", "issued_at", "valid_until", "prekeys", "sig"],
+        &[],
+    )
+    .ok_or("unexpected or missing members")?;
+    if b["spec"].as_str() != Some(PREKEY_BUNDLE_SPEC) {
+        return Err("unsupported spec");
+    }
+    let org = org_id(&b["org_id"]).ok_or("org_id")?.to_string();
+    let kid = key_id(&b["kid"]).ok_or("kid")?.to_string();
+    if b["enc_alg"].as_str() != Some(KEM_ALG) {
+        return Err("enc_alg");
+    }
+    let (issued, until) = window(&b["issued_at"], &b["valid_until"]).ok_or("issued_at / valid_until")?;
+    let sig = hex_of(&b["sig"], ML_DSA_87_SIGNATURE_BYTES).ok_or("sig")?.to_string();
+    let prekeys = b["prekeys"].as_array().filter(|l| l.len() <= MAX_BUNDLE_PREKEYS).ok_or("prekeys")?;
+    let mut ids: Vec<&str> = Vec::with_capacity(prekeys.len());
+    for raw in prekeys {
+        let p = members(raw, &["prekey_id", "public_key"], &[]).ok_or("prekey has unexpected or missing members")?;
+        let id = key_id(&p["prekey_id"]).ok_or("prekey prekey_id")?;
+        if ids.contains(&id) {
+            return Err("prekey prekey_id repeats an earlier prekey");
+        }
+        ids.push(id);
+        hex_of(&p["public_key"], ML_KEM_1024_PUBLIC_KEY_BYTES).ok_or("prekey public_key")?;
+    }
+    let bundle = Bundle { org_id: org, kid, issued, until, sig };
+    Ok((v, bundle))
+}
+
 /// Verify a signed one-time prekey bundle (JSON) against the signed directory at
-/// `at_ms`: the directory verifies against the root, the bundle's signing kid
-/// resolves (active, in-window) to an entry whose org equals the bundle's org_id,
-/// the bundle's own [issued_at, valid_until) covers at_ms, and the ML-DSA
-/// signature over the canonical body (bundle minus its own sig) checks out. False
-/// on any failure. Mirrors the TypeScript verifyPrekeyBundle.
+/// `at_ms`: the bundle has exactly the specified shape, the directory verifies against
+/// the root, the bundle's own [issued_at, valid_until) covers at_ms, its signing kid
+/// resolves (active, in-window) to an entry whose org equals the bundle's org_id, and
+/// the ML-DSA signature over the canonical body (bundle minus its own sig) checks out.
+/// False on any failure. Mirrors the TypeScript verifyPrekeyBundle.
 pub fn verify_prekey_bundle(bundle_json: &str, dir_json: &str, root_pk_hex: &str, at_ms: i64) -> bool {
-    let Ok(mut v) = serde_json::from_str::<Value>(bundle_json) else {
-        return false;
-    };
-    let Some(obj) = v.as_object_mut() else {
-        return false;
-    };
-    if obj.get("spec").and_then(Value::as_str) != Some(PREKEY_BUNDLE_SPEC) {
-        return false;
-    }
-    if obj.get("enc_alg").and_then(Value::as_str) != Some("ML-KEM-1024") {
-        return false;
-    }
-    if !verify_directory(dir_json, root_pk_hex, at_ms) {
-        return false;
-    }
-    let issued = obj
-        .get("issued_at")
-        .and_then(Value::as_str)
-        .and_then(crate::rfc3339_millis);
-    let until = obj
-        .get("valid_until")
-        .and_then(Value::as_str)
-        .and_then(crate::rfc3339_millis);
-    let (Some(issued), Some(until)) = (issued, until) else {
-        return false;
-    };
-    if !(issued <= at_ms && at_ms < until) {
-        return false;
-    }
-    let Some(org_id) = obj.get("org_id").and_then(Value::as_str).map(str::to_string) else {
-        return false;
-    };
-    let Some(kid) = obj.get("kid").and_then(Value::as_str).map(str::to_string) else {
-        return false;
-    };
-    let Some(sig) = obj.remove("sig").and_then(|s| s.as_str().map(str::to_string)) else {
-        return false;
-    };
-    let Ok(canonical) = canonical_json(&v) else {
-        return false;
-    };
-    match directory_entry_by_kid(dir_json, &kid, at_ms) {
-        Some((entry_org, pk)) => entry_org == org_id && verify_body(DOMAIN_PREKEYS, &canonical, &sig, &pk),
-        None => false,
-    }
+    (|| -> Option<bool> {
+        let (mut v, bundle) = read_bundle(bundle_json).ok()?;
+        let dir = load_directory(dir_json, root_pk_hex, at_ms)?;
+        if !(bundle.issued <= at_ms && at_ms < bundle.until) {
+            return None;
+        }
+        let entry = dir.by_kid(&bundle.kid, at_ms).filter(|e| e.org_id == bundle.org_id)?;
+        v.as_object_mut()?.remove("sig");
+        let canonical = canonical_json(&v).ok()?;
+        Some(verify_body(DOMAIN_PREKEYS, &canonical, &bundle.sig, &entry.public_key))
+    })()
+    .unwrap_or(false)
 }
 
 #[cfg(test)]
