@@ -242,8 +242,8 @@ both accepted while reading it differently.
   runner then checks the same files independently.
 - **Mutation.** For each security rule, the rule was deleted and a test had to fail: 8
   mutations for the envelope shape, 33 for verification, 18 for the receive policy, 42
-  for the published schemas and their rules file, 29 for what a seal sends, the
-  revoked-key verdict and this round's MCP and receive-policy rules. One survivor was
+  for the published schemas and their rules file, 51 for what a seal sends, the
+  revoked-key verdict and this round's MCP, keystore and receive-policy rules. One survivor was
   found this way and closed. Separately, 79 mutants were written against the tests
   themselves (W-75): 19 were invisible to the tests as they stood.
 - **A second review, of the fixes.** The rewritten MCP server was handed to an

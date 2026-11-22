@@ -91,7 +91,7 @@ const buyerSigner = keypairFromSeed(new Uint8Array(32).fill(2));
 const sellerSigner = keypairFromSeed(new Uint8Array(32).fill(3));
 const WINDOW = { issued_at: "2026-01-01T00:00:00.000Z", valid_until: "2030-01-01T00:00:00.000Z" };
 
-async function desk(company: string, keystoreName: string): Promise<Client> {
+async function desk(company: string, org: string, keystoreName: string): Promise<Client> {
   // The operator's settings, and nothing else that starts with SJE_.
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
@@ -105,6 +105,8 @@ async function desk(company: string, keystoreName: string): Promise<Client> {
       env: {
         ...env,
         SJE_COMPANY: company,
+        // The org this desk acts as: a quote naming it as seller is the desk's own.
+        SJE_ORG: org,
         // Where this desk's keystore will be minted, and the passphrase that protects
         // it at rest. Both stay on the desk.
         SJE_KEYSTORE: join(workdir, keystoreName),
@@ -134,8 +136,8 @@ async function sealTo(from: Client, traveler: Json, recipientOrg: string, extra:
   return sealed;
 }
 
-const buyer = await desk("northline", "northline.keystore.json");
-const seller = await desk("summit-fab", "summit.keystore.json");
+const buyer = await desk("northline", BUYER_ORG, "northline.keystore.json");
+const seller = await desk("summit-fab", SELLER_ORG, "summit.keystore.json");
 
 try {
   console.log("=== SJE demo: two desks, one ENCRYPTED, AUTHENTICATED job ===");
@@ -286,7 +288,13 @@ try {
   step(6, "SELLER seals and returns; BUYER opens it as THE BODY IT WROTE, and evaluates the whole cost");
   const sealed2 = await sealTo(seller, quoted.traveler as Json, BUYER_ORG);
   assert.equal(sealed2.forward_secret, false);
+  // The seal says what went into the envelope. Going back to the buyer the traveler
+  // names, that is all of it; a seller would be sent only its own quotes.
+  assert.deepEqual(sealed2.sent, { quotes: 1, award: false });
+  assert.deepEqual(sealed2.withheld, { quotes: 0, award: false });
+  assert.equal(sealed2.sender_org, SELLER_ORG);
   note(`${sealed2.spec} · forward_secret=false because ${sealed2.not_forward_secret_because}`);
+  note(`sent to the buyer the traveler names: ${sealed2.sent.quotes} quote, nothing withheld`);
   const back = await tool(buyer, "sje_open", { sje: sealed2.sje, expected_traveler_hash: hash0 });
   const evald = await tool(buyer, "sje_evaluate", { traveler: back.traveler, expected_traveler_hash: hash0 });
   const row = (evald.evaluation as Json[])[0]!;
@@ -368,6 +376,9 @@ try {
     award: { ...awardedDoc.award!, sig: signAward(awardedDoc, BUYER_KID, buyerSigner.secretKey) },
   };
   const sealed4 = await sealTo(buyer, signedAward, SELLER_ORG);
+  // The winner is sent its own quote and the award; a losing bidder would be sent neither
+  // the award nor where the parts ship.
+  assert.deepEqual(sealed4.sent, { quotes: 1, award: true });
   const final = await tool(seller, "sje_open", {
     sje: sealed4.sje,
     expected_traveler_hash: hash0,
