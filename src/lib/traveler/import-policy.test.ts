@@ -153,6 +153,98 @@ describe("receive policy: a traveler not held before", () => {
   });
 });
 
+describe("receive policy: every signature that is present and fails", () => {
+  it("refuses a traveler carrying a quote whose seller signature fails — held before or not", () => {
+    const sellerSigned: Quote = { ...q1, sig: signQuote(q1, "summit-2026", summit.secretKey) };
+    const body = signedByBuyer(rfq);
+    // Control: signed by the seller it names, it is admitted.
+    assert.deepEqual(admitted(decide(withQuotes(body, sellerSigned))).acknowledge, []);
+
+    const altered: Quote = { ...sellerSigned, lead_time_days: 2 }; // changed after signing
+    refused(
+      decide(withQuotes(body, altered)),
+      /^The seller's signature on quote qot_policy0001 does not verify \(signature does not verify\)\. That quote is not the seller's it names\.$/,
+    );
+    // Names org_summitfab, signed with another enrolled org's real key.
+    const byAnotherOrg: Quote = { ...q1, sig: signQuote(q1, "huron-2026", huron.secretKey) };
+    refused(decide(withQuotes(body, byAnotherOrg)), /quote qot_policy0001 does not verify \(signer org does not match author org\)/);
+    // The buyer's own signature being good does not carry a quote in.
+    assert.equal(report(withQuotes(body, altered)).verified, true);
+    // …and the rule is the same when the traveler is already held.
+    refused(decide(withQuotes(body, altered), body), /seller's signature on quote qot_policy0001 does not verify/);
+
+    // A signature that cannot be CHECKED is not one that fails: the quote arrives, unverified.
+    const unknownKid: Quote = { ...q1, sig: { ...sellerSigned.sig!, kid: "nobody-2026" } };
+    assert.equal(admitted(decide(withQuotes(body, unknownKid))).traveler.quotes!.length, 1);
+    // With no trust anchor nothing can be checked, so nothing can fail.
+    assert.equal(admitted(decideImport(withQuotes(body, altered))).traveler.quotes!.length, 1);
+  });
+
+  it("a signature made with a key the directory lists as REVOKED fails; it is not merely unverified", () => {
+    const shared = JSON.parse(
+      readFileSync(new URL("../../../conformance/signatures/directory-cases.json", import.meta.url), "utf8"),
+    ) as { root_public_key_hex: string; directories: Record<string, Directory> };
+    const under = (name: string) => (t: Traveler) =>
+      decideImport(t, {
+        incomingReport: verificationReport(t, shared.directories[name]!, shared.root_public_key_hex, at),
+      });
+    const buyerRevoked = under("northline-revoked");
+    const signedAward = awardSignedBy(awarded(l1, q1.quote_id), "northline-2026", northline.secretKey);
+
+    refused(buyerRevoked(signedByBuyer(rfq)), /buyer signature .* does not verify \(signing key is revoked in the directory\)/);
+    // The award: this is the case an acknowledgment used to cover. A revoked key was
+    // reported as an unlisted one, so the award was only "unverified".
+    refused(buyerRevoked(signedAward), /award .* does not verify \(signing key is revoked in the directory\)/);
+    // A seller's revoked key, on a quote.
+    const huronQuote = quoteFor(rfq, "qot_policy0009", "org_huron");
+    const bySeller: Quote = { ...huronQuote, sig: signQuote(huronQuote, "huron-2026", huron.secretKey) };
+    assert.equal(admitted(under("main")(withQuotes(rfq, bySeller))).traveler.quotes!.length, 1);
+    refused(under("huron-revoked")(withQuotes(rfq, bySeller)), /quote qot_policy0009 does not verify \(signing key is revoked in the directory\)/);
+
+    // Controls. The same award unsigned is unverified (acknowledged, not refused); signed
+    // and checked against the directory in which the key is good, it is verified; and a
+    // key that has merely EXPIRED is still "cannot tell".
+    assert.equal(admitted(buyerRevoked(awarded(l1, q1.quote_id))).acknowledge.length, 1);
+    assert.deepEqual(admitted(under("main")(signedAward)).acknowledge, []);
+    assert.equal(admitted(under("northline-expired-2026-07")(signedAward)).acknowledge.length, 1);
+  });
+
+  it("draft: a ship-to, ops or as-built data with no award arrives with a new traveler, and is said to be unsigned", () => {
+    const ops = [{ seq: 1, code: "laser" }];
+    // What a seller could send back with its quote: the buyer's signed RFQ, plus a
+    // ship-to and ops of its own. The buyer's signature covers neither.
+    const planted: Traveler = { ...withQuotes(signedByBuyer(rfq), q1), ship_to: SHIP, ops };
+    const d = admitted(decide(planted));
+    assert.match(d.notes.join(" "), /Signed by org_northline/);
+    assert.ok(
+      d.notes.includes(
+        "This traveler carries a ship-to address and an ops list and no award. Nothing signed covers them: whoever sealed this copy could have written them. Treat them as a draft, not as the buyer's instruction.",
+      ),
+      d.notes.join(" | "),
+    );
+    // It is flagged, not dropped: a buyer's RFQ legitimately carries draft ops.
+    assert.deepEqual(d.traveler.ship_to, SHIP);
+    assert.deepEqual(d.acknowledge, []);
+
+    assert.match(admitted(decide({ ...rfq, ops })).notes.join(" "), /carries an ops list and no award\. Nothing signed covers it: /);
+    assert.match(
+      admitted(decide({ ...rfq, ship_to: SHIP, ops, as_built: { lot: "L-1" } })).notes.join(" "),
+      /carries a ship-to address, an ops list and as-built data and no award\. Nothing signed covers them/,
+    );
+    // The same when a newer revision replaces a held one.
+    assert.match(
+      admitted(decide({ ...amended(rfq, "rev 2"), ship_to: SHIP }, rfq)).notes.join(" "),
+      /carries a ship-to address and no award/,
+    );
+    // Nothing to flag: no such members; or an award, which has rules of its own.
+    const DRAFT = /Nothing signed covers/;
+    assert.doesNotMatch(admitted(decide(l1)).notes.join(" "), DRAFT);
+    const signedAward = awardSignedBy(awarded(l1, q1.quote_id), "northline-2026", northline.secretKey);
+    assert.doesNotMatch(admitted(decide(signedAward)).notes.join(" "), DRAFT);
+    assert.doesNotMatch(admitted(decide(awarded(l1, q1.quote_id))).notes.join(" "), DRAFT);
+  });
+});
+
 describe("receive policy: a traveler already held", () => {
   it("buyer: refuses a copy that names a different buyer org", () => {
     const other = { ...rfq, buyer: { ...rfq.buyer, org_id: "org_summitfab" } };

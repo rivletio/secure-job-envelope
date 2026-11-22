@@ -12,10 +12,11 @@
  *  The rules, in the order they are applied:
  *
  *    forged      A signature that is present and FAILS (a changed body, a signer from
- *                another org, an award that does not bind its quote) is refused. An
- *                absent signature, or one that cannot be checked, is "unverified":
- *                admitted only where nothing is replaced, or after the reader has
- *                explicitly acknowledged what is unproven.
+ *                another org, a key the directory lists as revoked, an award that does
+ *                not bind its quote) is refused — the buyer's, the award's, or a
+ *                seller's on a quote. An absent signature, or one that cannot be
+ *                checked, is "unverified": admitted only where nothing is replaced, or
+ *                after the reader has explicitly acknowledged what is unproven.
  *    buyer       A traveler's buyer org never changes.
  *    floor       Content the held copy has verified as the buyer's is never replaced by
  *                content that is not.
@@ -25,6 +26,11 @@
  *                (by quote_id; a held quote is never dropped or altered), and its award
  *                is taken through the award gate. A ship-to or ops list that arrives
  *                WITHOUT an award is a draft and is never merged in.
+ *    draft       Where there is no held copy to keep (a new traveler, or an amended
+ *                one), such a draft arrives with the rest — and is SAID to be one:
+ *                nothing signed covers it, and whoever sealed the copy could have
+ *                written it. (A buyer legitimately sends draft ops with an RFQ; a
+ *                seller can as easily return a ship-to of its own.)
  *    award       A verified award is admitted. An unverified one needs acknowledgment.
  *                A verified held award is immovable; an unverified held award yields to
  *                a verified one, so a forged award cannot lock the genuine one out.
@@ -83,7 +89,13 @@ type Standing =
   /** Signed, checked, and it FAILS — evidence the content is not its author's. */
   | "invalid";
 
-/** Reasons that mean "cannot tell", as opposed to "checked and wrong". */
+/** Reasons that mean "cannot tell", as opposed to "checked and wrong".
+ *
+ *  A key the directory does not list, or one outside its window, is here: nothing is
+ *  known either way. A key the directory lists as REVOKED is not — the verifier reports
+ *  that separately ("signing key is revoked in the directory"), and it is evidence: the
+ *  root withdrew that key. It used to be reported as an unlisted key, so an award signed
+ *  with a revoked key could be admitted by acknowledging it as merely "unverified". */
 const CANNOT_TELL = new Set([
   "directory does not verify against the trust root",
   "no active in-window directory entry for kid",
@@ -128,6 +140,21 @@ const withoutSig = <T extends { sig?: Signature }>(x: T): Omit<T, "sig"> => {
 };
 const locked = (t: Traveler): boolean => levelOf(t).level >= 2;
 const orgLabel = (t: Traveler): string => t.buyer.org_id ?? "no org_id";
+
+/** What to say about a ship-to, an ops list or as-built data on a traveler that carries
+ *  NO award — or null when there is nothing to say. Counts and member kinds only. */
+function draftNote(t: Traveler): string | null {
+  if (t.award) return null;
+  const parts = [
+    t.ship_to ? "a ship-to address" : null,
+    t.ops?.length ? "an ops list" : null,
+    t.as_built ? "as-built data" : null,
+  ].filter((x): x is string => x !== null);
+  if (parts.length === 0) return null;
+  const list = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)!}`;
+  const it = parts.length === 1 && parts[0] !== "as-built data" ? "it" : "them";
+  return `This traveler carries ${list} and no award. Nothing signed covers ${it}: whoever sealed this copy could have written ${it}. Treat ${it} as a draft, not as the buyer's instruction.`;
+}
 
 const UNSIGNED_AWARD =
   "The award on this traveler is not verified as the buyer's. Anyone who can encrypt to you could have written it — including the ship-to address. Confirm it with the buyer through a channel you already trust before acting on it.";
@@ -176,12 +203,23 @@ export function decideImport(incoming: Traveler, ctx: ImportContext = {}): Impor
   if (inAward.standing === "invalid") {
     return refuse(`The award on this traveler does not verify (${inAward.why}). It is not the buyer's.`);
   }
+  // A seller's signature on a quote is a signature like the others. It used to be left
+  // out of this rule: a quote altered after signing, or signed with another org's key,
+  // rode in under whatever the buyer's signature established.
+  const forgedQuote = incomingReport?.quotes.find((q) => q.check && standingOf(q.check) === "invalid");
+  if (forgedQuote) {
+    return refuse(
+      `The seller's signature on quote ${forgedQuote.quote_id} does not verify (${forgedQuote.check!.reason}). That quote is not the seller's it names.`,
+    );
+  }
   if (inAuth.standing === "verified") notes.push(`Signed by ${inAuth.by}.`);
   else notes.push("Authorship is not verified: nothing shows who wrote this traveler.");
 
   if (!held) {
     if (inAward.standing === "verified") notes.push("Award verified as the buyer's.");
     if (inAward.standing === "unverified") acknowledge.push(UNSIGNED_AWARD);
+    const draft = draftNote(incoming);
+    if (draft) notes.push(draft);
     return { action: "admit", kind: "new", traveler: incoming, notes, acknowledge };
   }
 
@@ -318,6 +356,8 @@ export function decideImport(incoming: Traveler, ctx: ImportContext = {}): Impor
       `${dropped} held quote${dropped === 1 ? "" : "s"} from a seller without an ITAR declaration could not be kept on an ITAR revision.`,
     );
   }
+  const draft = draftNote(incoming);
+  if (draft) notes.push(draft);
   const traveler: Traveler = { ...incoming, quotes: merged.quotes.length ? merged.quotes : incoming.quotes };
   return { action: "admit", kind: "amended", traveler, notes, acknowledge };
 }
