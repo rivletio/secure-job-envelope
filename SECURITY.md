@@ -19,9 +19,11 @@ What the format defends, by design:
   via `traveler_hash_quoted`; amending the body stale-marks every quote.
 - **Cross-implementation parity.** The two implementations accept and reject
   the same documents and agree on hash, level, and binding. A Rust validator
-  mirrors the TypeScript schema field for field (numeric ceilings, UTF-16
-  string bounds, unknown-key rejection, strict leap-aware datetimes, and
-  rejection of untrimmed strings and lone surrogates). A seeded TS↔Rust
+  mirrors the TypeScript schema field for field (numeric ceilings, string bounds
+  counted in code points, unknown-key rejection, strict leap-aware datetimes, and
+  rejection of untrimmed strings and lone surrogates), and both read the wire text
+  strictly: UTF-8 with no byte-order mark, no repeated member name, size measured in
+  bytes (`docs/SPEC.md` §Parsing). A seeded TS↔Rust
   differential fuzzer, a committed fuzz corpus, and a lifecycle soak enforce
   this in CI (see `docs/CLAIMS.md` C12–C15).
 - **Hostile archives.** `.traveler.zip` import allowlists members (max 3),
@@ -72,8 +74,10 @@ What the format defends, by design:
   not expanded keys, the clear header bound as AAD, and a substitution check on
   unlock (a tampered header cannot point the vault at another identity). A wrong
   passphrase and a tampered blob both fail with one **uniform** error — no oracle.
-  Sealing needs only public keys, so it never touches a secret; one-time prekeys
-  are consume-once, the deletion persisted before the secret is used.
+  Sealing needs only public keys, so it never touches a secret. A one-time prekey
+  is deleted — and the deletion persisted — once the traveler its envelope carried
+  has been admitted, not when the envelope is decrypted (see
+  `docs/ENVELOPE-DRAFT.md`, "What this does and does not give you").
 
 What the format does **not** defend — known, stated, and the roadmap for
 future versions:

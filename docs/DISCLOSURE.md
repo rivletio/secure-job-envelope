@@ -17,8 +17,6 @@ A courier may compute `courierView` and nothing else from the file. That view is
 - need-by
 - whether the traveler is self-declared ITAR
 - the buyer's cert labels (ISO, AS), not the buyer's name
-- how many quotes exist, and whether one was awarded
-- the conformance level (draft, quoteable, awardable, executable, as-built)
 
 A courier may not say, and `courierView` does not contain:
 
@@ -26,6 +24,9 @@ A courier may not say, and `courierView` does not contain:
 - part numbers, descriptions, drawing revisions, tolerances, notes
 - ship-to
 - prices, freight, lead time, seller names
+- how many quotes exist, whether one was awarded, or the conformance level (an earlier
+  version of the view carried these; they say how far a negotiation has got, which is
+  not a courier's to know)
 - the traveler id
 
 Bond and insurance certificates are not fields in this format. A carrier name, a limit, and an expiry are claims someone said. The certificate bytes are not in the traveler.
