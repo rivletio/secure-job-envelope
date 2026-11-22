@@ -517,11 +517,14 @@ mod tests {
         let n129: String = "😀".repeat(129);
         assert_eq!(cp_len(&n128), 128);
         assert_eq!(n128.encode_utf16().count(), 256);
+        // Refused for its LENGTH, by the message (`trimmed` also refuses an empty or an
+        // untrimmed string, in other words); 128 is the control.
+        let refused = |r: Result<(), Error>| r.unwrap_err().to_string();
         assert!(trimmed("family", &n128, MAX_NAME).is_ok());
-        assert!(trimmed("family", &n129, MAX_NAME).is_err());
+        assert_eq!(refused(trimmed("family", &n129, MAX_NAME)), "family length is out of range");
         // The no-trim `sized` fields count code points too.
         assert!(sized("code", &"😀".repeat(32), 1, 32).is_ok());
-        assert!(sized("code", &"😀".repeat(33), 1, 32).is_err());
+        assert_eq!(refused(sized("code", &"😀".repeat(33), 1, 32)), "code length is out of range");
     }
 
     #[test]
@@ -529,12 +532,16 @@ mod tests {
         use serde_json::json;
         // The cap is 8,192 bytes of the canonical JSON. `{"k":"…"}` costs 8 bytes of
         // framing, so 8,184 ASCII characters fit and 8,185 do not.
+        // Every refusal in this first part is the SIZE rule's, by its message: `json_blob`
+        // also refuses a non-object, a `__proto__` member and a number with no canonical
+        // form, and none of those is what a blob one byte too long should be refused for.
+        const TOO_BIG: &str = "as_built exceeds 8 KiB";
+        let refused = |v: &Value| json_blob("as_built", v).unwrap_err().to_string();
         assert!(json_blob("as_built", &json!({ "k": "x".repeat(8184) })).is_ok());
-        let over = json_blob("as_built", &json!({ "k": "x".repeat(8185) })).unwrap_err();
-        assert_eq!(over.to_string(), "as_built exceeds 8 KiB");
+        assert_eq!(refused(&json!({ "k": "x".repeat(8185) })), TOO_BIG);
         // Bytes, not characters or UTF-16 units: U+6F22 is one unit and three bytes.
         assert!(json_blob("as_built", &json!({ "k": "\u{6f22}".repeat(2728) })).is_ok());
-        assert!(json_blob("as_built", &json!({ "k": "\u{6f22}".repeat(2729) })).is_err());
+        assert_eq!(refused(&json!({ "k": "\u{6f22}".repeat(2729) })), TOO_BIG);
         // The canonical form, not this library's own rendering of a number. Written as
         // `1.0`, 4,092 ones are 16,375 characters here and 8,191 canonical bytes: accepted.
         let list = |item: &str, n: usize| -> Value {
@@ -548,7 +555,7 @@ mod tests {
         // characters): 481 of them fit in 8,184 bytes, 482 do not.
         assert_eq!(crate::canonical_json(&list("1e15", 481)).unwrap().len(), 8184);
         assert!(json_blob("as_built", &list("1e15", 481)).is_ok());
-        assert!(json_blob("as_built", &list("1e15", 482)).is_err());
+        assert_eq!(refused(&list("1e15", 482)), TOO_BIG);
         // A number with no canonical form has no size to measure: the blob is refused,
         // and for that reason.
         for (text, why) in [("1e20", "exceeds 2^53-1"), ("1e-7", "below 1e-5"), ("9007199254740993", "exceeds 2^53-1")] {
@@ -578,7 +585,9 @@ mod tests {
         // typed side: what a struct re-serializes to (always an object).
         let typed = v(r#"{"material":{"spec":"M"},"breaks":[1,2],"blob":{"a":[{"b":1}]}}"#);
         assert!(no_positional_structs(&typed, &typed));
-        // a struct written positionally, at any depth, is refused …
+        // a struct written positionally, at any depth, is refused … (the check answers yes
+        // or no, so the control is the same document with `material` written as an object)
+        assert!(no_positional_structs(&v(r#"{"material":{"spec":"M"},"breaks":[1,2]}"#), &typed));
         assert!(!no_positional_structs(&v(r#"{"material":["M"],"breaks":[1,2]}"#), &typed));
         assert!(!no_positional_structs(&v(r#"[{"spec":"M"},[1,2]]"#), &typed));
         // … an absent optional is fine, and a real array stays an array.

@@ -807,6 +807,27 @@ pub fn check_verdict(json: &str) -> String {
 mod tests {
     use super::*;
 
+    /// Why `parse_traveler` refuses `json` (it panics if the document is accepted). A test
+    /// that asserts only "refused" passes just as well when some other rule does the
+    /// refusing — a fixture with a second defect, a check that moved — so refusals are
+    /// compared by reason. A refusal from the reader (`Error::Json`) comes back as
+    /// `invalid json: <reason>`, without serde_json's trailing ` at line L column C`: the
+    /// position moves with the layout of the fixture and the reason does not.
+    fn refusal(json: &str) -> String {
+        match parse_traveler(json).expect_err("the document must be refused") {
+            Error::Json(e) => {
+                let text = e.to_string();
+                let reason = text.rfind(" at line ").map_or(text.as_str(), |at| &text[..at]);
+                format!("invalid json: {reason}")
+            }
+            other => other.to_string(),
+        }
+    }
+
+    /// The reader's refusal of an explicit `null` on an optional field that is not nullable
+    /// (`de::present_some` and its siblings).
+    const NULL_REFUSED: &str = "invalid json: field must not be null";
+
     #[test]
     fn golden_hash_matches_ts() {
         let body: Quoteable = serde_json::from_str(include_str!("../tests/golden.json")).unwrap();
@@ -817,7 +838,13 @@ mod tests {
     fn serde_rejects_lone_surrogate() {
         // Rust cannot represent a lone surrogate; serde refuses it at parse, so
         // neither implementation hashes one (the TS canonicalizer refuses it too).
-        assert!(serde_json::from_str::<Value>(r#"{"s":"A\uD800B"}"#).is_err());
+        // The refusal is serde_json's, and it is about the escape: a high surrogate must be
+        // followed by the escape of a low one, and at column 14 (the `B`) it is not.
+        let lone = serde_json::from_str::<Value>(r#"{"s":"A\uD800B"}"#).unwrap_err();
+        assert_eq!(lone.to_string(), "unexpected end of hex escape at line 1 column 14");
+        // Control: the same text with the low half supplied is one character, U+10000.
+        let paired: Value = serde_json::from_str(r#"{"s":"A\uD800\uDC00B"}"#).unwrap();
+        assert_eq!(paired["s"], "A\u{10000}B");
     }
 
     #[test]
@@ -861,21 +888,26 @@ mod tests {
             canonical_json(&arrays(127, None)).unwrap(),
             format!("{}{}", "[".repeat(127), "]".repeat(127))
         );
-        let too_deep = canonical_json(&arrays(128, None)).unwrap_err().to_string();
-        assert_eq!(too_deep, "canonical JSON nesting exceeds the maximum depth");
+        // Every refusal here is the nesting rule's own, by its message — not, say, a number
+        // at the bottom that has no canonical form.
+        const TOO_DEEP: &str = "canonical JSON nesting exceeds the maximum depth";
+        let refused = |v: &Value| canonical_json(v).unwrap_err().to_string();
+        assert_eq!(refused(&arrays(128, None)), TOO_DEEP);
         // 126 wrappers around `{}` are 127 objects; one more is too many.
         assert_eq!(canonical_json(&objects(126, serde_json::json!({}))).unwrap().len(), 126 * 6 + 2);
-        assert!(canonical_json(&objects(127, serde_json::json!({}))).is_err());
+        assert_eq!(refused(&objects(127, serde_json::json!({}))), TOO_DEEP);
         // Only containers nest: a scalar at the bottom of 127 is not a 128th level.
         assert_eq!(
             canonical_json(&arrays(127, Some(serde_json::json!(1)))).unwrap(),
             format!("{}1{}", "[".repeat(127), "]".repeat(127))
         );
-        assert!(canonical_json(&arrays(128, Some(serde_json::json!(1)))).is_err());
-        // And it is the same number the parser uses: 127 reads, 128 does not.
+        assert_eq!(refused(&arrays(128, Some(serde_json::json!(1)))), TOO_DEEP);
+        // And it is the same number the parser uses: 127 reads, 128 does not — refused for
+        // its depth, at the 128th bracket.
         let text = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
         assert!(serde_json::from_str::<Value>(&text(127)).is_ok());
-        assert!(serde_json::from_str::<Value>(&text(128)).is_err());
+        let unread = serde_json::from_str::<Value>(&text(128)).unwrap_err();
+        assert_eq!(unread.to_string(), "recursion limit exceeded at line 1 column 128");
     }
 
     #[test]
@@ -900,18 +932,32 @@ mod tests {
 
     #[test]
     fn canonical_refuses_exponential_notation() {
+        // A number that would be written with an exponent has no canonical form. It is the
+        // two RANGE rules that refuse it, and each case is held to the one that does:
+        // `write_number` also tests the rendered text for an `e`, but only after them, and
+        // nothing reaches that test — serde_json writes an f64 with an exponent below 1e-5
+        // and from 1e16 up, and by then a non-integer below 1e-5 and any magnitude past
+        // 2^53-1 have already been refused.
+        const TOO_BIG: &str = "number exceeds 2^53-1 and is not canonical in sje/0.1.0";
+        const TOO_BIG_INT: &str = "integer exceeds 2^53-1 and is not canonical in sje/0.1.0";
+        const TOO_SMALL: &str =
+            "non-integer number below 1e-5 is outside the canonical fixed-notation range of sje/0.1.0";
+        let refused = |v: &Value| canonical_json(v).unwrap_err().to_string();
         let big = serde_json::json!({"t": 1e21f64});
-        assert!(canonical_json(&big).is_err());
+        assert_eq!(refused(&big), TOO_BIG);
         let tiny = serde_json::json!({"t": 1e-7f64});
-        assert!(canonical_json(&tiny).is_err());
+        assert_eq!(refused(&tiny), TOO_SMALL);
         let below_range = serde_json::json!({"t": 0.000001f64});
-        assert!(canonical_json(&below_range).is_err());
+        assert_eq!(refused(&below_range), TOO_SMALL);
         let big_int = serde_json::json!({"t": 9_007_199_254_740_992i64});
-        assert!(canonical_json(&big_int).is_err());
+        assert_eq!(refused(&big_int), TOO_BIG_INT);
+        // Controls: the nearest value on the accepted side of each rule.
         let fine = serde_json::json!({"t": 0.00001f64});
         assert_eq!(canonical_json(&fine).unwrap(), r#"{"t":0.00001}"#);
         let max_int = serde_json::json!({"t": 9_007_199_254_740_991i64});
         assert_eq!(canonical_json(&max_int).unwrap(), r#"{"t":9007199254740991}"#);
+        let max_float = serde_json::json!({"t": 9_007_199_254_740_991.0f64});
+        assert_eq!(canonical_json(&max_float).unwrap(), r#"{"t":9007199254740991}"#);
     }
 
     #[test]
@@ -1008,7 +1054,13 @@ mod tests {
             "pricing":{"currency":"USD","lines":[{"qty":50,"unit":29}]}
           }]
         }"#;
-        assert!(parse_traveler(json).is_err());
+        assert_eq!(refusal(json), "ITAR traveler cannot carry a quote from a non-ITAR seller");
+        // Controls: the pairing is the one thing wrong with this document. With the seller
+        // declared ITAR, or with the traveler not ITAR, the same document parses.
+        let itar_seller = json.replace(r#""itar":false}"#, r#""itar":true}"#);
+        parse_traveler(&itar_seller).expect("an ITAR seller may quote an ITAR traveler");
+        let open_traveler = json.replace(r#""itar":true,"#, r#""itar":false,"#);
+        parse_traveler(&open_traveler).expect("a non-ITAR seller may quote a traveler that is not ITAR");
     }
 
     #[test]
@@ -1035,7 +1087,10 @@ mod tests {
             "pricing":{"currency":"USD","lines":[{"qty":50,"unit":-29}]}
           }]
         }"#;
-        assert!(parse_traveler(json).is_err());
+        assert_eq!(refusal(json), "line.unit is out of range");
+        // Control: the sign is the one thing wrong with this document.
+        let positive = json.replace(r#""unit":-29"#, r#""unit":29"#);
+        parse_traveler(&positive).expect("the same quote with a non-negative unit parses");
     }
 
     #[test]
@@ -1047,27 +1102,44 @@ mod tests {
 
     #[test]
     fn rfc3339_millis_rejects_out_of_range_components() {
-        // Adversarial components must return None, never overflow/panic.
+        // Adversarial components must return None, never overflow/panic. The parse gives
+        // no reason, so under each refusal is its control: the same timestamp with that
+        // component at the largest value it may take.
         assert_eq!(rfc3339_millis("9999999999999-01-01T00:00:00Z"), None);
+        assert!(rfc3339_millis("9999-01-01T00:00:00Z").is_some());
         assert_eq!(rfc3339_millis("2026-13-01T00:00:00Z"), None);
+        assert!(rfc3339_millis("2026-12-01T00:00:00Z").is_some());
         assert_eq!(rfc3339_millis("2026-01-32T00:00:00Z"), None);
+        assert!(rfc3339_millis("2026-01-31T00:00:00Z").is_some());
         assert_eq!(rfc3339_millis("2026-01-01T25:00:00Z"), None);
+        assert!(rfc3339_millis("2026-01-01T23:00:00Z").is_some());
         assert_eq!(rfc3339_millis("2026-01-01T00:60:00Z"), None);
+        assert!(rfc3339_millis("2026-01-01T00:59:00Z").is_some());
         assert!(rfc3339_millis("2026-01-01T00:00:00Z").is_some());
     }
 
     #[test]
     fn rfc3339_millis_is_strict_and_calendar_aware() {
-        // Both the no-fraction and fractional forms parse.
-        assert!(rfc3339_millis("2026-05-01T12:00:00Z").is_some());
-        assert_eq!(rfc3339_millis("2026-05-01T12:00:00.5Z"), rfc3339_millis("2026-05-01T12:00:00.500Z"));
-        // A leniently-parsed timestamp must be refused, matching TS isoDateTimeMs:
+        // Both the no-fraction and fractional forms parse — to the instant they name: two
+        // forms that both FAILED to parse would compare equal as well.
+        let noon = rfc3339_millis("2026-05-01T12:00:00Z").expect("the no-fraction form parses");
+        assert_eq!(rfc3339_millis("2026-05-01T12:00:00.5Z"), Some(noon + 500));
+        assert_eq!(rfc3339_millis("2026-05-01T12:00:00.500Z"), Some(noon + 500));
+        // A leniently-parsed timestamp must be refused, matching TS isoDateTimeMs. The parse
+        // gives no reason, so under each refusal is its control: the nearest timestamp that
+        // parses, differing in the one thing named.
         assert!(rfc3339_millis("2026-05-01T12:00:00.000+00:00").is_none()); // trailing offset, not Z
+        assert!(rfc3339_millis("2026-05-01T12:00:00.000Z").is_some());
         assert!(rfc3339_millis("2026-5-1T12:00:00Z").is_none()); // single-digit fields
+        assert!(rfc3339_millis("2026-05-01T12:00:00Z").is_some());
         assert!(rfc3339_millis("2026-05-01T12:00:60.000Z").is_none()); // second 60
+        assert!(rfc3339_millis("2026-05-01T12:00:59.000Z").is_some());
         assert!(rfc3339_millis("2026-05-01T24:00:00.000Z").is_none()); // hour 24
+        assert!(rfc3339_millis("2026-05-01T23:00:00.000Z").is_some());
         assert!(rfc3339_millis("2026-02-31T12:00:00.000Z").is_none()); // impossible calendar day
+        assert!(rfc3339_millis("2026-02-28T12:00:00.000Z").is_some());
         assert!(rfc3339_millis("2026-01-01T12:00:00.0000000000Z").is_none()); // > 9 fractional digits
+        assert!(rfc3339_millis("2026-01-01T12:00:00.000000000Z").is_some());
         // Leap-year awareness.
         assert!(rfc3339_millis("2024-02-29T00:00:00Z").is_some());
         assert!(rfc3339_millis("2026-02-29T00:00:00Z").is_none());
@@ -1075,10 +1147,15 @@ mod tests {
 
     #[test]
     fn iso_day_ok_is_calendar_strict() {
+        // `iso_day_ok` answers yes or no, so under each refusal is its control: the nearest
+        // day that is accepted.
         assert!(iso_day_ok("2026-10-24"));
         assert!(!iso_day_ok("2026-02-31"));
+        assert!(iso_day_ok("2026-02-28"));
         assert!(!iso_day_ok("2026-13-01"));
+        assert!(iso_day_ok("2026-12-01"));
         assert!(!iso_day_ok("2026-1-1")); // single-digit fields
+        assert!(iso_day_ok("2026-01-01"));
         assert!(iso_day_ok("2024-02-29"));
         assert!(!iso_day_ok("2026-02-29"));
     }
@@ -1197,26 +1274,28 @@ mod tests {
 
     #[test]
     fn fractional_or_out_of_range_float_is_rejected_for_integer_fields() {
+        // The READER's refusal of a float it will not take for an integer (`de::LenientI64`)
+        // — as distinct from a field's own range, which `validate.rs` checks afterwards and
+        // words differently.
+        const NOT_AN_INTEGER: &str = "invalid json: expected an integer value";
+        let doc = r#"{
+          "spec":"sje/0.1.0","traveler_id":"tvl_intfloat03","revision":REVISION,
+          "created_at":"2026-09-08T15:12:00.000Z","buyer":{"name":"Northline Equipment"},
+          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":TARGET}},
+          "itar":false
+        }"#;
+        let with = |revision: &str, target: &str| doc.replace("REVISION", revision).replace("TARGET", target);
+        // Control: the same document with both fields as integer-valued floats parses.
+        parse_traveler(&with("1.0", "250.0")).expect("integer-valued floats parse");
         // A non-integer value is refused (zod `.int()` refuses it too)...
-        assert!(parse_traveler(
-            r#"{
-          "spec":"sje/0.1.0","traveler_id":"tvl_intfloat03","revision":1,
-          "created_at":"2026-09-08T15:12:00.000Z","buyer":{"name":"Northline Equipment"},
-          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":250.5}},
-          "itar":false
-        }"#
-        )
-        .is_err());
+        assert_eq!(refusal(&with("1", "250.5")), NOT_AN_INTEGER);
         // ...and so is an integer-valued float beyond the safe-integer range (2^53).
-        assert!(parse_traveler(
-            r#"{
-          "spec":"sje/0.1.0","traveler_id":"tvl_intfloat04","revision":9007199254740992.0,
-          "created_at":"2026-09-08T15:12:00.000Z","buyer":{"name":"Northline Equipment"},
-          "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
-          "itar":false
-        }"#
-        )
-        .is_err());
+        assert_eq!(refusal(&with("9007199254740992.0", "50")), NOT_AN_INTEGER);
+        // That is the reader's limit and not the field's range (`revision` stops at 10,000
+        // either way): one below the limit, 2^53 - 1 is an integer to the reader, and is
+        // refused later, by `revision`'s own bound, in other words. (No integer field is
+        // wide enough to accept a value that large, so there is no accepted twin.)
+        assert_eq!(refusal(&with("9007199254740991.0", "50")), "revision is out of range");
     }
 
     #[test]
@@ -1233,15 +1312,23 @@ mod tests {
           "part":{"family":"CNC bracket","part_number":"NL-BRK-4410","material":{"spec":"6061-T6"},"qty":{"target":50}},
           "itar":false
         }"#;
+        // Control: with nothing patched in, the document parses. Each refusal below is that
+        // document with one `null` added, and is the reader's refusal of a null, by its
+        // message — not an unknown field, a misplaced patch, or a later check.
+        let top = base.replace("FIELD", "");
+        parse_traveler(&top).expect("the base document must otherwise parse");
         for patch in [r#","org_id":null"#, r#","itar":null"#, r#","certs":null"#, r#","contact":null"#] {
-            assert!(parse_traveler(&base.replace("FIELD", patch)).is_err(), "buyer{patch} must be refused");
+            assert_eq!(refusal(&base.replace("FIELD", patch)), NULL_REFUSED, "buyer{patch} must be refused");
         }
         // top-level and nested non-nullable optionals too
-        let top = base.replace("FIELD", "");
-        assert!(parse_traveler(&top.replace(r#""itar":false"#, r#""itar":null"#)).is_err());
-        assert!(parse_traveler(&top.replace(r#""itar":false"#, r#""itar":false,"signatures":null"#)).is_err());
-        assert!(parse_traveler(&top.replace(r#""qty":{"target":50}"#, r#""qty":{"target":50,"breaks":null}"#)).is_err());
-        assert!(parse_traveler(&top.replace(r#""qty":{"target":50}}"#, r#""qty":{"target":50},"notes":null}"#)).is_err());
+        for (from, to) in [
+            (r#""itar":false"#, r#""itar":null"#),
+            (r#""itar":false"#, r#""itar":false,"signatures":null"#),
+            (r#""qty":{"target":50}"#, r#""qty":{"target":50,"breaks":null}"#),
+            (r#""qty":{"target":50}}"#, r#""qty":{"target":50},"notes":null}"#),
+        ] {
+            assert_eq!(refusal(&top.replace(from, to)), NULL_REFUSED, "{to} must be refused");
+        }
     }
 
     #[test]
@@ -1268,8 +1355,10 @@ mod tests {
         }"#;
         let clean = base.replace("PATCH", "").replace("MONEY", "");
         assert!(parse_traveler(&clean).is_ok(), "the base quote must otherwise parse");
-        assert!(parse_traveler(&base.replace("PATCH", r#""need_by_feasible":null,"#).replace("MONEY", "")).is_err());
-        assert!(parse_traveler(&base.replace("PATCH", "").replace("MONEY", r#","nre":null"#)).is_err());
+        let null_feasible = base.replace("PATCH", r#""need_by_feasible":null,"#).replace("MONEY", "");
+        assert_eq!(refusal(&null_feasible), NULL_REFUSED);
+        let null_nre = base.replace("PATCH", "").replace("MONEY", r#","nre":null"#);
+        assert_eq!(refusal(&null_nre), NULL_REFUSED);
     }
 
     #[test]

@@ -231,14 +231,32 @@ mod tests {
             // nested: object inside an array inside an object
             r#"{"present":{"runs":[{"n":1},{"n":2,"n":3}]}}"#,
             r#"{"nullable":{"a":{"b":{"c":1,"c":1}}}}"#,
-            // names compare after unescaping: "lot" and "lot" are one member
-            r#"{"present":{"lot":"A","lot":"B"}}"#,
             // the empty name is a name
             r#"{"present":{"":1,"":2}}"#,
         ] {
             let err = parse(json).expect_err(json);
             assert!(err.contains("duplicate member name in a free-form object"), "{json}: {err}");
         }
+    }
+
+    #[test]
+    fn blob_compares_member_names_after_unescaping() {
+        // "\u006cot" spells "lot": the two names are equal once unescaped, so the second
+        // repeats the first however each was written.
+        let escaped = r#"{"present":{"lot":"A","\u006cot":"B"}}"#;
+        // This case used to sit in the list above and had lost its escape — its text had
+        // become a second copy of the plain "lot"/"lot" case — and it went on passing. So,
+        // before the refusal: the text does carry an escape, and the names are the same
+        // only AFTER unescaping (a reader that keeps the last of a repeated name is left
+        // with the one member, "lot").
+        assert!(escaped.contains('\\'), "the fixture has lost its escape");
+        let last_wins: Value = serde_json::from_str(escaped).unwrap();
+        assert_eq!(last_wins["present"], serde_json::json!({ "lot": "B" }));
+        let err = parse(escaped).expect_err(escaped);
+        assert!(err.contains("duplicate member name in a free-form object"), "{escaped}: {err}");
+        // Control: an escape does not make a name a repeat. "\u006dot" spells "mot".
+        let other = parse(r#"{"present":{"lot":"A","\u006dot":"B"}}"#).unwrap().present.unwrap();
+        assert_eq!(other, serde_json::json!({ "lot": "A", "mot": "B" }));
     }
 
     #[test]
@@ -269,8 +287,16 @@ mod tests {
 
     #[test]
     fn blob_still_refuses_what_the_json_parser_refuses() {
-        // out-of-range number, even when a later duplicate would have shadowed it
-        assert!(parse(r#"{"present":{"x":1e309}}"#).is_err());
+        // out-of-range number, even when a later duplicate would have shadowed it: refused
+        // as a number, at the number (column 21 is the end of `1e309`), so before the
+        // repeated name after it is reached — and the same with no repeat to reach.
+        for json in [r#"{"present":{"x":1e309,"x":1}}"#, r#"{"present":{"x":1e309}}"#] {
+            assert_eq!(parse(json).expect_err(json), "number out of range at line 1 column 21", "{json}");
+        }
+        // control: the number is the one thing wrong — the largest power of ten a double
+        // holds is read
+        let largest = parse(r#"{"present":{"x":1e308}}"#).unwrap().present.unwrap();
+        assert_eq!(largest, serde_json::json!({ "x": 1e308 }));
         // serde_json's recursion limit still applies inside a blob
         let deep = format!(r#"{{"present":{}{}}}"#, "[".repeat(200), "]".repeat(200));
         assert!(parse(&deep).unwrap_err().contains("recursion limit"));
