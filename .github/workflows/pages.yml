@@ -2,17 +2,24 @@ name: Pages
 
 # Build the GitHub Pages site — the two demo PWAs plus the statically exported
 # desk — and deploy it. One-time setup: Settings → Pages → Source: "GitHub Actions".
+#
+# The desk is the code that handles passphrases and ML-KEM secrets in the browser,
+# so it must not go live ahead of its own tests. This workflow therefore does NOT
+# run on push: it runs when the CI workflow finishes on main, deploys only if CI
+# succeeded, and builds exactly the commit CI validated (not whatever main points
+# at by then). `workflow_dispatch` remains for a manual redeploy of main.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
-# Least privilege for a Pages deploy: read the repo, write the Pages artifact,
-# and mint the deployment's OIDC token. Nothing else.
+# Default to read-only. The Pages + OIDC permissions are granted to the deploy
+# job alone — the build job runs `npm ci` and the whole build toolchain, and has
+# no business holding a token that can publish.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One live deployment at a time; never cancel an in-flight deploy.
 concurrency:
@@ -21,9 +28,19 @@ concurrency:
 
 jobs:
   build:
+    # Only for a CI run that (a) succeeded and (b) was a push to main — a pull
+    # request's CI run, including one from a fork branch that happens to be named
+    # "main", must never reach the deploy.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -36,10 +53,6 @@ jobs:
       # Assemble _pages: demos at the root, the desk under /desk/, the SPA shell
       # copied to the desk index and the site-root 404 (deep-link fallback).
       - run: node scripts/build-pages.mjs _pages
-      # No `enablement: true`: it needs a PAT or GitHub App token, not GITHUB_TOKEN,
-      # and fails here with "Resource not accessible by integration". Pages is
-      # enabled once by a repo admin (see the one-time setup above).
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _pages
@@ -47,6 +60,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write # publish the artifact
+      id-token: write # mint the deployment's OIDC token
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
