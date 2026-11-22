@@ -123,9 +123,28 @@ note(`decrypted ${opened.traveler_id} — identical to what the buyer sealed`);
 
 /* 6. The attacks the transport refuses. */
 step(6, "Attacks the transport refuses");
+// Each refusal is checked for its REASON, not just for happening: "refused" is also what a
+// spent prekey, an unknown recipient and a malformed envelope look like.
 
-// (a) A one-byte flip in the ciphertext.
-await assert.rejects(() => openTraveler({ ...envelope, payload: flip(envelope.payload) }, sellerDesk));
+// What a failed AES-256-GCM tag is reported as (the message is @noble/ciphers').
+const AEAD_REFUSAL = /^Error: aes-gcm: invalid tag$/;
+// A second envelope for the seller, sealed to its other — still unused — one-time prekey,
+// and a copy of it with one byte of the ciphertext flipped.
+const otherId = prekeys[1]!.prekey_id;
+const sealToOther = () =>
+  sealTraveler(traveler, { directory, rootPublicKeyHex, recipientOrg: "org_summitfab", prekeyBundle: bundleBody, prekeyId: otherId });
+const legit = (await sealToOther()).envelope as FsEnvelope;
+const forged = { ...legit, payload: flip(legit.payload) };
+
+// (a) A one-byte flip in the ciphertext. Tried on the envelope whose one-time prekey is
+// still held, so that the ciphertext is what gets judged. The envelope from step 5 cannot
+// show this any more: opening it spent its prekey, and every copy of it — flipped or not —
+// is now refused for that, before any ciphertext is read.
+await assert.rejects(() => openTraveler(forged, sellerDesk), AEAD_REFUSAL);
+await assert.rejects(
+  () => openTraveler({ ...envelope, payload: flip(envelope.payload) }, sellerDesk),
+  /^Error: openTraveler: one-time prekey already consumed or not held by this keystore$/,
+);
 note("a one-byte flip in the ciphertext is refused (AEAD)");
 
 // (b) The wrong desk's keystore cannot open an envelope addressed to the seller.
@@ -133,12 +152,10 @@ const buyerDesk = await unlock(buyer.keystore, BUYER_PASS);
 await assert.rejects(() => openTraveler(envelope, buyerDesk), /no recipient entry/);
 note("the wrong desk's keystore cannot open it");
 
-// (c) A forged envelope naming a real, still-unused prekey_id must NOT burn the prekey.
-const otherId = prekeys[1]!.prekey_id;
-const sealToOther = () =>
-  sealTraveler(traveler, { directory, rootPublicKeyHex, recipientOrg: "org_summitfab", prekeyBundle: bundleBody, prekeyId: otherId });
-const legit = (await sealToOther()).envelope as FsEnvelope;
-await assert.rejects(() => openTraveler({ ...legit, payload: flip(legit.payload) }, sellerDesk));
+// (c) A forged envelope naming a real, still-unused prekey_id must NOT burn the prekey:
+// it is still refused by the AEAD (not as "already consumed"), and a legitimate envelope
+// sealed to that same prekey afterwards opens.
+await assert.rejects(() => openTraveler(forged, sellerDesk), AEAD_REFUSAL);
 assert.deepEqual(await openTraveler((await sealToOther()).envelope, sellerDesk), traveler);
 note("a forged envelope naming a real prekey_id fails WITHOUT burning the prekey");
 

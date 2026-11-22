@@ -102,12 +102,18 @@ describe("desk store state machine", () => {
     const q = boundQuoteFor(p);
     s.addQuote(p.traveler_id, q);
     useTravelerStore.getState().amend(p.traveler_id, { incoterms: "EXW" });
-    assert.throws(() =>
-      useTravelerStore
-        .getState()
-        .award(p.traveler_id, { quote_id: q.quote_id, awarded_at: isoNow(), qty: 250 }, SHIP, [
-          { seq: 1, code: "laser" },
-        ]),
+    // Refused for THIS reason: the amend left the quote bound to the previous revision's
+    // hash. Nothing else about the award is wrong — it is the award the test above makes
+    // and sees accepted — so no other award check (the quote is on the traveler, the
+    // quantity is priced, there is an op, the ship-to is complete) has anything to refuse.
+    assert.throws(
+      () =>
+        useTravelerStore
+          .getState()
+          .award(p.traveler_id, { quote_id: q.quote_id, awarded_at: isoNow(), qty: 250 }, SHIP, [
+            { seq: 1, code: "laser" },
+          ]),
+      /^Error: Quote is not bound to the current hash\.$/,
     );
   });
 
