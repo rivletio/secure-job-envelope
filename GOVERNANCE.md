@@ -31,7 +31,10 @@ without any infrastructure. Its root key, its orgs' signing keys and their encry
 keys are all derived from constants published in that file. Anyone can therefore sign
 as its root or as any of its orgs, and read anything sealed to them: under the demo
 anchor a "verified" signature proves nothing and an envelope is confidential from
-no one. It is loaded only when a user asks for it. This is the same posture as a TLS trust
+no one. It is loaded only when a user asks for it and confirms it, and the desk
+recognizes it by its key however it arrives: a standing banner marks it, every check
+that passes under it is shown as a warning that proves nothing rather than as a
+success, and sealing under it needs a tick for each envelope. This is the same posture as a TLS trust
 store or an SSH `known_hosts` file: the format defines *how* a root attests
 identities; *which* root you trust is your decision.
 
@@ -159,7 +162,7 @@ configures its own.
 
 | Claim | Test |
 |---|---|
-| The root is a verifier parameter; no root is baked in | `verifyDirectory(dir, rootPublicKeyHex, at)` signature — `src/lib/traveler/directory.ts` |
+| The root is a verifier parameter; no root is trusted by the code (the public demo root's digest is carried only so that it can be recognized and labelled) | `verifyDirectory(dir, rootPublicKeyHex, at)` signature — `src/lib/traveler/directory.ts`; `isDemoTrustRoot` — `src/lib/traveler/demo-trust.ts` |
 | Two independent roots each operate a directory, trusted only under their own key | `directory.test.ts` → "lets two independent roots each operate a directory…" |
 | The configured root is the sole arbiter (swapping it changes the verdict) | `directory.test.ts` → "makes the configured root the sole arbiter…" |
 | Freshness/validity windows are signed and bound replay (revocation rollback) | `docs/CLAIMS.md` PQ5 |

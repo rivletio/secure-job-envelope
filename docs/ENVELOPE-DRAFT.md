@@ -198,15 +198,21 @@ mode fixes that with **single-use prekeys** and a **two-KEM combine**:
   `commit()`). Until then the same envelope can be decrypted again by whoever holds
   the keystore and its passphrase. (Earlier text here said the deletion was persisted
   "before the secret is used". The code never did that.)
-- *Deletion has to reach storage.* A write that fails is reported, not assumed: the
-  desk says so and the envelope remains decryptable with that keystore.
+- *Deletion has to reach storage.* The keystore without the key is stored first; the
+  key is forgotten in memory only when that write has succeeded. A write that fails is
+  reported, not assumed, and changes nothing: the envelope remains decryptable with
+  that keystore, and the deletion can be tried again. "Deleted" means the stored blob
+  was replaced — copies outside this software's control (a backup, browser sync, an
+  older blob restored later; the blob carries no counter) still hold the key.
 - *A prekey serves one envelope.* Nothing reserves a prekey: a sender picks one from
-  the public bundle. Two envelopes sealed to the same prekey — by two senders, or by
-  one sender that does not remember what it used — leave the second **permanently
-  unopenable** once the first is admitted, while each sender was told "forward-secret".
-  A sender SHOULD remember which prekeys of a bundle it has used and never reuse one;
-  two different senders can still collide, and only a coordinating service (which this
-  format deliberately does not have) could prevent that.
+  the public bundle. Two envelopes sealed to the same prekey leave the second
+  **permanently unopenable** once the first is admitted. A sender MUST remember which
+  prekeys of a bundle it has used: `sealTraveler` reports the one it used
+  (`prekeyId`), takes the used ones back (`excludePrekeyIds`), never picks one of
+  them, and when none is left says so (`staticReason: "prekeys-exhausted"`) instead of
+  reusing one. That removes the loss a sender inflicts on itself. Two *different*
+  senders can still collide, and only a coordinating service (which this format
+  deliberately does not have) could prevent that.
 - *The pool can be burned.* Prekey ids and public keys are public. Anyone can seal
   valid envelopes to every prekey in a bundle; each one the recipient admits spends a
   prekey. Junk that fails the archive checks spends nothing.
