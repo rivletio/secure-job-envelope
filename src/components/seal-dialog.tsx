@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CustodyToasts } from "@/components/custody-notices";
 import { DemoAnchorBanner, TrustChangeDialog } from "@/components/trust-notices";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,7 +148,6 @@ export function SealDialog({
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent data-testid="seal-dialog">
-        <CustodyToasts />
         <DialogHeader>
           <DialogTitle>Seal &amp; send {traveler.part.part_number}</DialogTitle>
           <DialogDescription>

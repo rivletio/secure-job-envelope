@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
-import { CustodyToasts } from "@/components/custody-notices";
 import { DemoAnchorBanner } from "@/components/trust-notices";
 import { useKeysStore } from "@/lib/traveler/keys-store";
 import {
@@ -34,7 +33,6 @@ export function AuthenticityPanel({ traveler }: { traveler: Traveler }) {
 
   return (
     <div className="on-paper traveler-shadow rounded-sm p-4" data-testid="authenticity-panel">
-      <CustodyToasts />
       <p className="font-mono text-xs text-muted-foreground">Authenticity</p>
       {!hydrated ? (
         <p className="mt-2 text-sm text-muted-foreground">Checking…</p>

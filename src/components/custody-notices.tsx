@@ -3,15 +3,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useCustodyStatus, useKeysStore } from "@/lib/traveler/keys-store";
 
-/** Notices already raised as a toast, so the several places that mount
- *  `CustodyToasts` do not each announce the same one. */
+/** Notices already raised as a toast, so one is never announced twice (a remount, a
+ *  second mount). */
 const announced = new Set<number>();
 
 /** Raise a toast for anything that happened to this tab's key custody from outside it
  *  — another tab changed the keystore and this tab locked, the trust anchor was
- *  replaced elsewhere. Renders nothing. Mounted wherever custody matters (the keys
- *  page, the authenticity panel, the seal dialog); the notice itself stays on the keys
- *  page until dismissed (`CustodyAlerts`). */
+ *  replaced elsewhere. Renders nothing. Mounted once, in the app shell, so it is heard
+ *  on every route; the notice itself stays on the keys page until dismissed
+ *  (`CustodyAlerts`). */
 export function CustodyToasts() {
   const notices = useCustodyStatus((s) => s.notices);
   useEffect(() => {

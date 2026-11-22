@@ -3,7 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { CustodyAlerts, CustodyToasts } from "@/components/custody-notices";
+import { CustodyAlerts } from "@/components/custody-notices";
 import { DemoAnchorBanner, RootFingerprint, TrustChangeDialog } from "@/components/trust-notices";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,7 +210,6 @@ function KeysPage() {
 
   return (
     <AppShell>
-      <CustodyToasts />
       <div className="mb-6">
         <p className="mono-label">Key custody · encrypted at rest</p>
         <h1 className="mt-2 text-3xl tracking-tight text-paper">Keys &amp; trust</h1>

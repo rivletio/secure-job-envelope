@@ -1,3 +1,4 @@
+import { DocText } from "@/components/doc-text";
 import { Link } from "@tanstack/react-router";
 import { LevelStamp } from "@/components/level-badge";
 import { HashChip } from "@/components/hash-chip";
@@ -24,21 +25,25 @@ export function TravelerCard({ traveler }: { traveler: Traveler }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-mono text-xs text-muted-foreground">
-              {traveler.part.part_number}
-              {traveler.part.drawing_rev ? ` · rev ${traveler.part.drawing_rev}` : ""}
+              <DocText
+                text={`${traveler.part.part_number}${traveler.part.drawing_rev ? ` · rev ${traveler.part.drawing_rev}` : ""}`}
+              />
             </p>
             <h2 className="truncate text-base font-medium tracking-tight">
-              {traveler.part.family}
+              <DocText text={traveler.part.family} />
             </h2>
           </div>
           <span className="shrink-0 font-mono text-xs text-faint">r{traveler.revision}</span>
         </div>
         <p className="text-sm text-muted-foreground">
-          {traveler.buyer.name}
-          {traveler.buyer.region ? ` · ${traveler.buyer.city}, ${traveler.buyer.region}` : ""}
+          <DocText
+            text={`${traveler.buyer.name}${traveler.buyer.region ? ` · ${traveler.buyer.city}, ${traveler.buyer.region}` : ""}`}
+          />
         </p>
         <p className="text-sm">
-          <span className="font-medium">{traveler.part.material.spec}</span>
+          <span className="font-medium">
+            <DocText text={traveler.part.material.spec} />
+          </span>
           <span className="text-muted-foreground">
             {" "}
             · qty {traveler.part.qty.target}

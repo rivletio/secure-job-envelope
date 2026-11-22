@@ -425,6 +425,58 @@ describe("two-phase open: decrypting is not accepting", () => {
     await assert.rejects(opened.commit(), /storage is full/);
   });
 
+  it("stores the deletion before forgetting the prekey: a failed store changes nothing, and can be retried", async () => {
+    // It used to delete in memory first. After a failed write the session had lost a
+    // prekey the stored blob still had, and a second commit() returned at once having
+    // done nothing: the deletion was never stored, and nothing said so again.
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 2);
+    const envelope = await fsSeal(ctx, bundle, prekeyIds[0]!);
+    let fail = true;
+    const stored: Keystore[] = [];
+    const opened = await openTravelerDeferred(envelope, ctx.unlocked, {
+      persistKeystore: (ks) => {
+        if (fail) throw new Error("storage is full");
+        stored.push(ks);
+      },
+    });
+
+    await assert.rejects(opened.commit(), /storage is full/);
+    assert.ok(ctx.unlocked.peekPrekey(prekeyIds[0]!), "the session still holds the prekey");
+    // …so the same envelope still opens in this session, as it would after a reload.
+    assert.deepEqual((await openTravelerDeferred(envelope, ctx.unlocked)).traveler, sampleTraveler());
+
+    fail = false;
+    await opened.commit(); // the retry does the work the first call could not
+    assert.equal(stored.length, 1);
+    assert.equal(ctx.unlocked.peekPrekey(prekeyIds[0]!), undefined, "forgotten once stored");
+    // What was stored is the keystore without that prekey, and with the other one.
+    const reopened = await unlock(stored[0]!, PASS);
+    assert.equal(reopened.peekPrekey(prekeyIds[0]!), undefined);
+    assert.ok(reopened.peekPrekey(prekeyIds[1]!));
+  });
+
+  it("two commits at once store the deletion once", async () => {
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 1);
+    const envelope = await fsSeal(ctx, bundle, prekeyIds[0]!);
+    let writes = 0;
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const opened = await openTravelerDeferred(envelope, ctx.unlocked, {
+      persistKeystore: async () => {
+        writes++;
+        await held;
+      },
+    });
+    const both = Promise.all([opened.commit(), opened.commit()]);
+    release();
+    await both;
+    await opened.commit();
+    assert.equal(writes, 1);
+    assert.equal(ctx.unlocked.peekPrekey(prekeyIds[0]!), undefined);
+  });
+
   it("a static envelope has nothing to spend", async () => {
     const ctx = await setup();
     const { envelope } = await sealTraveler(sampleTraveler(), {

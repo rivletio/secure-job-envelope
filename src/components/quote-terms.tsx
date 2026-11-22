@@ -1,3 +1,4 @@
+import { DocText } from "@/components/doc-text";
 import { Fragment } from "react";
 import { shortHash } from "@/lib/traveler/hash";
 import type { QuoteTerms } from "@/lib/traveler/quote-terms";
@@ -15,7 +16,9 @@ export function QuoteTermsView({ terms, className }: { terms: QuoteTerms; classN
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <bdi className="font-medium break-words">{seller.name}</bdi>
+            <span className="font-medium break-words">
+              <DocText text={seller.name} />
+            </span>
             <span
               className={cn(
                 "rounded-sm bg-wash px-1.5 py-0.5 font-mono text-xs",
@@ -41,7 +44,7 @@ export function QuoteTermsView({ terms, className }: { terms: QuoteTerms; classN
                 // value cannot reorder the values next to it.
                 <Fragment key={i}>
                   {i > 0 && " · "}
-                  <bdi>{fact}</bdi>
+                  <DocText text={fact} />
                 </Fragment>
               ))}
           </p>
@@ -151,16 +154,22 @@ export function QuoteTermsView({ terms, className }: { terms: QuoteTerms; classN
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <p className="min-w-0 font-mono text-xs">
-                    <bdi className="font-medium break-words">{ex.code}</bdi>
+                    <span className="font-medium break-words">
+                      <DocText text={ex.code} />
+                    </span>
                     <span className="text-muted-foreground"> on </span>
-                    <bdi className="break-words">{ex.on ?? "(not stated)"}</bdi>
+                    <span className="break-words">
+                      <DocText text={ex.on ?? "(not stated)"} />
+                    </span>
                   </p>
                   <p className="font-mono text-xs whitespace-nowrap">
                     <span className="text-muted-foreground">price delta </span>
                     <span className="font-medium">{ex.priceDelta ?? "none stated"}</span>
                   </p>
                 </div>
-                <p className="mt-1 break-words whitespace-pre-wrap">{ex.proposal}</p>
+                <p className="mt-1 break-words whitespace-pre-wrap">
+                  <DocText text={ex.proposal} block />
+                </p>
               </li>
             ))}
           </ul>

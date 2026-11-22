@@ -362,6 +362,13 @@ export type Unlocked = {
    *  then the secret is still on disk, and a second session unlocked from the same
    *  stored blob still holds it. */
   consumePrekey(prekeyId: string): { keystore: Keystore; secretKey: Uint8Array | undefined };
+  /** The blob this keystore WOULD become with one-time prekey `prekeyId` deleted —
+   *  without deleting it here. For a caller that has to store a deletion before it takes
+   *  effect in this session: write the returned blob, and only once that has succeeded
+   *  call `consumePrekey`. Done the other way round, a write that fails leaves this
+   *  session without a prekey the stored blob still has. An id that is not held gives
+   *  the vault as it stands. */
+  withoutPrekey(prekeyId: string): Keystore;
   /** Best-effort wipe of in-memory key material; the keystore becomes unusable. */
   lock(): void;
 };
@@ -481,6 +488,12 @@ export async function unlock(store: Keystore, passphrase: string): Promise<Unloc
       const secretKey = kemKeypairFromSeed(hexToBytes(seedHex)).secretKey;
       delete vault.prekeys[prekeyId];
       return { keystore: reseal(), secretKey };
+    },
+    withoutPrekey(prekeyId: string) {
+      requireOpen();
+      if (prekeySeed(prekeyId) === undefined) return reseal();
+      const prekeys = Object.fromEntries(Object.entries(vault.prekeys).filter(([id]) => id !== prekeyId));
+      return sealVault({ ...vault, prekeys }, activeKey, header);
     },
     lock() {
       locked = true;

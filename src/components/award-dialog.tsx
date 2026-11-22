@@ -1,3 +1,4 @@
+import { DocText } from "@/components/doc-text";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -230,7 +231,7 @@ export function AwardDialog({
         </div>
         <Button type="button" onClick={submit} disabled={!quote || expired}>
           <span>
-            Award to <bdi>{quote?.seller.name ?? "seller"}</bdi>
+            Award to <DocText text={quote?.seller.name ?? "seller"} />
           </span>
         </Button>
       </DialogContent>
@@ -253,7 +254,7 @@ function FileRow({
       <div className="min-w-0">
         <dt className="font-medium">{label}</dt>
         <dd className="break-words text-muted-foreground">
-          <bdi>{children}</bdi>
+          <DocText text={children} />
         </dd>
       </div>
       <Button type="button" variant="outline" size="sm" onClick={onUse}>

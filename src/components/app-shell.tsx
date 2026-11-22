@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { RivletMark } from "@/components/mark";
+import { CustodyToasts } from "@/components/custody-notices";
 import { StorageWarning } from "@/components/storage-warning";
 import { Button } from "@/components/ui/button";
 import { SHOPS } from "@/lib/traveler/network";
@@ -91,6 +92,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         </p>
         <StorageWarning />
+        {/* Once, for every route: what another tab did to this desk's keys or trust anchor. */}
+        <CustodyToasts />
       </header>
       <main id="main" className="relative z-10 mx-auto w-full max-w-6xl px-4 py-8 pb-16">
         {children}

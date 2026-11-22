@@ -206,7 +206,9 @@ export type OpenedTraveler = {
   forwardSecret: boolean;
   /** Spend the one-time prekey this envelope used, and persist that. Call it once the
    *  traveler has been ADMITTED (or when the envelope is being discarded for good).
-   *  Idempotent; a no-op for a static envelope. */
+   *  Idempotent; a no-op for a static envelope. If storing the deletion fails, this
+   *  rejects with nothing changed — the prekey is still held, in the session and in the
+   *  stored blob — and it can be called again. */
   commit: () => Promise<void>;
 };
 
@@ -259,14 +261,30 @@ export async function openTravelerDeferred(
     }
     const zipBytes = openFsEnvelope(envelope, keystore.kid, keystore.staticSecretKey(), onetime);
     const traveler = await toTraveler(zipBytes);
-    let spent = false;
-    const commit = async (): Promise<void> => {
-      if (spent) return;
-      spent = true;
+    // Store first, then forget. The blob without this prekey is written while the
+    // session still holds the prekey; only when the write has succeeded is it deleted
+    // here. A write that fails therefore changes nothing anywhere — the session and the
+    // stored blob still agree, the caller is told, and commit() can be called again. (It
+    // used to delete in memory first: after a failed write the session had lost a prekey
+    // the stored blob still had, and a second commit() did nothing at all.)
+    let done = false;
+    let running: Promise<void> | undefined;
+    const spend = async (): Promise<void> => {
       // Already gone (another open of the same envelope committed first): nothing to do.
-      if (!keystore.peekPrekey(r.prekey_id)) return;
-      const { keystore: updated } = keystore.consumePrekey(r.prekey_id);
-      if (opts?.persistKeystore) await opts.persistKeystore(updated);
+      if (keystore.peekPrekey(r.prekey_id)) {
+        if (opts?.persistKeystore) await opts.persistKeystore(keystore.withoutPrekey(r.prekey_id));
+        keystore.consumePrekey(r.prekey_id);
+      }
+      done = true;
+    };
+    const commit = (): Promise<void> => {
+      if (done) return Promise.resolve();
+      // One spend at a time: a second call while the first is being stored waits for it
+      // rather than writing again. A failed spend clears the way for a retry.
+      running ??= spend().finally(() => {
+        running = undefined;
+      });
+      return running;
     };
     return { traveler, forwardSecret: true, commit };
   }
