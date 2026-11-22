@@ -74,6 +74,13 @@ describe("disclosure", () => {
     assert.equal(view.family, traveler.part.family);
     assert.equal(view.material, traveler.part.material.spec);
     assert.equal(view.qty, traveler.part.qty.target);
+    // The courier view exposes only the matchable spec — no workflow state (award
+    // presence, quote count, or level) derived from fields the disclosure table marks
+    // "omitted". Pin the key set so a future addition from an omitted path is caught.
+    assert.deepEqual(
+      Object.keys(view).sort(),
+      ["buyer_certs", "family", "finish", "form", "itar", "material", "need_by", "processes", "qty"].sort(),
+    );
     assert.equal(courierMaySay("buyer.name"), false);
     assert.equal(courierMaySay("quotes.pricing"), false);
     assert.equal(courierMaySay("part.family"), true);

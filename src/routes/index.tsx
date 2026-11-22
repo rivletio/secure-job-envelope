@@ -75,13 +75,22 @@ function Desk() {
       toast.error("Not a recognized SJE envelope");
       return;
     }
+    let traveler: Traveler;
     try {
-      const traveler = await openTraveler(envelope, unlocked, {
+      traveler = await openTraveler(envelope, unlocked, {
         persistKeystore: (ks) => useKeysStore.getState().persistKeystore(ks),
       });
-      admit(traveler, "Decrypted");
     } catch {
       toast.error("Could not open envelope (wrong recipient, tampered, or not addressed to this desk)");
+      return;
+    }
+    // Decryption succeeded; import errors (e.g. an id that collides with a locked L2
+    // traveler) are NOT crypto failures, so surface their own message rather than
+    // misattributing them to tampering — as the plaintext import path already does.
+    try {
+      admit(traveler, "Decrypted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not import the decrypted traveler");
     }
   }
 

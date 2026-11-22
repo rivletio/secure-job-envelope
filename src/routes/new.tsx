@@ -56,22 +56,26 @@ function Compose() {
       traveler_id: "tvl_draftlive",
       revision: 1,
       created_at: "2026-09-14T00:00:00.000Z",
-      buyer: { name: buyer, city, region },
+      buyer: {
+        name: buyer.trim(),
+        ...(city.trim() ? { city: city.trim() } : {}),
+        ...(region.trim() ? { region: region.trim() } : {}),
+      },
       part: {
-        family,
-        part_number: partNumber,
-        drawing_rev: drawingRev || undefined,
-        description: description || undefined,
+        family: family.trim(),
+        part_number: partNumber.trim(),
+        drawing_rev: drawingRev.trim() || undefined,
+        description: description.trim() || undefined,
         material: {
-          spec: material,
-          form: form || undefined,
+          spec: material.trim(),
+          form: form.trim() || undefined,
           thickness_mm: Number.isFinite(th) && th > 0 ? th : undefined,
         },
         qty: { target, breaks: br.length ? br : undefined },
         processes,
-        finish: finish || undefined,
-        tolerances: tolerances || undefined,
-        notes: notes || undefined,
+        finish: finish.trim() || undefined,
+        tolerances: tolerances.trim() || undefined,
+        notes: notes.trim() || undefined,
       },
       need_by: needBy || null,
       incoterms: "FOB",
@@ -98,8 +102,19 @@ function Compose() {
     processes,
   ]);
 
-  const info = levelOf(draft);
-  const hash = travelerHash(draft);
+  // levelOf + travelerHash run live over unvalidated input on every keystroke, and
+  // canonicalJson throws on a non-canonical body (e.g. a pasted lone UTF-16 surrogate).
+  // Catch it so the form degrades to a Draft placeholder instead of throwing through
+  // render to the app error boundary and discarding the half-filled form.
+  let info: ReturnType<typeof levelOf>;
+  let hash: string;
+  try {
+    info = levelOf(draft);
+    hash = travelerHash(draft);
+  } catch {
+    info = { level: 0, name: "Draft", code: "D", missing: ["remove unencodable characters"] };
+    hash = "—";
+  }
 
   function toggleProcess(code: string) {
     setProcesses((p) => (p.includes(code) ? p.filter((x) => x !== code) : [...p, code]));
@@ -115,11 +130,6 @@ function Compose() {
       ...draft,
       traveler_id: newTravelerId(),
       created_at: isoNow(),
-      buyer: {
-        name: buyer.trim(),
-        ...(city.trim() ? { city: city.trim() } : {}),
-        ...(region.trim() ? { region: region.trim() } : {}),
-      },
       quotes: [],
     };
     try {

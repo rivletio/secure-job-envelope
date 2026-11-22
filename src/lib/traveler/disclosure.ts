@@ -1,4 +1,3 @@
-import { levelOf } from "./conformance.ts";
 import type { Traveler } from "./types.ts";
 
 /**
@@ -117,9 +116,6 @@ export type CourierView = {
   need_by: string | null;
   itar: boolean;
   buyer_certs: string[];
-  quote_count: number;
-  awarded: boolean;
-  level: "D" | "L0" | "L1" | "L2" | "L3";
 };
 
 export function courierView(traveler: Traveler): CourierView {
@@ -133,8 +129,5 @@ export function courierView(traveler: Traveler): CourierView {
     need_by: traveler.need_by ?? null,
     itar: traveler.itar ?? false,
     buyer_certs: traveler.buyer.certs ?? [],
-    quote_count: traveler.quotes?.length ?? 0,
-    awarded: Boolean(traveler.award),
-    level: levelOf(traveler).code,
   };
 }
