@@ -10,6 +10,20 @@ import {
 } from "./types.ts";
 import { isoDateTimeMs, isoDayOk } from "./datetime.ts";
 
+// One parser, everywhere. By default zod compiles each object schema into a function with
+// `new Function(...)` when the runtime allows it, and interprets the schema when it does
+// not. The published desk's Content-Security-Policy forbids compiling code from strings
+// (no 'unsafe-eval'), so the browser would run the interpreter while Node — every test,
+// the MCP server, the fuzzer — ran the compiled path: the code that is tested would not
+// be the code that ships. `jitless` selects the interpreter in every runtime, and zod then
+// never probes `new Function` at all (the probe is caught, but a strict policy still
+// reports it as a violation on every load).
+//
+// This must run before the first schema below is built: zod reads the setting when an
+// object schema is constructed, not when it parses. This module is the only one that
+// builds zod schemas (no-eval.test.ts fails if any code is compiled from a string).
+z.config({ jitless: true });
+
 // A required, non-empty string that must already be trimmed. We *reject* leading
 // or trailing whitespace rather than silently trimming it (the old `.trim()`
 // transform): a silent trim means the bytes we hash differ from the bytes we were
