@@ -53,4 +53,24 @@ export class Rng {
     for (let i = 0; i < n; i++) b[i] = this.int(0, 255);
     return b;
   }
+  /** One item, chosen with probability proportional to `weight(item)`. */
+  weighted<T>(items: readonly T[], weight: (item: T) => number): T {
+    let total = 0;
+    for (const it of items) total += weight(it);
+    let at = this.next() * total;
+    for (const it of items) {
+      at -= weight(it);
+      if (at < 0) return it;
+    }
+    return items[items.length - 1]!;
+  }
+  /** An independent stream for `(seed, slot)`. The fuzzer gives every mutation in a
+   *  case its own stream, so removing one mutation — to find out which of a stack is
+   *  responsible for a divergence — does not re-roll the choices of the others. */
+  static derive(seed: number, slot: number): Rng {
+    let h = ((seed >>> 0) ^ Math.imul((slot + 1) >>> 0, 0x9e3779b1)) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x7feb352d) >>> 0;
+    h = Math.imul(h ^ (h >>> 15), 0x846ca68b) >>> 0;
+    return new Rng((h ^ (h >>> 16)) >>> 0);
+  }
 }

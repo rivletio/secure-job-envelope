@@ -4,7 +4,7 @@
  *  its seed alone. These builders aim to produce schema-valid travelers and
  *  quotes across the whole level ladder (Draft..L3); the adversarial mutations
  *  that deliberately break them live in the harness that consumes this module
- *  (differential.ts / soak.ts), not here.
+ *  (the mutation catalog behind case.ts, and soak.ts), not here.
  */
 import { Rng } from "./rng.ts";
 import { MATERIAL_PRESETS, PROCESS_OPTIONS } from "../src/lib/traveler/types.ts";
@@ -76,12 +76,63 @@ export function genPart(rng: Rng): Part {
   return part;
 }
 
+const cp = String.fromCodePoint;
+
+/** Text a real shop would type, beyond ASCII: accented Latin, CJK, Cyrillic, a
+ *  combining mark, an astral symbol, right-to-left letters. Built from code points so
+ *  this source file stays plain ASCII. None starts or ends with whitespace. */
+export const WORLD_TEXT: readonly string[] = [
+  `Caf${cp(0xe9)} M${cp(0xfc)}ller GmbH`,
+  cp(0x7cbe, 0x5bc6, 0x6a5f, 0x68b0),
+  `Zak${cp(0x142)}ad ${cp(0x141, 0xf3)}d${cp(0x17a)}`,
+  cp(0x41c, 0x435, 0x442, 0x430, 0x43b, 0x43b),
+  `re${cp(0x301)}sume${cp(0x301)}`,
+  `torque ${cp(0x1f529)} 12 N${cp(0xb7)}m`,
+  cp(0x5d1, 0x5e8, 0x5d2),
+  `10 ${cp(0xb1)} 0.05 mm, Ra ${cp(0x2264)} 1.6 ${cp(0x3bc)}m`,
+  `"quoted" \\ back/slash`,
+];
+
+/** A syntactically valid ML-DSA-87 signature object (the parsers check its shape,
+ *  not the cryptography — that is the soak's job). */
+export function genSignature(rng: Rng): { alg: string; kid: string; sig: string } {
+  const hex = "0123456789abcdef";
+  let sig = "";
+  for (let i = 0, n = rng.int(2, 64); i < n; i++) sig += hex[rng.int(0, 15)];
+  return { alg: "ML-DSA-87", kid: `${rng.pick(SHOPS).org_id.slice(4)}-${rng.int(2024, 2027)}`, sig };
+}
+
+/** Optional quote content (none of it hashed): the blobs, exceptions, flags, a
+ *  signature. Only the differential asks for it — the soak's quotes stay minimal. */
+function enrichQuote(rng: Rng, quote: Quote): void {
+  if (rng.bool(0.4)) quote.need_by_feasible = rng.bool(0.8);
+  if (rng.bool(0.3)) quote.pricing.tax_excluded = rng.bool();
+  if (rng.bool(0.45)) {
+    quote.assumptions = {
+      material_cert: true,
+      min_order: rng.int(1, 50),
+      stock: { form: "plate", sizes_mm: [6, 6.35, 12.7] },
+      note: rng.pick(WORLD_TEXT),
+    };
+  }
+  if (rng.bool(0.35)) {
+    quote.exceptions = Array.from({ length: rng.int(1, 2) }, (_, i) => {
+      const ex: NonNullable<Quote["exceptions"]>[number] = { code: `EX-${i + 1}`, proposal: rng.pick(WORLD_TEXT) };
+      if (rng.bool()) ex.on = "part.tolerances";
+      if (rng.bool()) ex.price_delta = rng.int(-5000, 5000);
+      return ex;
+    });
+  }
+  if (rng.bool(0.3)) quote.capacity = { weeks: [rng.int(1, 4), rng.int(5, 9)], shift: "2nd", ok: null };
+  if (rng.bool(0.25)) quote.sig = genSignature(rng);
+}
+
 /** A quote that binds to `hash`. `sellerItar` forces the seller's ITAR flag (needed
  *  when the traveler is ITAR: an ITAR traveler only binds ITAR sellers). */
 export function genQuote(
   rng: Rng,
   hash: string,
-  opts: { sellerItar?: boolean } = {},
+  opts: { sellerItar?: boolean; rich?: boolean } = {},
 ): Quote {
   const createdDay = rng.int(0, 400);
   const nLines = rng.int(1, 6);
@@ -102,6 +153,7 @@ export function genQuote(
   };
   if (rng.bool(0.5)) quote.pricing.nre = rng.int(0, 100_000_00);
   if (rng.bool(0.3)) quote.pricing.freight_estimate = rng.int(0, 5_000_00);
+  if (opts.rich) enrichQuote(rng, quote);
   return quote;
 }
 
@@ -110,12 +162,51 @@ export type TravelerPlan = {
    *  level needs so the produced traveler lands there. */
   level: "L0" | "L1" | "L2" | "L3";
   itar?: boolean;
+  /** Also fill in the optional fields (hashed and not) with realistic content,
+   *  non-ASCII text included — more for the differential's mutations to bite on. Off
+   *  by default, and the plain path draws nothing extra, so the soak's travelers are
+   *  what they always were. */
+  rich?: boolean;
 };
+
+/** Optional HASHED body fields. Must run before any quote binds to the body. */
+function enrichBody(rng: Rng, traveler: Traveler): void {
+  if (rng.bool(0.25)) traveler.buyer.name = rng.pick(WORLD_TEXT);
+  if (rng.bool(0.3)) traveler.buyer.contact = "buyer@northline.example";
+  if (rng.bool(0.5)) traveler.need_by = rng.bool() ? isoAtDay(rng, rng.int(400, 800)).slice(0, 10) : isoAtDay(rng, rng.int(400, 800));
+  if (rng.bool(0.4)) traveler.incoterms = rng.pick(["FOB", "EXW", "DAP", "CIF Rotterdam"]);
+  const part = traveler.part;
+  if (rng.bool(0.4)) part.description = rng.pick(WORLD_TEXT);
+  if (rng.bool(0.4)) part.drawing_rev = rng.pick(["A", "B", "C2", "rev 7"]);
+  if (rng.bool(0.3)) part.finish = `anodize ${rng.pick(WORLD_TEXT)}`;
+  if (rng.bool(0.3)) part.tolerances = rng.pick(WORLD_TEXT);
+  if (rng.bool(0.3)) part.notes = `line one\nline two\t${rng.pick(WORLD_TEXT)}`;
+}
+
+/** Optional lifecycle fields (not hashed): award terms and signature, op notes,
+ *  traveler signatures, a deeper as-built record. */
+function enrichLifecycle(rng: Rng, traveler: Traveler): void {
+  if (traveler.award) {
+    if (rng.bool(0.4)) traveler.award.terms = { governing_law: "State of Nevada", payment_terms: "Net 30" };
+    if (rng.bool(0.3)) traveler.award.quote_hash = `sha384:${rng.token(8).replace(/[g-z]/g, "a").padEnd(96, "0")}`;
+    if (rng.bool(0.3)) traveler.award.sig = genSignature(rng);
+  }
+  for (const op of traveler.ops ?? []) if (rng.bool(0.3)) op.notes = rng.pick(WORLD_TEXT);
+  if (rng.bool(0.3)) traveler.signatures = Array.from({ length: rng.int(1, 2) }, () => genSignature(rng));
+  if (traveler.as_built && rng.bool(0.6)) {
+    traveler.as_built.measurements = [
+      { feature: "bore", mm: 12.7, ok: true },
+      { feature: "flatness", mm: 0.02, ok: null },
+    ];
+    traveler.as_built.operator = rng.pick(WORLD_TEXT);
+  }
+}
 
 /** Build a schema-valid traveler that lands at the requested level. The hash is
  *  computed on the L0 body and quotes are bound to it, so binding is real. */
 export function genTraveler(rng: Rng, plan: TravelerPlan): Traveler {
   const itar = plan.itar ?? false;
+  const rich = plan.rich ?? false;
   const traveler: Traveler = {
     spec: "sje/0.1.0",
     traveler_id: genId(rng, "tvl"),
@@ -125,22 +216,27 @@ export function genTraveler(rng: Rng, plan: TravelerPlan): Traveler {
     part: genPart(rng),
     itar,
   };
+  if (rich) enrichBody(rng, traveler);
 
-  if (plan.level === "L0") return traveler;
+  if (plan.level === "L0") {
+    if (rich) enrichLifecycle(rng, traveler);
+    return traveler;
+  }
 
   // L1+ need a bound quote. Bind to the current (quote-less) body hash.
   const hash = travelerHash(traveler);
-  const quote = genQuote(rng, hash, itar ? { sellerItar: true } : {});
+  const quote = genQuote(rng, hash, { ...(itar ? { sellerItar: true } : {}), rich });
   traveler.quotes = [quote];
   // add a couple of stale/other quotes sometimes to exercise filtering
   if (rng.bool(0.4)) {
-    const other = genQuote(rng, hash, itar ? { sellerItar: true } : {});
+    const other = genQuote(rng, hash, { ...(itar ? { sellerItar: true } : {}), rich });
     traveler.quotes.push(other);
   }
 
   if (plan.level === "L1") {
     // Awardable-but-not-executable: give it *some* of award/ops/ship, not all.
     if (rng.bool(0.5)) traveler.ops = [{ seq: 1, code: "laser" }];
+    if (rich) enrichLifecycle(rng, traveler);
     return traveler;
   }
 
@@ -167,6 +263,7 @@ export function genTraveler(rng: Rng, plan: TravelerPlan): Traveler {
   if (plan.level === "L3") {
     traveler.as_built = { lot: rng.token(8), inspected: true };
   }
+  if (rich) enrichLifecycle(rng, traveler);
   return traveler;
 }
 

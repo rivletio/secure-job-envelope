@@ -1,0 +1,10 @@
+{"spec":"sje/0.1.0","traveler_id":"tvl_rj7yfog4mgf4mw5ad","revision":10000,"created_at":"2026-08-15T04:30:33.943Z","buyer":{"name":"Lakeshore Fabrication","org_id":"org_lakeshore","region":"WI"
+
+
+,"certs":["ISO 9001","AS9100",
+"ITAR"]},"part":{"family":"Turned shaft","part_number":"NL-FXSQ-6285","material":{"spec":"7075-T6","thickness_mm":44},"qty":{"target":2766,"breaks":[96, 	716]},"processes":["waterjet",
+
+"anodize"]},"itar":false,"quotes":[{"quote_id":"qot_zgjrde5wk7e7nvvu","seller":{"name":"Lakeshore Fabrication","org_id":"org_lakeshore"}	
+	,"traveler_hash_quoted":"sha384:e6a8e9f6973eb460eb60d7345f9e6037566f2dd48c58accf5c9ece48acd4263a9f4fe7b367f3b6d21f729aa26baedd25","created_at":"2027-01-06T11:30:42.591Z"	
+,"valid_until":"2027-11-29T20:45:43.104Z","lead_time_days":337,"pricing":{"currency":"CAD","lines":[{"qty":3889,"unit":267673},{"qty":545,"unit":127908},{"qty":563	,"unit":375105}]}},{"quote_id":"qot_i4q8dg384r","seller":{"name":"Summit Fabrication","org_id":"org_summitfab","city":"Somewhere"},"traveler_hash_quoted":"sha384:e6a8e9f6973eb460eb60d7345f9e6037566f2dd48c58accf5c9ece48acd4263a9f4fe7b367f3b6d21f729aa26baedd25","created_at":"2026-03-10T13:06:03.963Z","valid_until":"2027-01-04T05:43:25.775Z","lead_time_days":242,"pricing":{"currency":"EUR","lines":[{"qty":3970,"unit":167119},{"qty":1072,"unit":218121},{"qty":3756,"unit":391871
+},{"qty":609,"unit":16109},{"qty":4088,"unit":385166 }],"freight_estimate":41765}}],"ops":[{"seq":1,"code":"laser"}]} garbage

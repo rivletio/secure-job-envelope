@@ -66,13 +66,17 @@ jobs:
         run: cargo build --release --locked
       - name: soak the lifecycle + adversarial battery
         run: npm run soak -- --jobs 500
+      # Every case is exact wire bytes, handed to both sides. One Rust process per
+      # case, split across the runner's cores; any divergence, crash or stall fails.
       - name: TS<->Rust differential fuzz
-        run: npm run differential -- --seeds 6000 --quiet
+        run: npm run differential -- --seeds 20000 --quiet
+      # `git status --porcelain` (not `git diff`): the corpus is one file per case, and
+      # a case the generator newly adds is an untracked file.
       - name: committed fuzz corpus is up to date with the generator
         run: |
           npm run corpus
-          git diff --exit-code conformance/fuzz/ \
-            || { echo "conformance/fuzz is stale — run 'npm run corpus' and commit"; exit 1; }
+          drift="$(git status --porcelain conformance/fuzz/)"
+          [ -z "$drift" ] || { echo "conformance/fuzz is stale — run 'npm run corpus' and commit:"; echo "$drift"; exit 1; }
       # The generated conformance vectors (canonical, travelers + expected.json, and
       # every signature / envelope vector) must be exactly what the generator emits:
       # a vector added by hand is silently dropped the next time someone regenerates,

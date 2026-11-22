@@ -1,0 +1,1 @@
+{"spec":"sje/0.1.0","traveler_id":"tvl_r4j8h8l9ws","revision":11,"created_at":"2026-01-29T17:44:02.863Z","buyer":{"name":"Lakeshore Fabrication","org_id":"org_lakeshore"},"part":{"family":"Sheet enclosure","part_number":"NL-HOO7-6789","material":{"spec":"Delrin","thickness_mm":0},"qty":{"target":5442},"processes":["cnc_turn"],"notes":"handle with care"},"itar":false}
