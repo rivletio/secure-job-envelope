@@ -25,7 +25,22 @@ Pull requests: [#26](https://github.com/rivletio/secure-job-envelope/pull/26) su
 [#29](https://github.com/rivletio/secure-job-envelope/pull/29) envelope shape ·
 [#30](https://github.com/rivletio/secure-job-envelope/pull/30) verification ·
 [#31](https://github.com/rivletio/secure-job-envelope/pull/31) receive policy ·
-[#32](https://github.com/rivletio/secure-job-envelope/pull/32) desk receive path.
+[#32](https://github.com/rivletio/secure-job-envelope/pull/32) desk receive path ·
+[#33](https://github.com/rivletio/secure-job-envelope/pull/33) this register ·
+[#34](https://github.com/rivletio/secure-job-envelope/pull/34) lifecycle and desk ·
+[#35](https://github.com/rivletio/secure-job-envelope/pull/35) published pages ·
+[#36](https://github.com/rivletio/secure-job-envelope/pull/36) published schemas ·
+[#37](https://github.com/rivletio/secure-job-envelope/pull/37) byte-level fuzzer ·
+[#38](https://github.com/rivletio/secure-job-envelope/pull/38) verification cost, refusal text ·
+[#39](https://github.com/rivletio/secure-job-envelope/pull/39) keys and trust anchor ·
+[#40](https://github.com/rivletio/secure-job-envelope/pull/40) tests held to their reasons ·
+[#41](https://github.com/rivletio/secure-job-envelope/pull/41) MCP server, what a seal sends.
+
+The fixes were reviewed the same way the original was. An independent adversarial review
+of the rewritten MCP server, run before it merged, returned twelve findings. Four had
+already been closed by later work; eight were fixed in #41 (W-76 to W-84) — one of them a
+flaw in the fix itself that never shipped: a superseded key directory was accepted again
+the moment the operator's own copy lapsed.
 
 ---
 
@@ -47,9 +62,10 @@ These are not bugs waiting for a patch. They are the edges of what 0.1 is.
    sealed to anyone under it, by issuing a directory with an extra entry. Nothing in the
    format detects that. (W-50)
 4. **A signature proves authorship at the moment you check it, not for the record.** There
-   is no signing time. When a key is revoked or expires, earlier honest signatures stop
-   verifying; a stolen key can backdate. Keep the document, the directory and the time
-   together if you need evidence later. (W-49)
+   is no signing time. When a key expires, earlier honest signatures stop verifying; when
+   it is revoked, everything signed with it is refused from then on, honest or not — a
+   stolen key can backdate, so nothing else is safe. Keep the document, the directory and
+   the time together if you need evidence later. (W-49, W-79)
 5. **The buyer signs the part, the award and the ship-to — and nothing else.** Ops,
    as-built data, which quotes are attached, and drawings are outside every signature.
    (W-52)
@@ -58,10 +74,26 @@ These are not bugs waiting for a patch. They are the edges of what 0.1 is.
    are visible. (W-35, W-36)
 7. **Forward secrecy has conditions.** The one-time key is deleted when a traveler is
    admitted, not when it is decrypted; two senders can pick the same one-time key and the
-   second message is then lost; a recipient cannot refuse a non-forward-secret envelope.
-   (W-31, W-32)
+   second message is then lost; anyone holding a published bundle can use its keys up; a
+   recipient cannot refuse a non-forward-secret envelope. (W-31, W-32, W-83)
 8. **The desk is a page on a shared origin, holding plaintext working data in browser
    storage.** It is not a system of record and not a CUI system. (W-40)
+9. **What a seal leaves out is decided from what the document says.** Sealing sends each
+   recipient its part of a traveler — not other sellers' quotes, and the award only to the
+   winner — by reading the org ids the document carries. A quote that names no seller org
+   goes only to the buyer; a buyer the traveler does not name by org is not recognized as
+   one. A person can still send everything, and the plaintext exports are everything.
+   (W-30)
+10. **A key directory has no version.** Two directories signed by one root are two signed
+    statements; nothing in either says which is newer but its issue time, and a superseded
+    one verifies until its own window ends. A receiver that keeps its own current copy can
+    refuse anything not newer; one that is simply handed a directory cannot know. (W-04,
+    W-07, W-50)
+11. **A stateless tool believes the document it is handed.** The MCP server keeps no copy
+    of anything: a lock is whatever the traveler says, "your" body is whichever hash you
+    supply, and the one-time keys you have already sealed to are the ones you list. It
+    also sees a request only after the host has turned a model's tool call into text.
+    (W-05, W-81, W-83)
 
 ---
 
@@ -210,8 +242,14 @@ both accepted while reading it differently.
   runner then checks the same files independently.
 - **Mutation.** For each security rule, the rule was deleted and a test had to fail: 8
   mutations for the envelope shape, 33 for verification, 18 for the receive policy, 42
-  for the published schemas and their rules file. One survivor was found this way and
-  closed.
+  for the published schemas and their rules file, 29 for what a seal sends, the
+  revoked-key verdict and this round's MCP and receive-policy rules. One survivor was
+  found this way and closed. Separately, 79 mutants were written against the tests
+  themselves (W-75): 19 were invisible to the tests as they stood.
+- **A second review, of the fixes.** The rewritten MCP server was handed to an
+  independent reviewer with the code and no account of what it was meant to fix. Each
+  finding came with a runnable probe; every probe was re-run against the branch before
+  the finding was called live or fixed, and again after the fix.
 - **Bytes, not objects.** Travelers, envelopes and directories are parsed from the bytes
   as received wherever they cross a company boundary; the vectors are replayed from bytes.
 - **A fuzzer that is itself tested.** The differential fuzzer hands the same bytes to
@@ -224,8 +262,11 @@ both accepted while reading it differently.
   forward-secret envelope opens once and its key deletion is stored, a second tab
   changing the keystore locks the first, and a name carrying a direction override is
   shown with the override spelled out. Award dialog: nothing pre-filled, a planted ship-to
-  shown apart and used only on request. Storage: the warning appears on a failed write
-  and clears when one succeeds. Published pages: the built output was served the way
+  shown apart and used only on request. Sealing: the dialog says what the chosen
+  recipient will not be sent, an ITAR-marked traveler cannot be sealed to an unattested
+  org, and the two envelopes it downloaded — one by default, one with "send the whole
+  traveler" ticked — were decrypted and held one quote and two. Storage: the warning
+  appears on a failed write and clears when one succeeds. Published pages: the built output was served the way
   the host serves it and exercised end to end — no policy violation, no request to
   another origin, nothing of the desk in the service worker's cache.
 - **Not checked by anything here:** the cryptographic libraries themselves, side channels,

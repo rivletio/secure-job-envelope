@@ -71,8 +71,16 @@ function TrustPage() {
             on an unlocked desk can read the in-memory secret.
           </li>
           <li>
-            ITAR is a directory-attested capability in 0.1; the desk’s local bit is a consistency
-            check, not a Technology Control Plan, DDTC registration, or deemed-export screen.
+            Sealing sends each recipient its part of a traveler — the request, its own quotes, and
+            the award only if its quote won — not every seller’s quote. Sending the whole traveler
+            is a tick you give per envelope; the plaintext “local copy” exports are the whole
+            traveler.
+          </li>
+          <li>
+            ITAR is a directory-attested capability in 0.1. Sealing refuses an ITAR-marked traveler
+            to an org your directory does not attest; for quotes and awards the desk’s local bit is
+            a consistency check. None of it is a Technology Control Plan, DDTC registration, or
+            deemed-export screen.
           </li>
         </ul>
       </section>

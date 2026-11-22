@@ -136,6 +136,24 @@ separately, the award (award decision + ship-to); the desk **verifies both on
 receive** — the **Authenticity** panel on a traveler checks them against the trust
 anchor loaded in **Keys**.
 
+Verifying is not the same as accepting. What a receiver *does* with the verdicts is
+the **receive policy** (`src/lib/traveler/import-policy.ts`), shared by the desk and
+the MCP server:
+
+- a signature that is present and **fails** is refused — the buyer's, the award's, or
+  a seller's on a quote; a changed body, a signer from another org, or a key the
+  directory lists as **revoked**;
+- a signature that cannot be **checked** (no trust anchor, a key the directory does not
+  list or one outside its window) establishes nothing: the traveler is admitted as
+  unverified and says so;
+- an **award** that is not verified as the buyer's is taken only after the reader
+  acknowledges what is unproven (on the desk), or is refused by default (over MCP);
+- over a copy already held: an older revision, the same revision with different
+  content, or a different buyer is refused; quotes are added, never dropped; an award
+  verified as the buyer's cannot be replaced, and an unverified one yields to it;
+- a ship-to or ops list that arrives **without** an award is a draft nobody signed: it
+  is never merged into a held copy, and on a new traveler it is said to be one.
+
 ---
 
 ## 5. Walkthrough C — confidentiality (encrypt & send)

@@ -161,11 +161,12 @@ export function SealDialog({
       downloadEnvelope(result.envelope);
       logAudit({ act: "export", traveler_id: traveler.traveler_id, hash: travelerHash(traveler) });
       const kept = withheldSummary(result.withheld);
+      // One sentence, whatever it is built from (the reason text ends in a period).
+      const why = staticReasonText(result.staticReason ?? "no-bundle", chosen.org_id).replace(/\.$/, "");
       const how =
         (result.forwardSecret
           ? `forward-secret (one-time prekey ${visibleText(result.prekeyId ?? "")})`
-          : `static envelope, no forward secrecy — ${staticReasonText(result.staticReason ?? "no-bundle", chosen.org_id)}`) +
-        (kept ? ` · not sent: ${kept}` : "");
+          : `static envelope, no forward secrecy — ${why}`) + (kept ? ` · not sent: ${kept}` : "");
       if (demo) {
         toast.warning(
           `Sealed to DEMO recipient ${chosen.org_id} · ${how}. Its decryption key is public: anyone can read this file.`,
@@ -173,7 +174,7 @@ export function SealDialog({
       } else if (result.forwardSecret) {
         toast.success(`Sealed to ${chosen.org_id} · ${how} — downloaded .sje`);
       } else {
-        toast.warning(`Sealed to ${chosen.org_id} · ${how} Downloaded .sje`);
+        toast.warning(`Sealed to ${chosen.org_id} · ${how}. Downloaded .sje`);
       }
       close(false);
     } catch (err) {

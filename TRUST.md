@@ -20,7 +20,15 @@ Plain statements first:
   signed directory; a quote that is unsigned or fails directory verification
   does not establish the seller's identity. The **buyer also signs the award**
   (award decision + ship-to), so a forged award or redirected ship-to by a
-  non-buyer is refused, and the desk **verifies these on receive**.
+  non-buyer does not verify. The desk **verifies on receive and acts on it**: a
+  signature that is present and fails (a revoked key included) is refused, and an
+  award that is not verified as the buyer's is taken only when the reader
+  acknowledges, statement by statement, what is unproven. The desk signs nothing:
+  an award made on it is unsigned.
+- **Sealing sends each recipient its part of a traveler** — the request, its own
+  quotes, and the award only if its quote won — not every seller's quote. Sending
+  the whole traveler is a tick per envelope; the plaintext "local copy" exports are
+  the whole traveler.
 - **The trust root is operator-configured, not vendor-owned.** Verification
   takes the root public key as a parameter; no root is trusted by the format or
   the code, anyone can run a directory, and independent roots coexist. (The code
@@ -35,17 +43,19 @@ Plain statements first:
   unlocked). What is *sent* between parties is an encrypted `.sje`, not plaintext.
   The desk never holds *signing* keys. An XSS on an **unlocked** desk can read the
   in-memory secret — lock when done.
-- **ITAR**: 0.1 defines a directory-attested capability (reference library /
-  CLI); the desk itself enforces only the self-declared `seller.itar` bit.
-  Neither is a Technology Control Plan, DDTC registration, or deemed-export
-  screen.
+- **ITAR**: 0.1 defines a directory-attested capability. Sealing — on the desk
+  and over MCP — refuses an ITAR-marked traveler to an org the directory does not
+  attest (other than the buyer the traveler names). For quotes and awards the desk
+  enforces only the self-declared `seller.itar` bit; the signed-and-attested rule
+  is in the reference library and the CLI, and is reported, not enforced. None of
+  it is a Technology Control Plan, DDTC registration, or deemed-export screen.
 
 ## SOC 2 TSC mapping (desk, 0.1)
 
 | TSC | What the desk does | What your control environment still owes |
 |---|---|---|
 | CC6 Access | Local role switch. No identity, session, or MFA. | SSO / IdP, RBAC, joiner-mover-leaver, session timeout. |
-| CC6.7 Restrict data | Origin-isolated localStorage. Secret keys encrypted at rest (scrypt + AES-256-GCM keystore, unlocked in memory only); working traveler state is plaintext localStorage. | CUI boundary, full-disk/at-rest encryption for working data, DLP, media control. |
+| CC6.7 Restrict data | Origin-isolated localStorage. Secret keys encrypted at rest (scrypt + AES-256-GCM keystore, unlocked in memory only); working traveler state is plaintext localStorage. What is sealed to a recipient is its part of the traveler, not other sellers' quotes; plaintext exports are whole. | CUI boundary, full-disk/at-rest encryption for working data, DLP, media control. |
 | CC7 Monitoring | A local log of the last 100 compose/quote/amend/award/import/delete/export events (act, time, traveler id, hash). It lives in the same editable browser storage as the travelers, and refusals are not logged: a convenience, not an audit trail. | Central immutable log, alerting, retention, clock sync. |
 | CC8 Change | Hash-bound quotes; 0.1 adds ML-DSA-87 authorship signatures (traveler, quote, and the buyer's award over the award + ship-to), verified against the signed directory — in the reference library / CLI **and on the desk** (the Authenticity panel verifies on receive). Amend bumps revision and stale-marks quotes. L2 travelers lock. | Change tickets, dual control on award, and the signing-key custody the desk does not hold (it holds only the ML-KEM decryption key, encrypted — see SECURITY). |
 | A1 Availability | This browser tab. | HA, backup, RTO/RPO, incident response. |

@@ -118,14 +118,25 @@ plus the TypeScript↔Rust differential for integer money and award terms (see
   fails verification. (The hash itself is still integrity, not a signature;
   authorship is the separate signature.) The **buyer also signs the award** (the
   award decision + ship-to), so a forged award or a redirected ship-to sealed to
-  the winner by a non-buyer is refused — and the desk **verifies on receive**.
+  the winner by a non-buyer does not verify. The desk and the MCP server **verify
+  on receive** and act on the result: a signature that is present and fails — the
+  buyer's, the award's, or a seller's on a quote, including one made with a key
+  the directory lists as revoked — is refused, and an award that is *not* verified
+  as the buyer's is taken only on an explicit acknowledgment (refused by default
+  over MCP). What they cannot do is sign: neither holds a signing key, so an award
+  made with them is unsigned until the buyer signs it with its org key elsewhere.
 - **Identity via the directory.** `org_id` is bound to a key in the signed
   directory. There is still no multi-tenant access-control layer — that sits
   above the format.
-- **`itar` is directory-attested.** An ITAR traveler's seller must hold the
-  directory's attested ITAR capability, not merely self-declare `seller.itar`.
-  Still not DDTC registration or a Technology Control Plan — do not put actual
-  USML/EAR technical data in a browser demo (see `TRUST.md`).
+- **`itar` can be directory-attested.** The directory can attest an org for ITAR,
+  and that is enforced where an ITAR-marked traveler leaves a desk: sealing refuses
+  a recipient the directory does not attest (other than the buyer the traveler
+  names). On the quote side the rule — a quote on an ITAR traveler must be signed
+  by a seller the directory attests — is implemented in both cores and reported per
+  quote, but not enforced at award: nothing shipped can sign a quote, so the desk
+  holds an award to the self-declared `seller.itar` bit. None of it is DDTC
+  registration or a Technology Control Plan — do not put actual USML/EAR technical
+  data in a browser demo (see `TRUST.md`).
 - **Money is integer minor units** of an ISO-4217 currency — exact, no IEEE-754.
 - **An award can carry commercial terms** (governing law, warranty, payment) —
   closer to a purchase order, though still not a contract by itself.
@@ -135,7 +146,10 @@ envelope (`sje-envelope/0.2.0`, single-use prekeys + a two-KEM combine) when a
 verifying prekey bundle is present and **reports** the choice; the fallback to the
 base 0.1 envelope is explicit, never silent (`requireForwardSecret` refuses to
 downgrade), and realizing forward secrecy depends on the recipient deleting the
-consumed one-time secret after opening. Key custody: the browser desk now holds its
+consumed one-time secret after opening. What is sealed to a recipient is **its part
+of the traveler** — the request, its own quotes, and the award only if its quote won —
+not every seller's quote; the plaintext exports are the whole traveler, and sending
+everything is a choice a person makes per envelope. Key custody: the browser desk now holds its
 ML-KEM **decryption** secret, but only in a passphrase-encrypted keystore (in memory
 only while unlocked — an XSS on an unlocked desk can read it); it still never holds
 **signing** keys. See `SECURITY.md`.
