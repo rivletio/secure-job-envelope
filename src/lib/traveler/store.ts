@@ -3,8 +3,10 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { amendMerge, levelOf, parseTraveler, parseQuote } from "./conformance.ts";
 import { seedTravelers } from "./fixtures.ts";
 import { cannotAward, cannotQuote } from "./guards.ts";
-import { quoteContentHash } from "./authenticity.ts";
+import { quoteContentHash, verificationReport } from "./authenticity.ts";
+import type { Directory } from "./directory.ts";
 import { travelerHash } from "./hash.ts";
+import { decideImport, type ImportDecision, type ImportKind } from "./import-policy.ts";
 import { isoNow } from "./ids.ts";
 import { SHOPS, shopById } from "./network.ts";
 import type { Award, Op, Traveler, Quote, ShipTo, Shop } from "./types.ts";
@@ -28,6 +30,8 @@ export type AuditEvent = {
 };
 
 const MAX_AUDIT = 100;
+/** The localStorage key the desk's travelers persist under. */
+export const TRAVELER_STORE_KEY = "sje-001";
 
 type TravelerState = {
   travelers: Traveler[];
@@ -46,9 +50,40 @@ type TravelerState = {
   addQuote: (travelerId: string, quote: Quote) => void;
   award: (travelerId: string, award: Award, shipTo: ShipTo, ops: Op[]) => void;
   amend: (travelerId: string, patch: Partial<Traveler>) => void;
-  importOne: (traveler: Traveler) => void;
+  /** What the receive policy would do with `traveler` right now — nothing is stored. */
+  previewImport: (traveler: Traveler, opts?: ImportOptions) => ImportDecision;
+  /** Admit a received traveler under the receive policy (import-policy.ts). Throws an
+   *  Error carrying the policy's reason when it is refused, and
+   *  `ImportNeedsAcknowledgment` — storing nothing — when the policy requires the
+   *  reader to acknowledge something first and `opts.acknowledged` is not set. */
+  importOne: (traveler: Traveler, opts?: ImportOptions) => ImportOutcome;
   resetDesk: () => void;
 };
+
+export type ImportOptions = {
+  /** The trust anchor to verify against. Omit it and nothing can be verified — which
+   *  the policy treats as "unverified", never as "fine". */
+  trust?: { directory: Directory; rootPublicKeyHex: string };
+  /** The reader has read and accepted the statements the policy raised. */
+  acknowledged?: boolean;
+  /** The instant to verify at (default: now). */
+  at?: Date;
+};
+
+export type ImportOutcome = { kind: ImportKind; notes: string[]; traveler: Traveler };
+
+/** The policy would admit this traveler, but only after the reader has explicitly
+ *  acknowledged what is unproven about it. Nothing was stored. */
+export class ImportNeedsAcknowledgment extends Error {
+  readonly statements: string[];
+  readonly notes: string[];
+  constructor(statements: string[], notes: string[]) {
+    super("This traveler needs your acknowledgment before it is opened.");
+    this.name = "ImportNeedsAcknowledgment";
+    this.statements = statements;
+    this.notes = notes;
+  }
+}
 
 function executable(p: Traveler): boolean {
   const code = levelOf(p).code;
@@ -231,17 +266,35 @@ export const useTravelerStore = create<TravelerState>()(
             }),
           };
         }),
-      importOne: (raw) => {
-        const traveler = parseTraveler(raw);
+      previewImport: (raw, opts = {}) => {
+        const incoming = parseTraveler(raw);
+        const held = get().get(incoming.traveler_id);
+        const at = opts.at ?? new Date();
+        const trust = opts.trust;
+        const reportOf = (t: Traveler) =>
+          trust ? verificationReport(t, trust.directory, trust.rootPublicKeyHex, at) : undefined;
+        return decideImport(incoming, {
+          held,
+          incomingReport: reportOf(incoming),
+          heldReport: held ? reportOf(held) : undefined,
+        });
+      },
+      importOne: (raw, opts = {}) => {
+        // Decided against the copy held at THIS moment (not at preview time), and applied
+        // in the same synchronous step, so nothing can change in between.
+        const decision = get().previewImport(raw, opts);
+        if (decision.action === "refuse") throw new Error(decision.reason);
+        if (decision.acknowledge.length > 0 && !opts.acknowledged) {
+          throw new ImportNeedsAcknowledgment(decision.acknowledge, decision.notes);
+        }
+        // Re-validate what the policy assembled (a merge can exceed a cap the parts did
+        // not) so nothing the schema refuses can land in state.
+        const traveler = parseTraveler(decision.traveler);
         set((s) => {
           const i = s.travelers.findIndex((p) => p.traveler_id === traveler.traveler_id);
           const travelers = [...s.travelers];
-          if (i >= 0) {
-            if (executable(travelers[i]!)) {
-              throw new Error("Executable traveler is locked.");
-            }
-            travelers[i] = traveler;
-          } else travelers.unshift(traveler);
+          if (i >= 0) travelers[i] = traveler;
+          else travelers.unshift(traveler);
           return {
             travelers,
             audit: withAudit(s.audit, {
@@ -251,6 +304,7 @@ export const useTravelerStore = create<TravelerState>()(
             }),
           };
         });
+        return { kind: decision.kind, notes: decision.notes, traveler };
       },
       resetDesk: () =>
         set((s) => ({
@@ -259,7 +313,7 @@ export const useTravelerStore = create<TravelerState>()(
         })),
     }),
     {
-      name: "sje-001",
+      name: TRAVELER_STORE_KEY,
       skipHydration: true,
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({

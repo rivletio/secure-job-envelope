@@ -24,6 +24,9 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run demo
+      # The dev server too: it was broken for a long time (every request a 500) while
+      # the production build stayed green, because nothing here ever started it.
+      - run: npm run dev:smoke
       # The static artifacts the Pages workflow publishes (demo site + desk SPA).
       # Built here too so a change that breaks the deployable output fails on the
       # pull request, not for the first time inside the deploy.
