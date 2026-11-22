@@ -44,7 +44,7 @@ overridden, by a tool call.
 |---|---|---|---|
 | `SJE_TRUST_ROOT` | The pinned trust-root public key: 5184 lowercase hex characters (a 2592-byte ML-DSA-87 key). Read once, at startup. | No root: `sje_seal` refuses; `sje_open` and `sje_evaluate` report authenticity as *unverifiable*. | **The server does not start.** |
 | `SJE_TRUST_ROOT_FILE` | Path of a file holding that hex (surrounding whitespace is ignored). Alternative to `SJE_TRUST_ROOT`; setting both is an error. | as above | **The server does not start** (unreadable, or not a key). |
-| `SJE_DIRECTORY_FILE` | Path of the operator's signed key directory: the default when a tool is not given a `directory` argument. **Re-read on every call** — replace the file to publish a new directory; no restart. It is still verified against the pinned root on every use. Requires a pinned root. | Tools need a `directory` argument to verify or seal. | Set without a root, or empty: the server does not start. A file that is missing, unreadable, expired or not signed by the root is reported per call, in operator-facing terms. |
+| `SJE_DIRECTORY_FILE` | Path of the operator's signed key directory: the default when a tool is not given a `directory` argument. **Re-read on every call** — replace the file (atomically: write a new file, rename it over the old one) to publish a new directory; no restart. It is still verified against the pinned root on every use. Requires a pinned root. | Tools need a `directory` argument to verify or seal. | Set without a root, or empty: the server does not start. A file that is missing, unreadable, expired or not signed by the root is reported per call, in operator-facing terms. |
 | `SJE_REQUIRE_VERIFIED_AWARD` | `1`: an award that is not verified as the buyer's is never admitted — `accept_unverified_award` is refused outright. `0`: default. | Unverified awards are refused by default, and admitted with `accept_unverified_award: true`. | Any other value: the server does not start. |
 | `SJE_KEYSTORE` | Path of this desk's passphrase-encrypted keystore. `sje_identity` creates it (exclusively, mode 0600); `sje_open` loads it and rewrites it when a one-time prekey is spent. | `sje_open` and `sje_identity` refuse. | `sje_open` reports the keystore as unavailable. |
 | `SJE_KEYSTORE_PASSPHRASE` | The passphrase that protects the keystore at rest (at least 12 characters). | as above | `sje_identity` refuses a passphrase that is too short; `sje_open` fails to unlock. |
@@ -147,9 +147,9 @@ Other limits of this surface:
   directory, so the cost is (signed quotes) × (directory size) — and the author
   of a traveler chooses the first factor. Authorship and the award are always
   checked. Quote signatures are checked only when all of them fit a fixed work
-  limit (64 signed quotes fit for a directory of up to ~55 orgs); otherwise each
-  is reported as *not checked* — never as passed — and `sje_evaluate` says so.
-  Evaluate fewer quotes at a time to have them checked.
+  limit (64 signed quotes fit for a directory of up to about 60 entries);
+  otherwise each is reported as *not checked* — never as passed — and
+  `sje_evaluate` says so. Evaluate fewer quotes at a time to have them checked.
 
 ## The demo
 
