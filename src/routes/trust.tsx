@@ -101,7 +101,7 @@ function TrustPage() {
               />
               <Row
                 tsc="CC7 Monitoring"
-                here="Append-only local audit of compose/quote/award/import/export. Caps at 100 events. No PII in the log."
+                here="A local log of the last 100 compose/quote/amend/award/import/delete/export events (act, time, traveler id, hash), kept in the same editable browser storage as the travelers. Refusals are not logged. A convenience, not an audit trail."
                 owed="Central immutable log, alerting, retention, clock sync."
               />
               <Row

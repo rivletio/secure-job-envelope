@@ -193,9 +193,20 @@ lines[]: { qty >= 1, unit: integer minor units, 0 .. 1e12 }
 
 A quote is **bound** when `traveler_hash_quoted` equals the current traveler
 hash. Guards a conforming desk enforces at bind/award time: quote expiry
-(`valid_until`), one quote per seller per revision, a priced line at the
-target quantity, and ITAR consistency (a seller with `itar !== true` cannot
-quote an `itar: true` traveler — a consistency check, not compliance).
+(`valid_until`), one live quote per seller per revision (a quote that is not
+bound to the current revision, or has expired, does not count), a priced line
+at the target quantity and at the award's own quantity, and ITAR consistency
+(a seller with `itar !== true` cannot quote an `itar: true` traveler — a
+consistency check, not compliance).
+
+**Amounts.** `unit`, `nre`, `freight_estimate` and an exception's
+`price_delta` are integers in the minor unit of `pricing.currency`. `unit` is
+per part; `nre` and `freight_estimate` are for the order. **0.1 does not
+define the basis of `price_delta`** (per part or for the order). Until a later
+version does: a reader MUST show each `price_delta` as stated and MUST NOT
+multiply it by a quantity, a reader that totals a quote MUST say how it counted
+the deltas, and a seller that means a per-part change SHOULD put it in
+`pricing.lines` instead.
 
 ## Archive (`{traveler_id}.traveler.zip`)
 

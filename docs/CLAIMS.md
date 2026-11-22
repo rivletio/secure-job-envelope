@@ -38,7 +38,7 @@ design, honestly labeled draft; no implementation, therefore no proof yet.
 | L2 | Awarded (L2) travelers lock: further amendment is refused (SPEC, TRUST CC8) | `store.test.ts` "locks the traveler at L2" | ✅ |
 | L3 | A stale quote cannot be awarded; expiry and priced-line-at-target are enforced at award (SPEC) | `store.test.ts` stale-award refusal; `traveler.test.ts` expiry + price-line guards | ✅ |
 | L4 | An ITAR traveler cannot take a quote from a seller without `itar: true` (SPEC §Export control) | `traveler.test.ts` ITAR guard; `lib.rs::itar_traveler_rejects_non_itar_seller`; reject vector `itar-mismatch.json` both sides | ✅ |
-| L5 | Every compose/quote/amend/award/import is appended to the store's audit log with a timestamp; export is audited from the traveler route (UI). (TRUST CC7) | `store.test.ts` "audits every state change in order" (compose/quote/amend) and "audits award and import" (award/import); export audit is in `src/routes/t.$travelerId.tsx` (not unit-tested) | ✅ |
+| L5 | Every compose/quote/amend/award/import/delete is added to the store's log with a timestamp; export is logged from the traveler route (UI). The log keeps the last 100 events in editable browser storage and does not record refusals — it is not an audit trail. (TRUST CC7) | `store.test.ts` "audits every state change in order" (compose/quote/amend) and "audits award and import" (award/import); `lifecycle.test.ts` "removes it and audits the deletion with the hash of what was deleted"; export logging is in `src/routes/t.$travelerId.tsx` (not unit-tested) | ✅ |
 
 ## Archive handling
 
