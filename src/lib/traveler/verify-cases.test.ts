@@ -6,7 +6,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
-import { itarAttestationBlocker, verificationReport, type SigCheck } from "./authenticity.ts";
+import {
+  itarAttestationBlocker,
+  itarAttestationBlockers,
+  verificationReport,
+  verifyAwardSignature,
+  verifyQuoteSignature,
+  verifyTravelerSignatures,
+  type SigCheck,
+} from "./authenticity.ts";
 import { parseDirectoryJson, verifyDirectory, type Directory } from "./directory.ts";
 import { recipientByOrg } from "./envelope.ts";
 import { parsePrekeyBundleJson, verifyPrekeyBundle, type PrekeyBundle } from "./prekeys.ts";
@@ -119,6 +127,46 @@ describe("verification cases (shared with the Rust core)", () => {
         c.name,
       );
     }
+  });
+
+  it("the report is what the single-purpose verifiers say, one by one", () => {
+    // verificationReport establishes the directory once and then checks every signature;
+    // each exported verifier establishes it for itself. They must not be able to
+    // disagree — on a verified document, a forged one, an invalid one, or under a
+    // directory that does not verify.
+    for (const c of vc.traveler_cases) {
+      const t = JSON.parse(c.traveler) as Traveler;
+      const [dir, root, at] = [dirOf(c.directory), rootOf(c), new Date(c.at_ms)] as const;
+      const r = verificationReport(t, dir, root, at);
+      assert.deepEqual(r.authorship, verifyTravelerSignatures(t, dir, root, at), `${c.name}: authorship`);
+      assert.deepEqual(r.award, verifyAwardSignature(t, dir, root, at), `${c.name}: award`);
+      for (const { quote_id, check } of r.quotes) {
+        const quote = t.quotes!.find((q) => q.quote_id === quote_id)!;
+        assert.deepEqual(check, verifyQuoteSignature(quote, dir, root, at), `${c.name}: quote ${quote_id}`);
+      }
+      assert.equal(r.authored, r.authorship.some((x) => x.ok), `${c.name}: authored`);
+    }
+  });
+
+  it("the ITAR gate for every quote at once gives the gate's answer for each", () => {
+    let withQuotes = 0;
+    for (const c of vc.itar_cases) {
+      const t = JSON.parse(c.traveler) as Traveler;
+      const quote = JSON.parse(c.quote) as Quote;
+      const [dir, root, at] = [dirOf(c.directory), rootOf(c), new Date(c.at_ms)] as const;
+      // The case's quote, attached to the case's traveler.
+      const carrying = { ...t, quotes: [quote] } as Traveler;
+      const all = itarAttestationBlockers(carrying, dir, root, at);
+      const one = itarAttestationBlocker(carrying, quote, dir, root, at);
+      if (all.length === 0) {
+        // Not a valid traveler (with this quote attached): the single gate says so.
+        assert.match(one ?? "", /not a valid traveler/, c.name);
+        continue;
+      }
+      withQuotes++;
+      assert.deepEqual(all, [{ quote_id: quote.quote_id, blocker: one }], c.name);
+    }
+    assert.ok(withQuotes >= 6, `only ${withQuotes} ITAR cases could carry their quote`);
   });
 
   it("the ITAR gate: allowed, or refused for the stated reason", () => {

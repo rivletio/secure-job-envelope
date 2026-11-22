@@ -2,7 +2,7 @@ import { travelerHash } from "./hash.ts";
 import { LONE_SURROGATE } from "./canonical.ts";
 import { travelerSchema, quoteSchema } from "./schema.ts";
 import { MAX_TRAVELER_JSON_BYTES, type ConformanceLevel, type Traveler, type Quote } from "./types.ts";
-import { MAX_JSON_DEPTH, exceedsUtf8Bytes, parseStrictJson } from "./wire.ts";
+import { MAX_JSON_DEPTH, exceedsUtf8Bytes, parseStrictJson, quoteForMessage } from "./wire.ts";
 
 /** Reject what the Rust core's serde_json refuses at parse time, so the two
  *  implementations accept and reject the same documents. Three parse-time
@@ -229,9 +229,39 @@ export function amendMerge(current: Traveler, patch: Partial<Traveler>): Travele
   });
 }
 
-function formatZod(err: { issues: { path: PropertyKey[]; message: string }[] }, kind: string): string {
+/** One step of the path to a refused value. A member name inside a free-form object —
+ *  or any unknown member — is chosen by whoever wrote the document, so it is shown the
+ *  way a duplicated name is: quoted, on one line, at most 40 characters, with characters
+ *  that hide or reorder text masked. The format's own field names are shown as they are. */
+const pathStep = (step: PropertyKey): string =>
+  typeof step === "number"
+    ? String(step)
+    : typeof step === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(step)
+      ? step
+      : quoteForMessage(String(step));
+
+/** The path as text, kept short however deep the value is. */
+function pathText(path: PropertyKey[]): string {
+  const steps = path.map(pathStep);
+  const shown = steps.length > 8 ? [...steps.slice(0, 4), "…", ...steps.slice(-3)] : steps;
+  return shown.join(".");
+}
+
+type Issue = { path: PropertyKey[]; message: string; code?: string; keys?: string[] };
+
+/** The first reason a document was refused, as one bounded line. Nothing the document's
+ *  author controls reaches the message unquoted or at length: an unknown member's name
+ *  used to be repeated in full, so a 500 KiB name made a 500 KiB error — written to a
+ *  log, shown in a toast, handed back to an agent as if it were the server's words. */
+function formatZod(err: { issues: Issue[] }, kind: string): string {
   const issue = err.issues[0];
   if (!issue) return `Invalid ${kind}`;
-  const path = issue.path.length ? `${issue.path.map(String).join(".")}: ` : "";
-  return `Invalid ${kind}. ${path}${issue.message}`;
+  const path = issue.path.length ? `${pathText(issue.path)}: ` : "";
+  let message = issue.message;
+  if (issue.code === "unrecognized_keys" && Array.isArray(issue.keys)) {
+    const names = issue.keys.slice(0, 3).map(quoteForMessage).join(", ");
+    const more = issue.keys.length > 3 ? `, and ${issue.keys.length - 3} more` : "";
+    message = `Unrecognized key${issue.keys.length === 1 ? "" : "s"}: ${names}${more}`;
+  }
+  return `Invalid ${kind}. ${path}${message}`;
 }

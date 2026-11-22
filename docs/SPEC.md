@@ -238,7 +238,8 @@ A quote is **bound** when `traveler_hash_quoted` equals the current traveler
 hash. Guards a conforming desk enforces at bind/award time: quote expiry
 (`valid_until`), one live quote per seller per revision (a quote that is not
 bound to the current revision, or has expired, does not count), a priced line
-at the target quantity and at the award's own quantity, and ITAR consistency
+at the quantity being awarded (the same rule verification applies to a signed
+award), and ITAR consistency
 (a seller with `itar !== true` cannot quote an `itar: true` traveler — a
 consistency check, not compliance).
 

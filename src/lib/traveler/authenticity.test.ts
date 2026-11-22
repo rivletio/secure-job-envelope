@@ -10,6 +10,8 @@ import {
   verifyQuoteSignature,
   itarAttestationBlocker,
   type SigCheck,
+  itarAttestationBlockers,
+  verificationReport,
 } from "./authenticity.ts";
 import { keypairFromSeed } from "./signature.ts";
 import { hexToBytes } from "./bytes.ts";
@@ -76,6 +78,55 @@ describe("traveler authenticity (end to end)", () => {
     // A cryptographically valid signature is NOT enough: authorship must bind to org_id.
     assert.equal(travelerIsAuthentic(unbound, dir, rootPk, at), false);
     assert.equal(travelerIsAuthentic(bound, dir, rootPk, at), true);
+  });
+
+  it("verifies the directory once, however many signatures the traveler carries", () => {
+    // Verifying a directory canonicalizes and hashes all of it, and whoever sends a
+    // traveler chooses how many quote "signatures" ride on it. Every check used to
+    // re-verify the directory: 66 times for a traveler with 64 quotes. The directory's
+    // own signature is read once per verification, so count the reads.
+    const counting = (): { dir: Directory; reads: () => number } => {
+      let reads = 0;
+      const dir = new Proxy(structuredClone(vec.directory), {
+        get(target, name, receiver) {
+          if (name === "sig") reads++;
+          return Reflect.get(target, name, receiver) as unknown;
+        },
+      });
+      return { dir, reads: () => reads };
+    };
+    const huron = keypairFromSeed(hexToBytes("22".repeat(32)));
+    const base = parseTraveler(vec.traveler);
+    const withQuotes = (n: number): Traveler => ({
+      ...structuredClone(base),
+      quotes: Array.from({ length: n }, (_, i) => {
+        const q: Quote = { ...quoteFor("org_huron"), quote_id: `qot_many${String(i).padStart(4, "0")}` };
+        return { ...q, sig: signQuote(q, "huron-2026", huron.secretKey) };
+      }),
+    });
+    const cost = (t: Traveler, run: (t: Traveler, dir: Directory) => unknown): number => {
+      const c = counting();
+      run(t, c.dir);
+      return c.reads();
+    };
+    const report = (t: Traveler, d: Directory) => verificationReport(t, d, rootPk, at);
+    const none = withQuotes(0);
+    const many = withQuotes(12);
+    assert.ok(cost(none, report) > 0, "the count sees a verification");
+    assert.equal(cost(many, report), cost(none, report), "the report: one verification, 0 quotes or 12");
+    assert.equal(report(many, vec.directory).quotes.filter((q) => q.check?.ok).length, 12);
+
+    const itarMany: Traveler = { ...many, itar: true };
+    const gates = (t: Traveler, d: Directory) => itarAttestationBlockers(t, d, rootPk, at);
+    assert.equal(cost(itarMany, gates), cost({ ...withQuotes(1), itar: true }, gates), "the ITAR gate likewise");
+    // …and it is the same answer the single-quote gate gives, quote by quote.
+    assert.deepEqual(
+      gates(itarMany, vec.directory),
+      itarMany.quotes!.map((q) => ({
+        quote_id: q.quote_id,
+        blocker: itarAttestationBlocker(itarMany, q, vec.directory, rootPk, at),
+      })),
+    );
   });
 
   it("gates ITAR on the attested capability of the seller that SIGNED the quote", () => {

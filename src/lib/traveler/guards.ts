@@ -88,7 +88,19 @@ export function cannotQuote(traveler: Traveler, quote: Quote, now = new Date()):
   return null;
 }
 
-export function cannotAward(traveler: Traveler, quote: Quote, now = new Date()): string | null {
+/** Why `quote` cannot be awarded for `qty` parts — or `null` if it can. `qty` is the
+ *  quantity the award is for (the traveler's target unless the caller awards another
+ *  priced quantity). The quote must carry a price for exactly that quantity: it is the
+ *  rule verification applies to a signed award (`verifyAwardSignature`), so an award this
+ *  guard lets through is one that can verify. It used to ask for a price at the TARGET
+ *  quantity whatever was being awarded — refusing a priced break quantity when the
+ *  target was not quoted, and saying nothing about the quantity actually awarded. */
+export function cannotAward(
+  traveler: Traveler,
+  quote: Quote,
+  now = new Date(),
+  qty: number = traveler.part.qty.target,
+): string | null {
   if (locked(traveler)) return "Traveler is already executable.";
   if (!boundQuotes(traveler).some((q) => q.quote_id === quote.quote_id)) {
     return "Quote is not bound to the current hash.";
@@ -97,8 +109,8 @@ export function cannotAward(traveler: Traveler, quote: Quote, now = new Date()):
   if (traveler.itar && quote.seller.itar !== true) {
     return "Cannot award an ITAR traveler to a non-ITAR seller.";
   }
-  if (!pricedLine(quote.pricing.lines, traveler.part.qty.target)) {
-    return `Quote has no unit price at qty ${traveler.part.qty.target}.`;
+  if (!pricedLine(quote.pricing.lines, qty)) {
+    return `Quote has no unit price at qty ${String(qty)}.`;
   }
   return null;
 }
