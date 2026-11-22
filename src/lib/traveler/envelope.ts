@@ -25,6 +25,7 @@ import { bytesToHex, hexToBytes, randomBytes, utf8ToBytes } from "./bytes.ts";
 import { canonicalJson } from "./canonical.ts";
 import { entryByOrg, type Directory } from "./directory.ts";
 import { verifyPrekeyBundle, prekeyById, type PrekeyBundle } from "./prekeys.ts";
+import { MAX_ARCHIVE_BYTES, MAX_ENVELOPE_RECIPIENTS } from "./types.ts";
 
 export const ENVELOPE_SPEC = "sje-envelope/0.1.0" as const;
 export const ENC_ALG = "ML-KEM-1024+HKDF-SHA-384+AES-256-GCM" as const;
@@ -150,19 +151,16 @@ export function sealEnvelopeDeterministic(
  *  failure (unknown kid, tag mismatch, tampered recipient set), never returning
  *  partial plaintext. */
 export function openEnvelope(env: Envelope, kid: string, secretKey: Uint8Array): Uint8Array {
-  if (env.spec !== ENVELOPE_SPEC || env.enc_alg !== ENC_ALG) {
-    throw new Error("unsupported envelope spec/alg");
-  }
+  // The whole envelope is shape-checked before any key material is touched: exact
+  // member sets, exact field lengths, every recipient entry well-formed. So the
+  // AAD-authenticated recipient set is exactly the on-wire set, the unwrapped content
+  // key is exactly 32 bytes (AES-256, never a 16- or 24-byte key under an "AES-256-GCM"
+  // label), and the Rust verifier refuses the same envelopes for the same reasons.
+  assertEnvelopeShape(env);
+  if (env.spec !== ENVELOPE_SPEC) throw new Error("unsupported envelope spec/alg");
   const r = env.recipients.find((x) => x.kid === kid);
   if (!r) throw new Error("no recipient entry for this kid");
-  // Every recipient entry MUST carry a string kid; a malformed entry (e.g. an
-  // appended junk recipient) invalidates the envelope, so the AAD-authenticated
-  // recipient set is exactly the on-wire set — no silent drop, and byte-identical to
-  // the Rust verifier, which likewise fails closed on a malformed entry.
-  const kids = env.recipients.map((x) => {
-    if (typeof x.kid !== "string") throw new Error("malformed recipient entry");
-    return x.kid;
-  });
+  const kids = env.recipients.map((x) => x.kid);
   const sharedSecret = ml_kem1024.decapsulate(hexToBytes(r.kem_ct), secretKey);
   const cek = gcm(kek(sharedSecret, kid), hexToBytes(r.wrap_nonce), aadRecipient(kid)).decrypt(
     hexToBytes(r.wrapped_cek),
@@ -323,23 +321,11 @@ export function openFsEnvelope(
   staticSecretKey: Uint8Array,
   onetimeSecretKey: Uint8Array,
 ): Uint8Array {
-  if (env.spec !== FS_ENVELOPE_SPEC || env.enc_alg !== FS_ENC_ALG) {
-    throw new Error("unsupported envelope spec/alg");
-  }
+  assertEnvelopeShape(env); // see openEnvelope
+  if (env.spec !== FS_ENVELOPE_SPEC) throw new Error("unsupported envelope spec/alg");
   const r = env.recipients.find((x) => x.kid === kid);
   if (!r) throw new Error("no recipient entry for this kid");
-  // Every recipient entry MUST carry a string kid AND a string prekey_id; a malformed
-  // entry (e.g. an appended junk recipient with a null prekey_id) invalidates the
-  // envelope. This keeps the AAD-authenticated set exactly the on-wire set and
-  // byte-identical to the Rust verifier — no silent drop, no cross-impl divergence.
-  // (Previously TS filtered on kid only while Rust dropped on kid OR prekey_id, so a
-  // {kid, prekey_id:null} entry made TS reject but Rust decrypt the same bytes.)
-  const rset = env.recipients.map((x) => {
-    if (typeof x.kid !== "string" || typeof x.prekey_id !== "string") {
-      throw new Error("malformed recipient entry");
-    }
-    return { kid: x.kid, prekey_id: x.prekey_id };
-  });
+  const rset = env.recipients.map((x) => ({ kid: x.kid, prekey_id: x.prekey_id }));
   const ssOt = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_onetime), onetimeSecretKey);
   const ssId = ml_kem1024.decapsulate(hexToBytes(r.kem_ct_static), staticSecretKey);
   const kek = fsKek(ssOt, ssId, kid, r.prekey_id);
@@ -347,4 +333,102 @@ export function openFsEnvelope(
     hexToBytes(r.wrapped_cek),
   );
   return gcm(cek, hexToBytes(env.payload_nonce), aadPayloadFs(rset)).decrypt(hexToBytes(env.payload));
+}
+
+/* ---------------------------------------------------------------------------
+ * Wire shape — what an envelope must look like before any key touches it.
+ *
+ * AES-GCM authenticates the payload and each wrapped key, but not the JSON around
+ * them: an extra member, a hex string in the other letter case, a 13-byte nonce or a
+ * 16-byte content key are all outside what the tags cover or decide. Left unchecked,
+ * the two implementations each drew that line somewhere different (this one opened
+ * envelopes the Rust core refused). The shape is therefore exact, and identical on
+ * both sides (crates/secure-job-envelope/src/envelope.rs `check_shape`):
+ *
+ *   envelope   exactly { spec, enc_alg, payload_nonce, payload, recipients }
+ *   recipient  0.1.0: exactly { kid, kem_ct, wrap_nonce, wrapped_cek }
+ *              0.2.0: exactly { kid, prekey_id, kem_ct_onetime, kem_ct_static,
+ *                               wrap_nonce, wrapped_cek }
+ *   hex        lowercase, exact byte lengths: nonces 12, kid 8, ML-KEM-1024
+ *              ciphertext 1568, wrapped key 48 (32-byte key + 16-byte tag);
+ *              payload at least its 16-byte tag, at most a maximal archive + tag
+ *   prekey_id  1–64 of [A-Za-z0-9._-]
+ *   recipients 1–16 entries, no kid twice
+ * ------------------------------------------------------------------------- */
+
+const ENVELOPE_MEMBERS = ["spec", "enc_alg", "payload_nonce", "payload", "recipients"];
+const RECIPIENT_MEMBERS = ["kid", "kem_ct", "wrap_nonce", "wrapped_cek"];
+const FS_RECIPIENT_MEMBERS = [
+  "kid",
+  "prekey_id",
+  "kem_ct_onetime",
+  "kem_ct_static",
+  "wrap_nonce",
+  "wrapped_cek",
+];
+const NONCE_BYTES = 12;
+const KID_BYTES = 8;
+const KEM_CT_BYTES = 1568;
+const WRAPPED_CEK_BYTES = 32 + 16;
+const GCM_TAG_BYTES = 16;
+const LOWER_HEX = /^[0-9a-f]*$/;
+const PREKEY_ID_RE = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** True iff `v` is a plain JSON object carrying exactly `members` — no more, no fewer. */
+function hasExactly(v: unknown, members: readonly string[]): v is Record<string, unknown> {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
+  const keys = Object.keys(v);
+  return keys.length === members.length && members.every((m) => Object.hasOwn(v, m));
+}
+function isHex(v: unknown, minBytes: number, maxBytes = minBytes): v is string {
+  return (
+    typeof v === "string" &&
+    v.length % 2 === 0 &&
+    v.length >= 2 * minBytes &&
+    v.length <= 2 * maxBytes &&
+    LOWER_HEX.test(v)
+  );
+}
+
+/** Throw unless `env` is exactly a well-formed 0.1.0 or 0.2.0 envelope. Messages name
+ *  the offending field by position only; nothing from the envelope is echoed. */
+export function assertEnvelopeShape(env: unknown): asserts env is Envelope | FsEnvelope {
+  const bad = (what: string): never => {
+    throw new Error(`malformed envelope: ${what}`);
+  };
+  if (!hasExactly(env, ENVELOPE_MEMBERS)) return bad("unexpected or missing members");
+  const fs = env.spec === FS_ENVELOPE_SPEC;
+  if (!fs && env.spec !== ENVELOPE_SPEC) return bad("unsupported spec");
+  if (env.enc_alg !== (fs ? FS_ENC_ALG : ENC_ALG)) return bad("enc_alg does not match spec");
+  if (!isHex(env.payload_nonce, NONCE_BYTES)) return bad("payload_nonce");
+  if (!isHex(env.payload, GCM_TAG_BYTES, MAX_ARCHIVE_BYTES + GCM_TAG_BYTES)) return bad("payload");
+  const recipients = env.recipients;
+  if (
+    !Array.isArray(recipients) ||
+    recipients.length < 1 ||
+    recipients.length > MAX_ENVELOPE_RECIPIENTS
+  ) {
+    return bad("recipients");
+  }
+  const kids = new Set<string>();
+  for (const [i, r] of recipients.entries()) {
+    const at = `recipients[${i}]`;
+    if (!hasExactly(r, fs ? FS_RECIPIENT_MEMBERS : RECIPIENT_MEMBERS)) {
+      return bad(`${at} has unexpected or missing members`);
+    }
+    if (!isHex(r.kid, KID_BYTES)) return bad(`${at}.kid`);
+    if (kids.has(r.kid)) return bad(`${at}.kid repeats an earlier recipient`);
+    kids.add(r.kid);
+    if (fs) {
+      if (typeof r.prekey_id !== "string" || !PREKEY_ID_RE.test(r.prekey_id)) {
+        return bad(`${at}.prekey_id`);
+      }
+      if (!isHex(r.kem_ct_onetime, KEM_CT_BYTES)) return bad(`${at}.kem_ct_onetime`);
+      if (!isHex(r.kem_ct_static, KEM_CT_BYTES)) return bad(`${at}.kem_ct_static`);
+    } else if (!isHex(r.kem_ct, KEM_CT_BYTES)) {
+      return bad(`${at}.kem_ct`);
+    }
+    if (!isHex(r.wrap_nonce, NONCE_BYTES)) return bad(`${at}.wrap_nonce`);
+    if (!isHex(r.wrapped_cek, WRAPPED_CEK_BYTES)) return bad(`${at}.wrapped_cek`);
+  }
 }

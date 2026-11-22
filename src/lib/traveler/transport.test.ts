@@ -129,7 +129,7 @@ describe("encrypted transport (static path)", () => {
     const { directory, rootPublicKeyHex } = await setup();
     const { envelope } = await sealTraveler(sampleTraveler(), { directory, rootPublicKeyHex, recipientOrg: "org_recipient" });
     assert.equal(parseSjeEnvelope(JSON.stringify(envelope)).spec, "sje-envelope/0.1.0");
-    assert.throws(() => parseSjeEnvelope('{"spec":"not-an-envelope"}'), /not a recognized/);
+    assert.throws(() => parseSjeEnvelope('{"spec":"not-an-envelope"}'), /malformed envelope/);
   });
 });
 

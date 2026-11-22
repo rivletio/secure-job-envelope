@@ -20,6 +20,7 @@
 import { randomBytes } from "./bytes.ts";
 import { travelerToZip, importTravelerFile } from "./zip.ts";
 import {
+  assertEnvelopeShape,
   sealEnvelope,
   openEnvelope,
   recipientByOrg,
@@ -35,7 +36,8 @@ import {
 import { verifyDirectory, type Directory } from "./directory.ts";
 import type { PrekeyBundle } from "./prekeys.ts";
 import type { Keystore, Unlocked } from "./keystore.ts";
-import type { Traveler } from "./types.ts";
+import { MAX_ENVELOPE_JSON_BYTES, type Traveler } from "./types.ts";
+import { parseStrictJson } from "./wire.ts";
 
 /** The on-the-wire encrypted artifact — static (0.1) or forward-secret (0.2). */
 export type SjeEnvelope = Envelope | FsEnvelope;
@@ -136,19 +138,19 @@ export async function openTraveler(
   keystore: Unlocked,
   opts?: OpenOptions,
 ): Promise<Traveler> {
-  // Captured before the branches below narrow `envelope` to `never`, so the final
-  // throw can still name an unrecognized spec on a malformed runtime input.
-  const spec = (envelope as Partial<SjeEnvelope> | null | undefined)?.spec;
-  if (envelope?.spec === ENVELOPE_SPEC) {
-    if (!envelope.recipients?.some((r) => r.kid === keystore.kid)) {
+  // Shape first, whatever the caller's types claim: nothing below (the recipient
+  // lookup, the prekey lookup) should run on a value that is not exactly an envelope.
+  assertEnvelopeShape(envelope);
+  if (envelope.spec === ENVELOPE_SPEC) {
+    if (!envelope.recipients.some((r) => r.kid === keystore.kid)) {
       throw new Error("openTraveler: envelope has no recipient entry for this keystore");
     }
     const zipBytes = openEnvelope(envelope, keystore.kid, keystore.staticSecretKey());
     return toTraveler(zipBytes);
   }
 
-  if (envelope?.spec === FS_ENVELOPE_SPEC) {
-    const r = envelope.recipients?.find((x) => x.kid === keystore.kid);
+  if (envelope.spec === FS_ENVELOPE_SPEC) {
+    const r = envelope.recipients.find((x) => x.kid === keystore.kid);
     if (!r) {
       throw new Error("openTraveler: envelope has no recipient entry for this keystore");
     }
@@ -174,7 +176,7 @@ export async function openTraveler(
     return toTraveler(zipBytes);
   }
 
-  throw new Error(`openTraveler: unsupported envelope spec ${String(spec)}`);
+  throw new Error("openTraveler: unsupported envelope spec");
 }
 
 /** Copy the decrypted bytes into a fresh `Uint8Array<ArrayBuffer>` (openEnvelope
@@ -186,28 +188,18 @@ function toTraveler(zipBytes: Uint8Array): Promise<Traveler> {
   );
 }
 
-/** Parse untrusted bytes/JSON into a recognized envelope, or throw. Only shape and
- *  spec are checked here; cryptographic verification happens in `openTraveler`. */
+/** Parse an untrusted envelope — the `.sje` file's bytes (preferred), its text, or an
+ *  already-parsed value — into a well-formed envelope, or throw.
+ *
+ *  Text and bytes go through the strict text boundary (wire.ts): size in UTF-8 bytes,
+ *  no byte-order mark, no repeated member name. Every form is then held to the exact
+ *  wire shape (`assertEnvelopeShape`). Nothing here uses a key; cryptographic
+ *  verification is `openTraveler`. */
 export function parseSjeEnvelope(input: unknown): SjeEnvelope {
-  const obj = typeof input === "string" ? (JSON.parse(input) as unknown) : input;
-  const e = obj as Partial<Envelope | FsEnvelope>;
-  // Validate the fields openTraveler relies on, not just the spec — a "recognized"
-  // envelope must have a string payload + payload_nonce and a non-empty recipient
-  // list whose entries each carry a string kid (the rest of each recipient's hex
-  // fields are validated cryptographically downstream, which fails closed).
-  const recipientsOk =
-    Array.isArray(e?.recipients) &&
-    e.recipients.length > 0 &&
-    e.recipients.every((r) => r && typeof r === "object" && typeof (r as { kid?: unknown }).kid === "string");
-  if (
-    !e ||
-    typeof e !== "object" ||
-    (e.spec !== ENVELOPE_SPEC && e.spec !== FS_ENVELOPE_SPEC) ||
-    typeof e.payload !== "string" ||
-    typeof (e as Envelope).payload_nonce !== "string" ||
-    !recipientsOk
-  ) {
-    throw new Error("not a recognized SJE envelope");
-  }
-  return e as SjeEnvelope;
+  const value =
+    typeof input === "string" || input instanceof Uint8Array
+      ? parseStrictJson(input, { maxBytes: MAX_ENVELOPE_JSON_BYTES, label: "envelope" })
+      : input;
+  assertEnvelopeShape(value);
+  return value;
 }

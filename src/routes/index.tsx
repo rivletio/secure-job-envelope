@@ -10,7 +10,7 @@ import { itarExportWarning } from "@/lib/traveler/guards";
 import { useKeysStore } from "@/lib/traveler/keys-store";
 import { useTravelerStore } from "@/lib/traveler/store";
 import { openTraveler, parseSjeEnvelope } from "@/lib/traveler/transport";
-import { MAX_ARCHIVE_BYTES, type Traveler } from "@/lib/traveler/types";
+import { MAX_ENVELOPE_JSON_BYTES, type Traveler } from "@/lib/traveler/types";
 import { importTravelerFile } from "@/lib/traveler/zip";
 import { cn } from "@/lib/utils";
 
@@ -64,13 +64,16 @@ function Desk() {
       toast.error("Unlock your identity in Keys to open a sealed .sje");
       return;
     }
-    if (file.size > 2 * MAX_ARCHIVE_BYTES + 64 * 1024) {
+    if (file.size > MAX_ENVELOPE_JSON_BYTES) {
       toast.error("Sealed envelope exceeds size limit");
       return;
     }
     let envelope;
     try {
-      envelope = parseSjeEnvelope(await file.text());
+      // The file's bytes, not `file.text()`: text decoding silently strips a byte-order
+      // mark and replaces invalid UTF-8, so the desk would open what another reader of
+      // the same file refuses.
+      envelope = parseSjeEnvelope(new Uint8Array(await file.arrayBuffer()));
     } catch {
       toast.error("Not a recognized SJE envelope");
       return;

@@ -40,7 +40,7 @@ import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/tra
 import { isoNow, newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
 import { sealTraveler, openTraveler, parseSjeEnvelope } from "../src/lib/traveler/transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "../src/lib/traveler/keystore.ts";
-import { MAX_ARCHIVE_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
+import { MAX_ENVELOPE_JSON_BYTES, MAX_TRAVELER_JSON_BYTES, TRAVELER_SPEC } from "../src/lib/traveler/types.ts";
 import type { Award, Op, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
 import type { Directory } from "../src/lib/traveler/directory.ts";
 import type { PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
@@ -414,7 +414,7 @@ async function handle(name: string, args: Args) {
       // decode/decrypt: the envelope wraps a hex payload (~2x the archive bytes)
       // plus per-recipient KEM material, so bound to 2x the archive limit + slack.
       const raw = typeof args.sje === "string" ? args.sje : JSON.stringify(args.sje ?? {});
-      if (raw.length > 2 * MAX_ARCHIVE_BYTES + 64 * 1024) {
+      if (raw.length > MAX_ENVELOPE_JSON_BYTES) {
         return fail("Sealed envelope exceeds size limit.");
       }
       let keystore: Unlocked;
