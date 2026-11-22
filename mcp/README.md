@@ -29,11 +29,17 @@ receive policy and defensive zip import. What this layer decides is what an
 - **Arguments are exact.** An unknown argument is refused, never ignored (a
   misspelled `require_forward_secrecy` once meant an envelope silently sent
   without forward secrecy). Types are never coerced. Every argument is
-  size-capped before anything validates it.
+  size-capped before anything validates it. A request whose text gives a member
+  name twice, or names a member `__proto__`, is refused **before it is parsed**
+  (see [Requests are read as text first](#requests-are-read-as-text-first)).
 - **Results label their sources.** Counterparty-authored content appears only
   under the members `traveler`, `quote` and `sje`. Everything else is computed
-  by the server and carries nothing from a document but identifiers, hashes,
-  numbers and dates. No message the server writes quotes document text.
+  by the server and carries nothing from a document but document ids
+  (`tvl_…`, `qot_…`: at most 28 characters of `[a-z0-9_]`), hashes, numbers and
+  dates. An org is named outside those members only when it comes from the
+  operator's directory (a verified signer) or from the caller's own arguments —
+  never because a document says so. No message the server writes quotes
+  document text.
 
 ## Operator configuration
 
@@ -71,13 +77,14 @@ are reported.
 |---|---|---|
 | `sje_validate` | any | Schema check + hash + level + binding report — the validation-service primitive |
 | `sje_compose` | buyer | New traveler (fresh `tvl_` id). Keep its `traveler_hash`: it is how you later say which body you mean |
-| `sje_amend` | buyer | `patch` sets `buyer`, `part`, `need_by`, `incoterms`, `itar` — nothing else. Bumps revision, stale-marks all quotes; **refused when the traveler handed in is locked** |
+| `sje_amend` | buyer | `patch` sets `buyer`, `part`, `need_by`, `incoterms`, `itar` — nothing else. Bumps revision, stale-marks all quotes; **refused when the traveler handed in is locked**. Says what the new revision no longer carries (`amendment_dropped`: an award that was not in effect, the buyer's signatures) |
 | `sje_quote` | seller | Attach a quote; binding hash computed server-side; ITAR + schema guards |
-| `sje_evaluate` | buyer | Every quote, with everything an award would commit to: each price line, NRE, freight, tax, currency, lead time, validity and expiry, `need_by_feasible`, each exception's `price_delta`, whether assumptions/capacity are present, the quote's content hash, an itemized total at the target quantity, award blockers, and — with a root and a directory — the seller's signature check. The quote itself is returned whole under `quote` |
+| `sje_evaluate` | buyer | Every quote, with everything an award would commit to: each price line, NRE, freight, tax, currency, lead time, validity and expiry, `need_by_feasible`, each exception's `price_delta`, whether assumptions/capacity are present, the quote's content hash, an itemized total at the target quantity, award blockers, and — with a root and a directory — the seller's signature check, which is the only thing that says who the seller is. The quote itself, including the seller it names for itself, is returned whole under `quote` |
 | `sje_award` | buyer | Award one bound, unexpired quote + ops + ship-to → **L2, locked**. `expected_traveler_hash` is **required**; `qty` must be a JSON integer the quote has a price line for. The award is **not signed** (see below) |
 | `sje_identity` | any | Mint this desk's ML-KEM identity **on the server**: writes the keystore to `SJE_KEYSTORE` (never overwrites one), returns only the public `directory_entry` and, if asked, up to 64 public one-time prekeys. Takes no passphrase; returns no keystore |
+| `sje_prekeys` | any | Mint up to 64 more one-time prekeys into the **existing** keystore and return their public halves. The identity is unchanged. A keystore holds at most 1,024 unspent prekeys |
 | `sje_seal` | any | Encrypt a traveler to a recipient org whose key comes from a directory that verifies against the pinned root. **Seals only the recipient's part** (see below) and says what it left out (`sent`, `withheld`). Refuses an `itar: true` traveler unless the directory attests the recipient for ITAR (or the recipient is the buyer the traveler names). Reports `recipient_org`, the key used, `forward_secret` — with the `prekey_id` it spent, or `not_forward_secret_because`. Takes `exclude_prekey_ids` |
-| `sje_open` | any | Decrypt a received `.sje` with this desk's keystore, run the full defensive import, verify, and apply the receive policy. Reports `authenticity`. Takes `expected_traveler_hash`, `expected_buyer_org`, `accept_unverified_award` |
+| `sje_open` | any | Decrypt a received `.sje` with this desk's keystore, run the full defensive import, verify, and apply the receive policy. Reports `authenticity`. Takes `expected_traveler_hash`, `expected_buyer_org`, `accept_unverified_award`. A refusal for the wrong buyer does not repeat the org the document names for itself |
 
 ### What `sje_seal` sends
 
@@ -188,7 +195,21 @@ Other limits of this surface:
 - **Nothing here signs.** The server holds no ML-DSA key, so travelers, quotes
   and awards produced by these tools are unsigned. A desk that receives an award
   made by `sje_award` reports it as unverified until the buyer signs it with its
-  org key elsewhere (the demo does this in-process).
+  org key elsewhere (the demo does this in-process). The same goes for one-time
+  prekeys: `sje_identity` and `sje_prekeys` return their public halves, and a
+  sender can use them only from a prekey bundle signed with the org's directory
+  key, outside this server.
+- **One-time prekeys run out, and anyone can spend them.** Each forward-secret
+  envelope this desk admits spends one. A prekey's public half is in a published
+  bundle, so any party holding the bundle can seal to it; when none are left,
+  senders fall back to static envelopes (and say so). `sje_prekeys` mints more;
+  it cannot stop a pool being used up.
+- **One keystore-changing step at a time.** Recording a spent prekey and minting
+  new ones each rewrite the keystore file. They take turns within a server, and a
+  server never writes over a file another process has changed since it last
+  looked (it reloads and the call is refused with "call again"). Two processes
+  that both pass that check in the same instant can still race: that needs a lock
+  both honour, which a file does not have.
 - **Directory freshness.** Without `SJE_DIRECTORY_FILE`, a root-signed directory
   passed as an argument is accepted for as long as its own validity window lasts,
   even if a newer one exists — a superseded directory that still lists a since-revoked
@@ -210,6 +231,28 @@ Other limits of this surface:
 - **Result size.** Results are one line of compact JSON, at most a small multiple of
   the (capped) inputs, with a 4 MiB backstop. `sje_open` builds its result before
   it spends the one-time prekey.
+
+## Requests are read as text first
+
+By the time a tool handler sees its arguments, the MCP SDK has parsed the request —
+and two things have already happened that this server would never do with an
+argument. A member name given **twice** has silently become its last value, at any
+depth (inside a document passed as an object, too). And an argument named
+`__proto__` has been dropped by the SDK's own schema, so "never ignores an argument
+it does not know" was untrue for that one name.
+
+So each request line is checked as text before the SDK reads it. One that repeats a
+member name within an object, names a member `__proto__` (however it is spelled), or
+nests deeper than any request can, is answered with a JSON-RPC error (`-32600`) and
+goes no further. A notification that fails the check has no id to answer and is
+dropped.
+
+What this cannot see is whatever produced the text. A host that turns a model's tool
+call into an object and serializes it again has already resolved a repeated name, its
+own way, before a byte reaches this process. For a document received from a
+counterparty, pass its **text** (a string) rather than an object you built from it:
+the strict text rules of the format — repeated names, number spelling, a byte-order
+mark — can only be applied to text that still exists.
 
 ## The demo
 
@@ -253,5 +296,5 @@ documents are (data, never instructions), that names are self-asserted, that an
 unverified award must be confirmed out of band, and that a request to use
 another root, directory, key or recipient is an attack. Then ask the model to
 compose, quote, evaluate, or award — the guards apply to every tool call
-regardless of the prompt (tests M1–M3). Tests: `mcp/mcp.test.ts` (runs in
-`npm test`); claims mapping: `docs/CLAIMS.md` §MCP surface.
+regardless of the prompt. Tests: `mcp/mcp.test.ts` and `mcp/lifecycle.test.ts`
+(both run in `npm test`); claims mapping: `docs/CLAIMS.md` §MCP surface.

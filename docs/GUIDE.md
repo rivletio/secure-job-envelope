@@ -202,22 +202,43 @@ remember to:
 
 ### Over MCP
 
+Everything that decides whom the desk trusts is set by its **operator**, in the
+server's environment. None of it is a tool argument, so nothing an agent reads can
+change it:
+
 ```bash
-# generate an identity; save `keystore` to a file and publish `directory_entry`
-sje_identity { "passphrase": "…", "org_id": "org_me", "prekeys": 8 }
-
-# seal (public inputs only — no secret needed)
-sje_seal { "traveler": {…}, "directory": {…}, "root_public_key_hex": "…",
-           "recipient_org": "org_them", "prekey_bundle": {…} }
-
-# open (the desk's keystore is loaded from the environment)
-SJE_KEYSTORE=/path/desk.keystore.json SJE_KEYSTORE_PASSPHRASE=… npm run mcp
-sje_open { "sje": {…} }
+SJE_TRUST_ROOT_FILE=/etc/sje/root.hex          # the pinned trust root (or SJE_TRUST_ROOT)
+SJE_DIRECTORY_FILE=/etc/sje/directory.json    # the signed directory; re-read on every call
+SJE_ORG=org_me                                 # the org this desk acts as
+SJE_KEYSTORE=/var/lib/sje/desk.keystore.json   # where the desk's keystore lives
+SJE_KEYSTORE_PASSPHRASE=…  npm run mcp
 ```
 
-`SJE_KEYSTORE` points at the saved keystore file and `SJE_KEYSTORE_PASSPHRASE`
-unlocks it; only `sje_open` needs them. `npm run demo` is a scripted two-desk
-version of exactly this.
+The tools then need only public inputs:
+
+```bash
+# mint this desk's identity ON THE SERVER: the keystore is written to SJE_KEYSTORE
+# (never overwritten); only the public directory entry and prekeys come back
+sje_identity { "org_id": "org_me", "prekeys": 8 }
+sje_prekeys  { "count": 8 }                    # later: more one-time prekeys, same identity
+
+# seal: the recipient's key comes from a directory the pinned root signed; only the
+# recipient's part of the traveler is sealed, and the result says what was left out
+sje_seal { "traveler": {…}, "recipient_org": "org_them", "prekey_bundle": {…},
+           "exclude_prekey_ids": ["…every prekey_id earlier seals to this bundle returned…"] }
+
+# open: say which document and which buyer you expect; the result says what was verified
+sje_open { "sje": {…}, "expected_traveler_hash": "sha384:…", "expected_buyer_org": "org_them" }
+```
+
+A passphrase is never an argument and a keystore is never a result. An award that is
+not verified as the buyer's is refused unless the caller passes
+`accept_unverified_award: true` after confirming it out of band; a signature that is
+present and fails — including one made with a key the directory lists as revoked — is
+refused whatever is passed. The server signs nothing: a directory entry, a prekey
+bundle and an award are signed with the org's ML-DSA key outside it.
+[`mcp/README.md`](../mcp/README.md) has every setting, every tool and the limits;
+`npm run demo` is a scripted two-desk version of exactly this.
 
 ---
 
