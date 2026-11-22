@@ -7,8 +7,8 @@ implementation proves itself the same way.
 
 | File | Contract |
 |---|---|
-| `canonical.json` → `valid[]` | For each `value`, produce exactly `canonical` (bytes) and `sha384` |
-| `canonical.json` → `invalid[]` | Refuse to canonicalize `value` (do not hash, do not substitute) |
+| `canonical.json` → `valid[]` | Each case gives its input as `value` (a JSON value) or as `text` (the exact JSON text — **parse it with your own JSON parser**, then canonicalize; the spelling is the test: `10.0`, `-0`, `1e2`, a letter written as an escape). Produce exactly `canonical` (as UTF-8 bytes) and `sha384` |
+| `canonical.json` → `invalid[]` | Refuse the `value` or `text` — in the parser or in the canonicalizer — and produce no bytes (do not hash, do not substitute). `refusal` pins a fragment of each reference implementation's own message (`ts`, `rs`), so a case cannot pass by being refused for some other defect |
 | `travelers/*.json` + `travelers/expected.json` | Parse each traveler; produce exactly `traveler_hash` and `level` |
 | `travelers/reject/*.json` + `travelers/reject-reasons.json` | Refuse the document at parse time — **parsed from the file's bytes** (some vectors, e.g. a byte-order mark or a repeated member name, exist only in the text). `reject-reasons.json` pins, per vector and per implementation, a fragment the refusal must mention, so a vector cannot pass by being refused for some other defect |
 | `signatures/envelope-cases.json` → `accept[]` | The envelope `text` passes the shape check and opens (as `kid`, with `seed_hex` / `onetime_seed_hex`) to `plaintext_utf8` |
@@ -17,6 +17,7 @@ implementation proves itself the same way.
 | `signatures/directory-cases.json` → `recipient_cases[]` | The `(kid, public_key)` to encrypt to for `org_id`, or `null` — independent of the order of the directory's entries |
 | `signatures/verify-cases.json` → `traveler_cases[]` | Verify the traveler and produce exactly `want`: a check per buyer signature, the award check (`null`: no award), a check per quote (`null`: unsigned), and `verified`. A refused check carries its **reason**, which is normative (SPEC §Verification) |
 | `signatures/verify-cases.json` → `itar_cases[]` | The ITAR gate's answer for `(traveler, quote)`: `null` (allowed) or the reason it is refused |
+| `../public/schemas/not-expressible-0.1.0.json` | Not a vector: the rules the published JSON Schemas do not state, and why, each with the `travelers/reject/` vectors that break it and nothing else. Those vectors **pass** the schemas and must still be refused; every other reject vector fails the schemas, at the place the implementation refuses it (`src/lib/traveler/schema-contract.test.ts`) |
 
 Runners: `src/lib/traveler/vectors.test.ts` (TypeScript),
 `crates/secure-job-envelope/tests/vectors.rs` (Rust).
@@ -27,7 +28,9 @@ agreement is a genuine cross-check, not a copy. Regenerate only when the
 spec changes, and expect the diff to be reviewed like a spec change,
 because it is one.
 
-One deliberate omission: integers above 2^53−1 are refused by both
-implementations, but that rule is proven by language-local tests instead
-of a shared vector — JavaScript's `JSON.parse` cannot represent such a
-number faithfully, which is exactly why the rule exists.
+A `value` cannot carry everything. Integers above 2^53−1 are refused by
+both implementations, but a JSON value in a vector file cannot hold one
+faithfully — JavaScript's `JSON.parse` rounds it, which is exactly why the
+rule exists — and the file's own serializer writes `-0` as `0` and `10.0`
+as `10`. Those cases are therefore `text` cases (`integer-2-pow-53-plus-1`,
+`negative-zero`, `integer-valued-float`, …), where the spelling survives.

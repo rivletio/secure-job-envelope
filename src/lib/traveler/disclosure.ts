@@ -18,7 +18,10 @@ export type FieldDisclosure = {
   courierBeforeReveal: Disclosure;
 };
 
-/** Every schema field. A new field that is not listed here fails the test. */
+/** Every field of the format. A field that is not listed here fails the test — whether it
+ *  appears in the published JSON Schema or only in the implementation's own schema
+ *  (schema.ts): the test enumerates both, and also checks the two columns below against
+ *  the code (what `quoteableBody` hashes, what `courierView` reads). */
 export const FIELD_DISCLOSURE: readonly FieldDisclosure[] = [
   { path: "spec", inFile: "clear", inQuoteableHash: true, courierBeforeReveal: "omitted" },
   { path: "traveler_id", inFile: "clear", inQuoteableHash: true, courierBeforeReveal: "omitted" },
@@ -83,11 +86,23 @@ export const FIELD_DISCLOSURE: readonly FieldDisclosure[] = [
   { path: "quotes.exceptions.price_delta", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "quotes.capacity", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.quote_id", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  // The content hash of the awarded quote. Award-stage data, outside the quoteable hash. A
+  // hash does not hide what it covers: the quote's price lines are few and guessable, so the
+  // hash confirms a guessed price to anyone who holds it. Omitted, like the prices themselves.
+  { path: "award.quote_hash", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.awarded_at", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.qty", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.terms.governing_law", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.terms.warranty", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "award.terms.payment_terms", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  // The buyer's signature over the award. Award-stage data, outside the quoteable hash (it
+  // signs the award and ship-to, and cannot be inside what it signs). `kid` names the
+  // buyer's key, and so the buyer; `sig` is a stable value that links every copy of this
+  // award; and saying any of the three says an award exists, which the courier view does
+  // not reveal. Omitted, as the traveler's and the quote's signatures are.
+  { path: "award.sig.alg", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.sig.kid", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
+  { path: "award.sig.sig", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "as_built", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "signatures.alg", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },
   { path: "signatures.kid", inFile: "clear", inQuoteableHash: false, courierBeforeReveal: "omitted" },

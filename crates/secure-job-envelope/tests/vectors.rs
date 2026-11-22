@@ -19,18 +19,41 @@ const AT_MS_2027: i64 = 1_798_761_600_000; // within the window
 const AT_MS_2025: i64 = 1_748_736_000_000; // before issued_at
 const AT_MS_2031: i64 = 1_924_992_000_000; // after valid_until
 
-#[test]
-fn canonical_valid_vectors_match_bytes_and_hash() {
+/// What this implementation does with a canonical case: `Ok(canonical bytes)`, or
+/// `Err(why it refuses)`.
+///
+/// A case gives its input as `value` (a JSON value; how the vector file spells it is not
+/// part of the test) or as `text` (the exact JSON text — its spelling IS the test: `10.0`,
+/// `-0`, `1e2`, an escaped letter). A `text` is parsed here, by this implementation's own
+/// JSON parser, before it is canonicalized; a refusal by that parser is a refusal.
+fn canonical_outcome(case: &Value) -> Result<String, String> {
+    let name = case["name"].as_str().unwrap();
+    let value = match (case.get("value"), case.get("text")) {
+        (Some(value), None) => value.clone(),
+        (None, Some(text)) => {
+            let text = text.as_str().unwrap_or_else(|| panic!("{name}: text is a string"));
+            serde_json::from_str::<Value>(text).map_err(|e| e.to_string())?
+        }
+        _ => panic!("{name}: a case gives exactly one of value and text"),
+    };
+    canonical_json(&value).map_err(|e| e.to_string())
+}
+
+fn canonical_cases(section: &str) -> (String, Vec<Value>) {
     let raw = fs::read_to_string(conformance_dir().join("canonical.json")).unwrap();
     let doc: Value = serde_json::from_str(&raw).unwrap();
-    let valid = doc["valid"].as_array().expect("valid array");
-    assert!(!valid.is_empty());
-    for case in valid {
+    let cases = doc[section].as_array().unwrap_or_else(|| panic!("{section} array")).clone();
+    (raw, cases)
+}
+
+#[test]
+fn canonical_valid_vectors_match_bytes_and_hash() {
+    let (_, valid) = canonical_cases("valid");
+    for case in &valid {
         let name = case["name"].as_str().unwrap();
-        let value = &case["value"];
         let expected_canonical = case["canonical"].as_str().unwrap();
         let expected_hash = case["sha384"].as_str().unwrap();
-        let got = canonical_json(value).unwrap_or_else(|e| panic!("{name}: refused: {e}"));
+        let got = canonical_outcome(case).unwrap_or_else(|e| panic!("{name}: refused: {e}"));
         assert_eq!(got, expected_canonical, "canonical bytes: {name}");
         let digest = Sha384::digest(got.as_bytes());
         assert_eq!(
@@ -39,21 +62,59 @@ fn canonical_valid_vectors_match_bytes_and_hash() {
             "hash: {name}"
         );
     }
+    let texts = valid.iter().filter(|c| c.get("text").is_some()).count();
+    assert!(texts >= 60, "the text cases are present (found {texts})");
 }
 
 #[test]
 fn canonical_invalid_vectors_are_refused() {
-    let raw = fs::read_to_string(conformance_dir().join("canonical.json")).unwrap();
-    let doc: Value = serde_json::from_str(&raw).unwrap();
-    let invalid = doc["invalid"].as_array().expect("invalid array");
-    assert!(!invalid.is_empty());
-    for case in invalid {
+    // Each case must be refused FOR THE REASON IT IS NAMED FOR: a text that is simply
+    // malformed would otherwise "pass". `refusal.rs` pins a fragment of this
+    // implementation's refusal; the TypeScript runner checks `refusal.ts`.
+    let (_, invalid) = canonical_cases("invalid");
+    for case in &invalid {
         let name = case["name"].as_str().unwrap();
+        let expected = case["refusal"]["rs"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{name}: no refusal.rs declared"));
+        let refusal = match canonical_outcome(case) {
+            Ok(bytes) => panic!("must refuse: {name} (canonicalized to {bytes})"),
+            Err(why) => why,
+        };
         assert!(
-            canonical_json(&case["value"]).is_err(),
-            "must refuse: {name}"
+            refusal.contains(expected),
+            "{name}: refused for the wrong reason — \"{refusal}\" does not mention \"{expected}\""
         );
     }
+    let texts = invalid.iter().filter(|c| c.get("text").is_some()).count();
+    assert!(texts >= 30, "the refused text cases are present (found {texts})");
+}
+
+#[test]
+fn canonical_vectors_carry_the_spellings_they_are_named_for() {
+    // `negative-zero` was once stored as the value -0, which the file spelled 0, and
+    // nothing in it ever spelled 10.0: neither runner was shown what the names promised.
+    let (raw, valid) = canonical_cases("valid");
+    let text = |name: &str| {
+        valid
+            .iter()
+            .find(|c| c["name"] == name)
+            .and_then(|c| c["text"].as_str())
+            .unwrap_or_else(|| panic!("{name}: no such text case"))
+            .to_owned()
+    };
+    assert_eq!(text("negative-zero"), r#"{"t":-0}"#);
+    assert_eq!(text("integer-valued-float"), r#"{"t":10.0}"#);
+    assert_eq!(text("exponent"), r#"{"t":1e2}"#);
+    assert_eq!(text("escape-u0041-is-A"), "{\"s\":\"\\u0041\"}", "the escape, not the letter");
+    // What this parser makes of them is what the cases are about: a float holding an
+    // integer value, and a negative zero — not the integers 10 and 0.
+    let parsed = |name: &str| serde_json::from_str::<Value>(&text(name)).unwrap()["t"].clone();
+    assert!(parsed("integer-valued-float").is_f64());
+    assert!(parsed("negative-zero").as_f64().is_some_and(|z| z == 0.0 && z.is_sign_negative()));
+    assert!(parsed("exponent").is_f64());
+    // The file is ASCII: an invisible character in a vector is an escape a reviewer can see.
+    assert!(raw.is_ascii());
 }
 
 #[test]

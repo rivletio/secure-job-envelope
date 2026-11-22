@@ -1,6 +1,6 @@
 {
   "spec": "sje/0.1.0",
-  "note": "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. Invalid: implementations MUST refuse to canonicalize `value`. Integers above 2^53-1 are also refused but cannot be expressed in a shared JSON vector file (JSON.parse in JavaScript loses their precision), so that rule is covered by language-local unit tests on both sides.",
+  "note": "Each case gives its input as `value` (a JSON value; how this file spells it is not part of the test) or as `text` (the exact JSON text: parse it with your own JSON parser, then canonicalize the result; the spelling is the test, e.g. 10.0, -0, 1e2, an escaped letter). Valid: implementations MUST produce exactly `canonical` (as UTF-8 bytes) and `sha384`. Invalid: implementations MUST refuse, in the parser or in the canonicalizer, and produce no bytes; `refusal` holds a fragment of each reference implementation's own message (`ts`: TypeScript, where \"not JSON\" means JSON.parse rejected the text; `rs`: Rust), so a case cannot pass by being refused for some other defect. A number is read as an IEEE-754 binary64 value (round to nearest, ties to even) before the canonical rule is applied to it. Every `text` is one JSON value with no repeated member name (travelers/reject/ covers those). This file is ASCII: any other character, in a `text` or anywhere else, is written as a \\uXXXX escape of this file's own JSON, so a character that is literal in a `text` shows one backslash here and an escape inside the `text` shows two.",
   "valid": [
     {
       "name": "sorted-keys",
@@ -46,14 +46,6 @@
       "sha384": "sha384:0851da382f4ad7fbab927226233cb051b02d3f3d27fcde1022a9b8bf6b6dc9306b2839e65c3a49fb8e59716c6e380d88"
     },
     {
-      "name": "negative-zero",
-      "value": {
-        "t": 0
-      },
-      "canonical": "{\"t\":0}",
-      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
-    },
-    {
       "name": "min-fraction",
       "value": {
         "t": 0.00001
@@ -88,9 +80,9 @@
     {
       "name": "unicode-raw-utf8",
       "value": {
-        "s": "café ± µm Ø12"
+        "s": "caf\u00e9 \u00b1 \u00b5m \u00d812"
       },
-      "canonical": "{\"s\":\"café ± µm Ø12\"}",
+      "canonical": "{\"s\":\"caf\u00e9 \u00b1 \u00b5m \u00d812\"}",
       "sha384": "sha384:52795808e5aed6b84cba15a4f4ac93b96c44bdc2379dbaf9b0297dbfad2a3d4102e74ff4f748581d01e4130f8e133422"
     },
     {
@@ -151,19 +143,397 @@
     {
       "name": "astral-key-order",
       "value": {
-        "😀": 1,
-        "￿": 2
+        "\ud83d\ude00": 1,
+        "\uffff": 2
       },
-      "canonical": "{\"￿\":2,\"😀\":1}",
+      "canonical": "{\"\uffff\":2,\"\ud83d\ude00\":1}",
       "sha384": "sha384:f24bd9de36723a37613db8d0d87bae7f14cd5849fd426b98f391dbb1b019fcb2798ddcab047cf079496fcb07fedbb735"
     },
     {
       "name": "astral-string-value",
       "value": {
-        "s": "grüß 😀 🚀"
+        "s": "gr\u00fc\u00df \ud83d\ude00 \ud83d\ude80"
       },
-      "canonical": "{\"s\":\"grüß 😀 🚀\"}",
+      "canonical": "{\"s\":\"gr\u00fc\u00df \ud83d\ude00 \ud83d\ude80\"}",
       "sha384": "sha384:59260a6c2ba2d286d96f7cf84a88a2ef455754ef79a7a76c349ea25f3d564e3c0233dbe101d2a058b0571fc1020fece3"
+    },
+    {
+      "name": "integer-valued-float",
+      "text": "{\"t\":10.0}",
+      "canonical": "{\"t\":10}",
+      "sha384": "sha384:8a276048aa5d2cff3039c3a0bda6fb5a2f660c9f4039245b4401fcbfda84b2eaa35654adabacacc209e4cb7115a8360a"
+    },
+    {
+      "name": "integer-valued-float-one",
+      "text": "{\"t\":1.0}",
+      "canonical": "{\"t\":1}",
+      "sha384": "sha384:f0dac371bb9abddb7ad1930306405f16ff39a0f1ba6023003349f73179a98cf2f2f7f0cbd923e6cb4e0dc0c2308537d4"
+    },
+    {
+      "name": "negative-zero",
+      "text": "{\"t\":-0}",
+      "canonical": "{\"t\":0}",
+      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
+    },
+    {
+      "name": "negative-zero-float",
+      "text": "{\"t\":-0.0}",
+      "canonical": "{\"t\":0}",
+      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
+    },
+    {
+      "name": "zero-float",
+      "text": "{\"t\":0.0}",
+      "canonical": "{\"t\":0}",
+      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
+    },
+    {
+      "name": "zero-in-every-spelling",
+      "text": "[0,-0,0.0,-0.0,0e0,-0e-0,0E+0]",
+      "canonical": "[0,0,0,0,0,0,0]",
+      "sha384": "sha384:9dd02226188fc6d1fe53c45b25d29fffb09e890c2502bf2af78f72852a001aea0cf69f3a59066f6b6c048cb11e994c7a"
+    },
+    {
+      "name": "exponent",
+      "text": "{\"t\":1e2}",
+      "canonical": "{\"t\":100}",
+      "sha384": "sha384:03b993c6578b29ac415ae081bc5633f8ae3c18e10d2be953c74a01925269586a061b38eca6a95996ee565503f498a9cf"
+    },
+    {
+      "name": "exponent-uppercase",
+      "text": "{\"t\":1E2}",
+      "canonical": "{\"t\":100}",
+      "sha384": "sha384:03b993c6578b29ac415ae081bc5633f8ae3c18e10d2be953c74a01925269586a061b38eca6a95996ee565503f498a9cf"
+    },
+    {
+      "name": "exponent-plus-sign",
+      "text": "{\"t\":1e+2}",
+      "canonical": "{\"t\":100}",
+      "sha384": "sha384:03b993c6578b29ac415ae081bc5633f8ae3c18e10d2be953c74a01925269586a061b38eca6a95996ee565503f498a9cf"
+    },
+    {
+      "name": "exponent-negative",
+      "text": "{\"t\":100e-2}",
+      "canonical": "{\"t\":1}",
+      "sha384": "sha384:f0dac371bb9abddb7ad1930306405f16ff39a0f1ba6023003349f73179a98cf2f2f7f0cbd923e6cb4e0dc0c2308537d4"
+    },
+    {
+      "name": "exponent-with-fraction",
+      "text": "{\"t\":1.5e1}",
+      "canonical": "{\"t\":15}",
+      "sha384": "sha384:88c42c72f4af27cd3d091163e22e8b39212c1804601520d05baf34054b03915dc926d6934aef65fa9f5074b2b351626e"
+    },
+    {
+      "name": "exponent-of-a-negative-number",
+      "text": "{\"t\":-1e2}",
+      "canonical": "{\"t\":-100}",
+      "sha384": "sha384:3980cd903ccfe7fc193ec1688a3b7410245e80ab28415d7b70dc3531b4b848a1ff5b5deffe5a2104f476deb1c5e36dfb"
+    },
+    {
+      "name": "exponent-min-fraction",
+      "text": "{\"t\":1e-5}",
+      "canonical": "{\"t\":0.00001}",
+      "sha384": "sha384:4eef7a00ae80f4f5beb7ade9cb637335e335c201879e6f682bc6edd60728621aad7c4ce6beae1b53e6ce0d72cb7fa7f6"
+    },
+    {
+      "name": "exponent-leading-zeros",
+      "text": "{\"t\":1e-05}",
+      "canonical": "{\"t\":0.00001}",
+      "sha384": "sha384:4eef7a00ae80f4f5beb7ade9cb637335e335c201879e6f682bc6edd60728621aad7c4ce6beae1b53e6ce0d72cb7fa7f6"
+    },
+    {
+      "name": "exponent-large-in-range",
+      "text": "{\"t\":1e15}",
+      "canonical": "{\"t\":1000000000000000}",
+      "sha384": "sha384:d0ed98cd543f2a655b22336751e3d5b2af1ce9f2d7a2478883642d53c38b4cf79ab676dc12068e1bcad8199d8048395e"
+    },
+    {
+      "name": "exponent-max-safe-integer",
+      "text": "{\"t\":9.007199254740991e15}",
+      "canonical": "{\"t\":9007199254740991}",
+      "sha384": "sha384:7768376bb10cebee8433bde80d6c9a67b055e8554d22d9d6697c36362eb7ed5fa3d32b9dcda9d323ee55d6907ad28b6b"
+    },
+    {
+      "name": "ten-in-five-spellings",
+      "text": "[10.0,1e1,10,1.0e1,100e-1]",
+      "canonical": "[10,10,10,10,10]",
+      "sha384": "sha384:a11d10e754bcfe3e3389e403e55591ebe75d43e3c51c83ec84390aeab7be25be1036d7b34d8e770e03b70cdba6d4689d"
+    },
+    {
+      "name": "trailing-fraction-zeros",
+      "text": "{\"t\":1.50}",
+      "canonical": "{\"t\":1.5}",
+      "sha384": "sha384:c3839bcc50f4b86c4c5c2566c3252ec6b99baf3f4973adaf0eaf61b14c8a60a1fd1b2b2e0f2c712bff366e818d671c1f"
+    },
+    {
+      "name": "max-safe-integer-as-float",
+      "text": "{\"t\":9007199254740991.0}",
+      "canonical": "{\"t\":9007199254740991}",
+      "sha384": "sha384:7768376bb10cebee8433bde80d6c9a67b055e8554d22d9d6697c36362eb7ed5fa3d32b9dcda9d323ee55d6907ad28b6b"
+    },
+    {
+      "name": "min-safe-integer",
+      "text": "{\"t\":-9007199254740991}",
+      "canonical": "{\"t\":-9007199254740991}",
+      "sha384": "sha384:285953d9b554379d0c4976ca25989af8e1b25a4a1128ace83c07620fc569251c5811b20ef9b6674519443f5c10acbb82"
+    },
+    {
+      "name": "half-below-max-safe-integer-rounds-to-even",
+      "text": "{\"t\":9007199254740990.5}",
+      "canonical": "{\"t\":9007199254740990}",
+      "sha384": "sha384:9dd4b23d5a6520bc692081d823779420e89629cbcc0085322f8c239b07bfeae721aa12f8373a238f27fd77089cda0ce1"
+    },
+    {
+      "name": "half-above-2-pow-52-rounds-to-even",
+      "text": "{\"t\":4503599627370496.5}",
+      "canonical": "{\"t\":4503599627370496}",
+      "sha384": "sha384:4cefbacc9e761019c763ab6fc890c1f1f55dcd6a9031c9a2edee92c90ade4219a8d74ec6526c4a0e547c9e24b06b8813"
+    },
+    {
+      "name": "half-below-2-pow-52-is-exact",
+      "text": "{\"t\":4503599627370495.5}",
+      "canonical": "{\"t\":4503599627370495.5}",
+      "sha384": "sha384:4757770f55436f29069cf57b59584ef93c9c3144c66219d3c81adcb532d06a3dbe8fa69cb93295c7fe5bc66b731c45be"
+    },
+    {
+      "name": "sixteen-digit-integer-part-with-fraction",
+      "text": "{\"t\":1234567890123456.7}",
+      "canonical": "{\"t\":1234567890123456.8}",
+      "sha384": "sha384:6d981fed54d590e5aceb9662a29a665667f9d90c5cd9d6aab5015e5bc70b38d8ab391e5eac2f52bdaaf5ae36498a1ba1"
+    },
+    {
+      "name": "seventeen-significant-digits",
+      "text": "{\"t\":0.30000000000000004}",
+      "canonical": "{\"t\":0.30000000000000004}",
+      "sha384": "sha384:7b226d5fc7ab1d2b89b96d34f3a709a6ba93315933314f529a26ba216a8e22ec5a1bc6341677f0ae2a0ab89bf635ba03"
+    },
+    {
+      "name": "more-digits-than-a-double-holds",
+      "text": "{\"t\":0.1000000000000000055511151231257827}",
+      "canonical": "{\"t\":0.1}",
+      "sha384": "sha384:3737be70beafd6142cb4b58146d878e8dde8a3ab40a52dbcd4712c5a11c3807ef52ae3bd24a862b5b4ca665665ebd73d"
+    },
+    {
+      "name": "tie-rounds-to-even",
+      "text": "{\"t\":1.00000000000000011102230246251565404236316680908203125}",
+      "canonical": "{\"t\":1}",
+      "sha384": "sha384:f0dac371bb9abddb7ad1930306405f16ff39a0f1ba6023003349f73179a98cf2f2f7f0cbd923e6cb4e0dc0c2308537d4"
+    },
+    {
+      "name": "just-above-a-tie-rounds-up",
+      "text": "{\"t\":1.00000000000000011102230246251565404236316680908203126}",
+      "canonical": "{\"t\":1.0000000000000002}",
+      "sha384": "sha384:38aca1ed30a3f8225015017fe40fd7f1d2e3ca89663e2af7c5ba7e8035675df048cad5ed24b37ccfe68e01a7f59603b0"
+    },
+    {
+      "name": "just-below-a-tie-rounds-down",
+      "text": "{\"t\":1.00000000000000011102230246251565404236316680908203124}",
+      "canonical": "{\"t\":1}",
+      "sha384": "sha384:f0dac371bb9abddb7ad1930306405f16ff39a0f1ba6023003349f73179a98cf2f2f7f0cbd923e6cb4e0dc0c2308537d4"
+    },
+    {
+      "name": "min-fraction-reached-from-below",
+      "text": "{\"t\":0.00000999999999999999999}",
+      "canonical": "{\"t\":0.00001}",
+      "sha384": "sha384:4eef7a00ae80f4f5beb7ade9cb637335e335c201879e6f682bc6edd60728621aad7c4ce6beae1b53e6ce0d72cb7fa7f6"
+    },
+    {
+      "name": "small-fraction-long",
+      "text": "{\"t\":0.000012345678901234567}",
+      "canonical": "{\"t\":0.000012345678901234568}",
+      "sha384": "sha384:b024aea3b9c28832b125bf004f7c6af8db5582cefc89a02276d7b97519a702cec6577fd5d949f636fc4796fdc11ad07e"
+    },
+    {
+      "name": "underflow-to-zero",
+      "text": "{\"t\":1e-400}",
+      "canonical": "{\"t\":0}",
+      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
+    },
+    {
+      "name": "negative-underflow-to-zero",
+      "text": "{\"t\":-1e-400}",
+      "canonical": "{\"t\":0}",
+      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
+    },
+    {
+      "name": "below-half-the-smallest-double-is-zero",
+      "text": "{\"t\":2e-324}",
+      "canonical": "{\"t\":0}",
+      "sha384": "sha384:caade6e0c531159f7248df8c92f4adeeb9640e7cc7be9a88b23483322afbbe57a05172d17ba113b530a3df210b755a41"
+    },
+    {
+      "name": "escape-u0041-is-A",
+      "text": "{\"s\":\"\\u0041\"}",
+      "canonical": "{\"s\":\"A\"}",
+      "sha384": "sha384:4a06b5befab88ea2c1ca91c760b0581b016a6ae35d0245784c1046617569120dc37d8867d0f4084c204759c669d9908a"
+    },
+    {
+      "name": "escape-hex-digits-in-either-case",
+      "text": "{\"s\":\"\\u00e9\\u00E9\"}",
+      "canonical": "{\"s\":\"\u00e9\u00e9\"}",
+      "sha384": "sha384:b1def0427547421ac488d011a45365f0f43aca6d8ed7a8c3bbfad912a591b1e377850dce8bc0269d97c523a8a0c54c52"
+    },
+    {
+      "name": "escape-solidus",
+      "text": "{\"s\":\"\\/\"}",
+      "canonical": "{\"s\":\"/\"}",
+      "sha384": "sha384:13b2734a6e7f221bdc62fa5cea6631d61d3587a0c22616f00f5f4b8cdd6b539a361394c042b1837bab986de8a4baa706"
+    },
+    {
+      "name": "escape-short-forms",
+      "text": "{\"s\":\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"}",
+      "canonical": "{\"s\":\"\\\"\\\\/\\b\\f\\n\\r\\t\"}",
+      "sha384": "sha384:c68d1d3a3dd91683bb72bee7318b60c4ead0f7052dcbad3802249e83966d5ffc9345f92ab0ea55975e2b7e89a5469345"
+    },
+    {
+      "name": "escape-every-c0-control",
+      "text": "{\"s\":\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\u0008\\u0009\\u000a\\u000b\\u000c\\u000d\\u000e\\u000f\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"}",
+      "canonical": "{\"s\":\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\b\\t\\n\\u000b\\f\\r\\u000e\\u000f\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"}",
+      "sha384": "sha384:31ea559ab067fac2758de9567fa4841a433dfc409780ce2dbd08d676a4bf77c769e11450fc1faca98e6c1ec31900ad36"
+    },
+    {
+      "name": "del-escaped",
+      "text": "{\"s\":\"\\u007f\"}",
+      "canonical": "{\"s\":\"\u007f\"}",
+      "sha384": "sha384:50dacdb8b3f1d0ae637fc0afb0bc844697bca4bd98da679b20778eeae323e6ffcd1c37083f516f29a50b022e89e9dee8"
+    },
+    {
+      "name": "del-literal",
+      "text": "{\"s\":\"\u007f\"}",
+      "canonical": "{\"s\":\"\u007f\"}",
+      "sha384": "sha384:50dacdb8b3f1d0ae637fc0afb0bc844697bca4bd98da679b20778eeae323e6ffcd1c37083f516f29a50b022e89e9dee8"
+    },
+    {
+      "name": "c1-controls-escaped",
+      "text": "{\"s\":\"\\u0080\\u0085\\u009f\"}",
+      "canonical": "{\"s\":\"\u0080\u0085\u009f\"}",
+      "sha384": "sha384:dd7aea3594d9a58ab463be5103d4937bada509288254a0c30407b615c4d4daf2b9806fb4e05f05a4efd06a8f87ef58de"
+    },
+    {
+      "name": "c1-controls-literal",
+      "text": "{\"s\":\"\u0080\u0085\u009f\"}",
+      "canonical": "{\"s\":\"\u0080\u0085\u009f\"}",
+      "sha384": "sha384:dd7aea3594d9a58ab463be5103d4937bada509288254a0c30407b615c4d4daf2b9806fb4e05f05a4efd06a8f87ef58de"
+    },
+    {
+      "name": "line-separators-escaped",
+      "text": "{\"s\":\"\\u2028\\u2029\"}",
+      "canonical": "{\"s\":\"\u2028\u2029\"}",
+      "sha384": "sha384:dc0b26f0acf05e70dff7978b0a8e188a35b05e5891169d9898bc5cbc90d0509593e2895b13830b4dae7cf7f2c97d8ad8"
+    },
+    {
+      "name": "line-separators-literal",
+      "text": "{\"s\":\"\u2028\u2029\"}",
+      "canonical": "{\"s\":\"\u2028\u2029\"}",
+      "sha384": "sha384:dc0b26f0acf05e70dff7978b0a8e188a35b05e5891169d9898bc5cbc90d0509593e2895b13830b4dae7cf7f2c97d8ad8"
+    },
+    {
+      "name": "byte-order-mark-inside-a-string-escaped",
+      "text": "{\"s\":\"\\ufeff\"}",
+      "canonical": "{\"s\":\"\ufeff\"}",
+      "sha384": "sha384:4bdc19ba7bea3ac6895fe2b2beb277432707a356340b70288df916be37a31572545f1a24193f6cd2bb451771d9eff355"
+    },
+    {
+      "name": "byte-order-mark-inside-a-string-literal",
+      "text": "{\"s\":\"\ufeff\"}",
+      "canonical": "{\"s\":\"\ufeff\"}",
+      "sha384": "sha384:4bdc19ba7bea3ac6895fe2b2beb277432707a356340b70288df916be37a31572545f1a24193f6cd2bb451771d9eff355"
+    },
+    {
+      "name": "bidi-and-zero-width-escaped",
+      "text": "{\"s\":\"\\u202e\\u2066\\u200f\\u200b\\u200d\\u00ad\"}",
+      "canonical": "{\"s\":\"\u202e\u2066\u200f\u200b\u200d\u00ad\"}",
+      "sha384": "sha384:0c9defc6dc4b46ab99d3f93e81b2c1d791d9cb037301332bcd0bb0987c404312308589d6b459ac7d3988f05207f9db12"
+    },
+    {
+      "name": "noncharacters-escaped",
+      "text": "{\"s\":\"\\uffff\\ufffe\"}",
+      "canonical": "{\"s\":\"\uffff\ufffe\"}",
+      "sha384": "sha384:886a5c658f6c845b9cd1c42390e803863fc61e90c561641dc15005e1860e2a3679f752f9cb8203d0dec40c514e294986"
+    },
+    {
+      "name": "surrogate-pair-escape",
+      "text": "{\"s\":\"\\ud83d\\ude00\"}",
+      "canonical": "{\"s\":\"\ud83d\ude00\"}",
+      "sha384": "sha384:77f02cb82db8411823b5ea6b44c1564ff01bf16395875768df406a9672245f8e858396d7140a4d3e72b50159483b5857"
+    },
+    {
+      "name": "surrogate-pair-escape-uppercase",
+      "text": "{\"s\":\"\\uD83D\\uDE00\"}",
+      "canonical": "{\"s\":\"\ud83d\ude00\"}",
+      "sha384": "sha384:77f02cb82db8411823b5ea6b44c1564ff01bf16395875768df406a9672245f8e858396d7140a4d3e72b50159483b5857"
+    },
+    {
+      "name": "astral-literal",
+      "text": "{\"s\":\"\ud83d\ude00\"}",
+      "canonical": "{\"s\":\"\ud83d\ude00\"}",
+      "sha384": "sha384:77f02cb82db8411823b5ea6b44c1564ff01bf16395875768df406a9672245f8e858396d7140a4d3e72b50159483b5857"
+    },
+    {
+      "name": "astral-first-and-last-escaped",
+      "text": "{\"s\":\"\\ud800\\udc00\\udbff\\udfff\"}",
+      "canonical": "{\"s\":\"\ud800\udc00\udbff\udfff\"}",
+      "sha384": "sha384:74ad6f8a7a05ad1a8f17493883dd781ae96778cf98980f4470092efebe0c1d178759dbe2e8ce5797b6ed1c9f7bd432ce"
+    },
+    {
+      "name": "key-escape-is-unescaped-before-sorting",
+      "text": "{\"\\u0062\":1,\"a\":2}",
+      "canonical": "{\"a\":2,\"b\":1}",
+      "sha384": "sha384:726f41a2a7dff459c28343215d8366c197f0e9ea79370f66983263768c1543ade6916bea8455f60c340922ec1ac10488"
+    },
+    {
+      "name": "key-empty-and-ascii-order",
+      "text": "{\"\":1,\"a\":2,\"A\":3,\"0\":4,\"_\":5,\" \":6}",
+      "canonical": "{\"\":1,\" \":6,\"0\":4,\"A\":3,\"_\":5,\"a\":2}",
+      "sha384": "sha384:ffeff115745c33dae804ae802ea2901969d12255b0965cffeb098eb6e169a9133b91d2af874cb2e5ea5917789c717b49"
+    },
+    {
+      "name": "key-prefix-order",
+      "text": "{\"aa\":1,\"a\":2,\"ab\":3,\"b\":4}",
+      "canonical": "{\"a\":2,\"aa\":1,\"ab\":3,\"b\":4}",
+      "sha384": "sha384:b9a98fd5afbbad6e435d0599095520c9d9d1847234f85976511d096387840c4321eaf8f527954a3ad4c4adbb44425399"
+    },
+    {
+      "name": "key-not-normalized",
+      "text": "{\"e\\u0301\":1,\"\\u00e9\":2}",
+      "canonical": "{\"e\u0301\":1,\"\u00e9\":2}",
+      "sha384": "sha384:9c58ec4651e1f2ac62fdafa4e0e3cca094c857e7fc1d24a731e2811d2f3c6baf1a3fe78140655c289a9548151cddcf4f"
+    },
+    {
+      "name": "key-latin1-order",
+      "text": "{\"\\u00e9\":1,\"z\":2,\"\\u00df\":3,\"~\":4,\"\\u007f\":5,\"\\u0080\":6}",
+      "canonical": "{\"z\":2,\"~\":4,\"\u007f\":5,\"\u0080\":6,\"\u00df\":3,\"\u00e9\":1}",
+      "sha384": "sha384:35442643f40a7172411e04b56f5a0871d4dc6f922d10008ada885ceda61c498270c78c7794825ef232c173a3b4c95239"
+    },
+    {
+      "name": "key-order-is-code-point-not-utf16",
+      "text": "{\"\\ud800\\udc00\":1,\"\\ue000\":2,\"\\uffff\":3,\"\\ud7ff\":4,\"\\udbff\\udfff\":5}",
+      "canonical": "{\"\ud7ff\":4,\"\ue000\":2,\"\uffff\":3,\"\ud800\udc00\":1,\"\udbff\udfff\":5}",
+      "sha384": "sha384:fafc9be6f25bda3b1cbba03d743a20d1e875f436031ba07fdc5b60123c094030827b17cd83d3f2418ad4a3705a308473"
+    },
+    {
+      "name": "insignificant-whitespace",
+      "text": "\n\t {\"b\" :\r\n 1 , \"a\":[ 1 ,2 ] } \n",
+      "canonical": "{\"a\":[1,2],\"b\":1}",
+      "sha384": "sha384:7d97eb4c02e86d6c86be01d728ccce9f6246b70f83fdfe86df28e0fa37b8e941a79d171e5033b46fc49fa661b6786553"
+    },
+    {
+      "name": "array-order-is-kept",
+      "text": "[3,1,2,{\"b\":1,\"a\":2},[],\"x\",null,true,false]",
+      "canonical": "[3,1,2,{\"a\":2,\"b\":1},[],\"x\",null,true,false]",
+      "sha384": "sha384:41e6e3ae293958947a86a5aefe0ec57bc39470bdefd7eeb7e16149ebbdc95b2254b659cbb50b111aff7d4588ab412551"
+    },
+    {
+      "name": "top-level-number",
+      "text": "10.0",
+      "canonical": "10",
+      "sha384": "sha384:b1769933399d67ba4d8128a5769841233712ff8b69ac6828285f6c085eb888d052bff30e94f9b280e9808235b0ced7f4"
+    },
+    {
+      "name": "top-level-string",
+      "text": "\"\\u0041\"",
+      "canonical": "\"A\"",
+      "sha384": "sha384:bec32679b1d5cbed098d73b7c10d055831be8444e5d7c25632373f6d1223c0f4bf1a231e737999cff8e5d4e9b83fb5fe"
     }
   ],
   "invalid": [
@@ -172,28 +542,314 @@
       "value": {
         "t": 1e+21
       },
-      "reason": "renders exponential (1e+21 vs 1e21)"
+      "reason": "renders exponential (1e+21 vs 1e21)",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
     },
     {
       "name": "exp-small",
       "value": {
         "t": 1e-7
       },
-      "reason": "renders exponential"
+      "reason": "renders exponential",
+      "refusal": {
+        "ts": "below 1e-5",
+        "rs": "below 1e-5"
+      }
     },
     {
       "name": "below-min-fraction",
       "value": {
         "t": 0.000001
       },
-      "reason": "ryu renders 1e-6, JS stays fixed"
+      "reason": "ryu renders 1e-6, JS stays fixed",
+      "refusal": {
+        "ts": "below 1e-5",
+        "rs": "below 1e-5"
+      }
     },
     {
       "name": "negative-exp-large",
       "value": {
         "t": -1e+21
       },
-      "reason": "renders exponential"
+      "reason": "renders exponential",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "integer-2-pow-53",
+      "text": "{\"t\":9007199254740992}",
+      "reason": "2^53: above the largest exact integer",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "integer-2-pow-53-plus-1",
+      "text": "{\"t\":9007199254740993}",
+      "reason": "2^53+1: a double cannot hold it (it reads as 2^53); an integer type can, and must refuse it too",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "negative-integer-2-pow-53",
+      "text": "{\"t\":-9007199254740992}",
+      "reason": "-(2^53)",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "float-2-pow-53",
+      "text": "{\"t\":9007199254740992.0}",
+      "reason": "2^53 written as a float",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "exponent-2-pow-53",
+      "text": "{\"t\":9.007199254740992e15}",
+      "reason": "2^53 written with an exponent",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "rounds-up-to-2-pow-53",
+      "text": "{\"t\":9007199254740991.5}",
+      "reason": "halfway between 2^53-1 and 2^53: rounds to even, 2^53",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "u64-max",
+      "text": "{\"t\":18446744073709551615}",
+      "reason": "2^64-1",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "above-u64",
+      "text": "{\"t\":18446744073709551616}",
+      "reason": "2^64: past every 64-bit integer type",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "below-i64",
+      "text": "{\"t\":-9223372036854775809}",
+      "reason": "-(2^63)-1: past every 64-bit integer type",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "exponent-1e16",
+      "text": "{\"t\":1e16}",
+      "reason": "the first power of ten above 2^53",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "exponent-1e21",
+      "text": "{\"t\":1e21}",
+      "reason": "renders exponential in at least one implementation",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "largest-double",
+      "text": "{\"t\":1.7976931348623157e308}",
+      "reason": "finite, and far above 2^53-1",
+      "refusal": {
+        "ts": "exceeds 2^53-1",
+        "rs": "exceeds 2^53-1"
+      }
+    },
+    {
+      "name": "fraction-1e-7",
+      "text": "{\"t\":1e-7}",
+      "reason": "renders exponential in at least one implementation",
+      "refusal": {
+        "ts": "below 1e-5",
+        "rs": "below 1e-5"
+      }
+    },
+    {
+      "name": "fraction-1e-6-in-fixed-notation",
+      "text": "{\"t\":0.000001}",
+      "reason": "renders exponential in at least one implementation",
+      "refusal": {
+        "ts": "below 1e-5",
+        "rs": "below 1e-5"
+      }
+    },
+    {
+      "name": "fraction-49e-7",
+      "text": "{\"t\":49e-7}",
+      "reason": "0.0000049",
+      "refusal": {
+        "ts": "below 1e-5",
+        "rs": "below 1e-5"
+      }
+    },
+    {
+      "name": "min-fraction-missed-from-below",
+      "text": "{\"t\":0.0000099999999999999999}",
+      "reason": "one digit short of min-fraction-reached-from-below: rounds to the double just under 1e-5",
+      "refusal": {
+        "ts": "below 1e-5",
+        "rs": "below 1e-5"
+      }
+    },
+    {
+      "name": "smallest-double",
+      "text": "{\"t\":5e-324}",
+      "reason": "the smallest positive double",
+      "refusal": {
+        "ts": "below 1e-5",
+        "rs": "below 1e-5"
+      }
+    },
+    {
+      "name": "overflow",
+      "text": "{\"t\":1e400}",
+      "reason": "no finite double",
+      "refusal": {
+        "ts": "non-finite number",
+        "rs": "number out of range"
+      }
+    },
+    {
+      "name": "overflow-negative",
+      "text": "{\"t\":-1e400}",
+      "reason": "no finite double",
+      "refusal": {
+        "ts": "non-finite number",
+        "rs": "number out of range"
+      }
+    },
+    {
+      "name": "just-above-the-largest-double",
+      "text": "{\"t\":1.7976931348623159e308}",
+      "reason": "rounds to infinity",
+      "refusal": {
+        "ts": "non-finite number",
+        "rs": "number out of range"
+      }
+    },
+    {
+      "name": "lone-high-surrogate-escape",
+      "text": "{\"s\":\"\\ud800\"}",
+      "reason": "a high surrogate with no low surrogate after it",
+      "refusal": {
+        "ts": "lone surrogate",
+        "rs": "unexpected end of hex escape"
+      }
+    },
+    {
+      "name": "lone-low-surrogate-escape",
+      "text": "{\"s\":\"\\udc00\"}",
+      "reason": "a low surrogate with no high surrogate before it",
+      "refusal": {
+        "ts": "lone surrogate",
+        "rs": "lone leading surrogate"
+      }
+    },
+    {
+      "name": "high-surrogate-then-a-character",
+      "text": "{\"s\":\"\\ud83dx\"}",
+      "reason": "a high surrogate followed by an ordinary character",
+      "refusal": {
+        "ts": "lone surrogate",
+        "rs": "unexpected end of hex escape"
+      }
+    },
+    {
+      "name": "high-surrogate-then-an-escaped-letter",
+      "text": "{\"s\":\"\\ud83d\\u0041\"}",
+      "reason": "a high surrogate followed by an escape that is not a low surrogate",
+      "refusal": {
+        "ts": "lone surrogate",
+        "rs": "lone leading surrogate"
+      }
+    },
+    {
+      "name": "surrogates-reversed",
+      "text": "{\"s\":\"\\ude00\\ud83d\"}",
+      "reason": "low surrogate first",
+      "refusal": {
+        "ts": "lone surrogate",
+        "rs": "lone leading surrogate"
+      }
+    },
+    {
+      "name": "lone-surrogate-in-a-member-name",
+      "text": "{\"\\ud800\":1}",
+      "reason": "a member name is a string too",
+      "refusal": {
+        "ts": "lone surrogate",
+        "rs": "unexpected end of hex escape"
+      }
+    },
+    {
+      "name": "raw-tab-in-a-string",
+      "text": "{\"s\":\"\t\"}",
+      "reason": "U+0009 unescaped",
+      "refusal": {
+        "ts": "not JSON",
+        "rs": "control character"
+      }
+    },
+    {
+      "name": "raw-newline-in-a-string",
+      "text": "{\"s\":\"\n\"}",
+      "reason": "U+000A unescaped",
+      "refusal": {
+        "ts": "not JSON",
+        "rs": "control character"
+      }
+    },
+    {
+      "name": "raw-nul-in-a-string",
+      "text": "{\"s\":\"\u0000\"}",
+      "reason": "U+0000 unescaped",
+      "refusal": {
+        "ts": "not JSON",
+        "rs": "control character"
+      }
+    },
+    {
+      "name": "raw-unit-separator-in-a-string",
+      "text": "{\"s\":\"\u001f\"}",
+      "reason": "U+001F unescaped",
+      "refusal": {
+        "ts": "not JSON",
+        "rs": "control character"
+      }
     }
   ]
 }

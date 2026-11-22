@@ -55,56 +55,326 @@ import type { Traveler, Quote } from "../src/lib/traveler/types.ts";
 const here = new URL(".", import.meta.url).pathname;
 
 /* ---------- canonicalization vectors ---------- */
+//
+// A case gives its input in exactly one of two ways:
+//
+//   value   a JSON value. How the vector file spells it is NOT part of the test: the file
+//           is written by JSON.stringify, which writes -0 as 0 and 10.0 as 10.
+//   text    the exact JSON text. Its spelling IS the test (`10.0`, `-0`, `1e2`, a letter
+//           written as an escape): each runner parses it with its own JSON parser, then
+//           canonicalizes what it got.
+//
+// A case named for a spelling must be a text case. `negative-zero` used to be the value
+// { t: -0 }, which reached the file as {"t":0} — neither runner was ever shown a negative
+// zero, and nothing was ever shown `10.0`. A value case that does not survive the trip to
+// the file is refused below.
+//
+// No invisible character appears in this source: one that is not printable ASCII is built
+// from its code point, and the vector file is written in ASCII, every other character as
+// a \uXXXX escape a reviewer can see.
+//
+// (In a block so none of these names can collide with a later section of this file.)
+{
+  type Input = { value: unknown; text?: undefined } | { text: string; value?: undefined };
+  type ValidCase = { name: string } & Input;
+  type InvalidCase = ValidCase & {
+    /** What is wrong with the input, for a reader. */
+    reason: string;
+    /** A fragment of each reference implementation's own refusal, so the case cannot pass
+     *  by being refused for some other defect. `ts` is checked here, `rs` by the Rust
+     *  runner. For TypeScript, "not JSON" means JSON.parse itself rejected the text. */
+    refusal: { ts: string; rs: string };
+  };
 
-const validValues: Array<{ name: string; value: unknown }> = [
-  { name: "sorted-keys", value: { b: 1, a: 2 } },
-  { name: "nested-sort", value: { z: { d: 4, c: [3, { b: 2, a: 1 }] }, a: null } },
-  { name: "integer", value: { t: 10 } },
-  { name: "decimal", value: { t: 9.53 } },
-  { name: "negative-zero", value: { t: -0 } },
-  { name: "min-fraction", value: { t: 0.00001 } },
-  { name: "max-safe-integer", value: { t: 9007199254740991 } },
-  { name: "negative-decimal", value: { t: -12.75 } },
-  { name: "string-escapes", value: { s: 'a"b\\c\nd\te' } },
-  { name: "unicode-raw-utf8", value: { s: "café ± µm Ø12" } },
-  { name: "empty-structures", value: { obj: {}, arr: [], s: "" } },
-  { name: "booleans-null", value: { t: true, f: false, n: null } },
-  { name: "key-order-digits", value: { "10": 1, "2": 2, A: 3, a: 4 } },
-  // Long-decimal floats (regression): both implementations must parse to the
-  // same f64 and render identically. Requires serde_json's float_roundtrip on
-  // the Rust side; without it these hash differently across implementations.
-  { name: "long-decimal", value: { t: 223.23501793805622 } },
-  { name: "long-decimal-negative", value: { t: -946696.1927003545 } },
-  { name: "long-decimal-large", value: { t: 4435404841756971.5 } },
-  // Astral-plane object keys must sort by code point identically on both sides
-  // (JS default UTF-16 order would put U+1F600 before U+FFFF; both must agree).
-  { name: "astral-key-order", value: { "\u{1F600}": 1, "￿": 2 } },
-  { name: "astral-string-value", value: { s: "grüß 😀 \u{1F680}" } },
-];
+  const cp = (...codes: number[]): string => String.fromCodePoint(...codes);
+  /** The text `{"t":<literal>}`, the literal exactly as written. */
+  const num = (literal: string): string => `{"t":${literal}}`;
+  /** The text `{"s":"<body>"}`, the body exactly as written (escapes and all). */
+  const str = (body: string): string => `{"s":"${body}"}`;
+  /** A JSON `\uXXXX` escape, as text. */
+  const esc = (code: number): string => `\\u${code.toString(16).padStart(4, "0")}`;
 
-const invalidValues: Array<{ name: string; value: unknown; reason: string }> = [
-  { name: "exp-large", value: { t: 1e21 }, reason: "renders exponential (1e+21 vs 1e21)" },
-  { name: "exp-small", value: { t: 1e-7 }, reason: "renders exponential" },
-  { name: "below-min-fraction", value: { t: 0.000001 }, reason: "ryu renders 1e-6, JS stays fixed" },
-  { name: "negative-exp-large", value: { t: -1e21 }, reason: "renders exponential" },
-];
+  const valid: ValidCase[] = [
+    { name: "sorted-keys", value: { b: 1, a: 2 } },
+    { name: "nested-sort", value: { z: { d: 4, c: [3, { b: 2, a: 1 }] }, a: null } },
+    { name: "integer", value: { t: 10 } },
+    { name: "decimal", value: { t: 9.53 } },
+    { name: "min-fraction", value: { t: 0.00001 } },
+    { name: "max-safe-integer", value: { t: 9007199254740991 } },
+    { name: "negative-decimal", value: { t: -12.75 } },
+    { name: "string-escapes", value: { s: 'a"b\\c\nd\te' } },
+    { name: "unicode-raw-utf8", value: { s: "café ± µm Ø12" } },
+    { name: "empty-structures", value: { obj: {}, arr: [], s: "" } },
+    { name: "booleans-null", value: { t: true, f: false, n: null } },
+    { name: "key-order-digits", value: { "10": 1, "2": 2, A: 3, a: 4 } },
+    // Long-decimal floats (regression): both implementations must parse to the
+    // same f64 and render identically. Requires serde_json's float_roundtrip on
+    // the Rust side; without it these hash differently across implementations.
+    { name: "long-decimal", value: { t: 223.23501793805622 } },
+    { name: "long-decimal-negative", value: { t: -946696.1927003545 } },
+    { name: "long-decimal-large", value: { t: 4435404841756971.5 } },
+    // Astral-plane object keys must sort by code point identically on both sides
+    // (JS default UTF-16 order would put U+1F600 before U+FFFF; both must agree).
+    { name: "astral-key-order", value: { [cp(0x1f600)]: 1, [cp(0xffff)]: 2 } },
+    { name: "astral-string-value", value: { s: `grüß ${cp(0x1f600)} ${cp(0x1f680)}` } },
 
-const canonical = {
-  spec: "sje/0.1.0",
-  note:
-    "Valid: implementations MUST produce exactly `canonical` and `sha384` for `value`. " +
-    "Invalid: implementations MUST refuse to canonicalize `value`. " +
-    "Integers above 2^53-1 are also refused but cannot be expressed in a shared JSON " +
-    "vector file (JSON.parse in JavaScript loses their precision), so that rule is " +
-    "covered by language-local unit tests on both sides.",
-  valid: validValues.map(({ name, value }) => {
-    const c = canonicalJson(value);
-    return { name, value, canonical: c, sha384: `sha384:${bytesToHex(sha384(utf8ToBytes(c)))}` };
-  }),
-  invalid: invalidValues,
-};
+    // ---- numbers, by spelling: integer-valued floats and zero ----
+    { name: "integer-valued-float", text: num("10.0") },
+    { name: "integer-valued-float-one", text: num("1.0") },
+    { name: "negative-zero", text: num("-0") },
+    { name: "negative-zero-float", text: num("-0.0") },
+    { name: "zero-float", text: num("0.0") },
+    { name: "zero-in-every-spelling", text: "[0,-0,0.0,-0.0,0e0,-0e-0,0E+0]" },
+    // ---- exponent forms of numbers inside the canonical range ----
+    { name: "exponent", text: num("1e2") },
+    { name: "exponent-uppercase", text: num("1E2") },
+    { name: "exponent-plus-sign", text: num("1e+2") },
+    { name: "exponent-negative", text: num("100e-2") },
+    { name: "exponent-with-fraction", text: num("1.5e1") },
+    { name: "exponent-of-a-negative-number", text: num("-1e2") },
+    { name: "exponent-min-fraction", text: num("1e-5") },
+    { name: "exponent-leading-zeros", text: num("1e-05") },
+    { name: "exponent-large-in-range", text: num("1e15") },
+    { name: "exponent-max-safe-integer", text: num("9.007199254740991e15") },
+    { name: "ten-in-five-spellings", text: "[10.0,1e1,10,1.0e1,100e-1]" },
+    { name: "trailing-fraction-zeros", text: num("1.50") },
+    // ---- the 2^53 and 2^52 boundaries (a double holds every integer up to 2^53; above
+    //      2^52 it holds nothing but integers) ----
+    { name: "max-safe-integer-as-float", text: num("9007199254740991.0") },
+    { name: "min-safe-integer", text: num("-9007199254740991") },
+    { name: "half-below-max-safe-integer-rounds-to-even", text: num("9007199254740990.5") },
+    { name: "half-above-2-pow-52-rounds-to-even", text: num("4503599627370496.5") },
+    { name: "half-below-2-pow-52-is-exact", text: num("4503599627370495.5") },
+    { name: "sixteen-digit-integer-part-with-fraction", text: num("1234567890123456.7") },
+    // ---- more digits than a double holds: the parse must round correctly ----
+    { name: "seventeen-significant-digits", text: num("0.30000000000000004") },
+    { name: "more-digits-than-a-double-holds", text: num("0.1000000000000000055511151231257827") },
+    { name: "tie-rounds-to-even", text: num("1.00000000000000011102230246251565404236316680908203125") },
+    { name: "just-above-a-tie-rounds-up", text: num("1.00000000000000011102230246251565404236316680908203126") },
+    { name: "just-below-a-tie-rounds-down", text: num("1.00000000000000011102230246251565404236316680908203124") },
+    { name: "min-fraction-reached-from-below", text: num(`0.00000${"9".repeat(18)}`) },
+    { name: "small-fraction-long", text: num("0.000012345678901234567") },
+    // ---- a literal too small for a double is zero, and zero is canonical ----
+    { name: "underflow-to-zero", text: num("1e-400") },
+    { name: "negative-underflow-to-zero", text: num("-1e-400") },
+    { name: "below-half-the-smallest-double-is-zero", text: num("2e-324") },
 
-writeFileSync(`${here}/canonical.json`, JSON.stringify(canonical, null, 2) + "\n");
+    // ---- strings, by spelling: an escape and the character it names are one string ----
+    { name: "escape-u0041-is-A", text: str(esc(0x41)) },
+    { name: "escape-hex-digits-in-either-case", text: str("\\u00e9\\u00E9") },
+    { name: "escape-solidus", text: str("\\/") },
+    { name: "escape-short-forms", text: str('\\"\\\\\\/\\b\\f\\n\\r\\t') },
+    { name: "escape-every-c0-control", text: str(Array.from({ length: 0x20 }, (_, code) => esc(code)).join("")) },
+    { name: "del-escaped", text: str(esc(0x7f)) },
+    { name: "del-literal", text: str(cp(0x7f)) },
+    { name: "c1-controls-escaped", text: str(esc(0x80) + esc(0x85) + esc(0x9f)) },
+    { name: "c1-controls-literal", text: str(cp(0x80, 0x85, 0x9f)) },
+    { name: "line-separators-escaped", text: str(esc(0x2028) + esc(0x2029)) },
+    { name: "line-separators-literal", text: str(cp(0x2028, 0x2029)) },
+    { name: "byte-order-mark-inside-a-string-escaped", text: str(esc(0xfeff)) },
+    { name: "byte-order-mark-inside-a-string-literal", text: str(cp(0xfeff)) },
+    { name: "bidi-and-zero-width-escaped", text: str([0x202e, 0x2066, 0x200f, 0x200b, 0x200d, 0xad].map(esc).join("")) },
+    { name: "noncharacters-escaped", text: str(esc(0xffff) + esc(0xfffe)) },
+    { name: "surrogate-pair-escape", text: str("\\ud83d\\ude00") },
+    { name: "surrogate-pair-escape-uppercase", text: str("\\uD83D\\uDE00") },
+    { name: "astral-literal", text: str(cp(0x1f600)) },
+    { name: "astral-first-and-last-escaped", text: str("\\ud800\\udc00\\udbff\\udfff") },
+    // ---- member names: unescaped, then sorted by code point, never normalized ----
+    { name: "key-escape-is-unescaped-before-sorting", text: `{"${esc(0x62)}":1,"a":2}` },
+    { name: "key-empty-and-ascii-order", text: '{"":1,"a":2,"A":3,"0":4,"_":5," ":6}' },
+    { name: "key-prefix-order", text: '{"aa":1,"a":2,"ab":3,"b":4}' },
+    { name: "key-not-normalized", text: `{"e${esc(0x301)}":1,"${esc(0xe9)}":2}` },
+    { name: "key-latin1-order", text: `{"${esc(0xe9)}":1,"z":2,"${esc(0xdf)}":3,"~":4,"${esc(0x7f)}":5,"${esc(0x80)}":6}` },
+    {
+      name: "key-order-is-code-point-not-utf16",
+      text: `{"\\ud800\\udc00":1,"${esc(0xe000)}":2,"${esc(0xffff)}":3,"${esc(0xd7ff)}":4,"\\udbff\\udfff":5}`,
+    },
+    // ---- structure ----
+    { name: "insignificant-whitespace", text: '\n\t {"b" :\r\n 1 , "a":[ 1 ,2 ] } \n' },
+    { name: "array-order-is-kept", text: '[3,1,2,{"b":1,"a":2},[],"x",null,true,false]' },
+    { name: "top-level-number", text: "10.0" },
+    { name: "top-level-string", text: `"${esc(0x41)}"` },
+  ];
+
+  const TOO_BIG = { ts: "exceeds 2^53-1", rs: "exceeds 2^53-1" };
+  const TOO_SMALL = { ts: "below 1e-5", rs: "below 1e-5" };
+  const OVERFLOW = { ts: "non-finite number", rs: "number out of range" };
+  const RAW_CONTROL = { ts: "not JSON", rs: "control character" };
+  const exponential = "renders exponential in at least one implementation";
+
+  const invalid: InvalidCase[] = [
+    { name: "exp-large", value: { t: 1e21 }, reason: "renders exponential (1e+21 vs 1e21)", refusal: TOO_BIG },
+    { name: "exp-small", value: { t: 1e-7 }, reason: "renders exponential", refusal: TOO_SMALL },
+    { name: "below-min-fraction", value: { t: 0.000001 }, reason: "ryu renders 1e-6, JS stays fixed", refusal: TOO_SMALL },
+    { name: "negative-exp-large", value: { t: -1e21 }, reason: "renders exponential", refusal: TOO_BIG },
+
+    // ---- above 2^53-1: no longer exact in a double. (A value case cannot carry these: a
+    //      JavaScript reader of the vector file would already have rounded them.) ----
+    { name: "integer-2-pow-53", text: num("9007199254740992"), reason: "2^53: above the largest exact integer", refusal: TOO_BIG },
+    {
+      name: "integer-2-pow-53-plus-1",
+      text: num("9007199254740993"),
+      reason: "2^53+1: a double cannot hold it (it reads as 2^53); an integer type can, and must refuse it too",
+      refusal: TOO_BIG,
+    },
+    { name: "negative-integer-2-pow-53", text: num("-9007199254740992"), reason: "-(2^53)", refusal: TOO_BIG },
+    { name: "float-2-pow-53", text: num("9007199254740992.0"), reason: "2^53 written as a float", refusal: TOO_BIG },
+    { name: "exponent-2-pow-53", text: num("9.007199254740992e15"), reason: "2^53 written with an exponent", refusal: TOO_BIG },
+    { name: "rounds-up-to-2-pow-53", text: num("9007199254740991.5"), reason: "halfway between 2^53-1 and 2^53: rounds to even, 2^53", refusal: TOO_BIG },
+    { name: "u64-max", text: num("18446744073709551615"), reason: "2^64-1", refusal: TOO_BIG },
+    { name: "above-u64", text: num("18446744073709551616"), reason: "2^64: past every 64-bit integer type", refusal: TOO_BIG },
+    { name: "below-i64", text: num("-9223372036854775809"), reason: "-(2^63)-1: past every 64-bit integer type", refusal: TOO_BIG },
+    { name: "exponent-1e16", text: num("1e16"), reason: "the first power of ten above 2^53", refusal: TOO_BIG },
+    { name: "exponent-1e21", text: num("1e21"), reason: exponential, refusal: TOO_BIG },
+    { name: "largest-double", text: num("1.7976931348623157e308"), reason: "finite, and far above 2^53-1", refusal: TOO_BIG },
+    // ---- a non-integer below 1e-5 ----
+    { name: "fraction-1e-7", text: num("1e-7"), reason: exponential, refusal: TOO_SMALL },
+    { name: "fraction-1e-6-in-fixed-notation", text: num("0.000001"), reason: exponential, refusal: TOO_SMALL },
+    { name: "fraction-49e-7", text: num("49e-7"), reason: "0.0000049", refusal: TOO_SMALL },
+    {
+      name: "min-fraction-missed-from-below",
+      text: num(`0.00000${"9".repeat(17)}`),
+      reason: "one digit short of min-fraction-reached-from-below: rounds to the double just under 1e-5",
+      refusal: TOO_SMALL,
+    },
+    { name: "smallest-double", text: num("5e-324"), reason: "the smallest positive double", refusal: TOO_SMALL },
+    // ---- too large for a double at all ----
+    { name: "overflow", text: num("1e400"), reason: "no finite double", refusal: OVERFLOW },
+    { name: "overflow-negative", text: num("-1e400"), reason: "no finite double", refusal: OVERFLOW },
+    { name: "just-above-the-largest-double", text: num("1.7976931348623159e308"), reason: "rounds to infinity", refusal: OVERFLOW },
+
+    // ---- an escape that names no character ----
+    {
+      name: "lone-high-surrogate-escape",
+      text: str("\\ud800"),
+      reason: "a high surrogate with no low surrogate after it",
+      refusal: { ts: "lone surrogate", rs: "unexpected end of hex escape" },
+    },
+    {
+      name: "lone-low-surrogate-escape",
+      text: str("\\udc00"),
+      reason: "a low surrogate with no high surrogate before it",
+      refusal: { ts: "lone surrogate", rs: "lone leading surrogate" },
+    },
+    {
+      name: "high-surrogate-then-a-character",
+      text: str("\\ud83dx"),
+      reason: "a high surrogate followed by an ordinary character",
+      refusal: { ts: "lone surrogate", rs: "unexpected end of hex escape" },
+    },
+    {
+      name: "high-surrogate-then-an-escaped-letter",
+      text: str(`\\ud83d${esc(0x41)}`),
+      reason: "a high surrogate followed by an escape that is not a low surrogate",
+      refusal: { ts: "lone surrogate", rs: "lone leading surrogate" },
+    },
+    {
+      name: "surrogates-reversed",
+      text: str("\\ude00\\ud83d"),
+      reason: "low surrogate first",
+      refusal: { ts: "lone surrogate", rs: "lone leading surrogate" },
+    },
+    {
+      name: "lone-surrogate-in-a-member-name",
+      text: '{"\\ud800":1}',
+      reason: "a member name is a string too",
+      refusal: { ts: "lone surrogate", rs: "unexpected end of hex escape" },
+    },
+    // ---- a control character written raw inside a string is not JSON; only its escape is ----
+    { name: "raw-tab-in-a-string", text: str(cp(0x09)), reason: "U+0009 unescaped", refusal: RAW_CONTROL },
+    { name: "raw-newline-in-a-string", text: str(cp(0x0a)), reason: "U+000A unescaped", refusal: RAW_CONTROL },
+    { name: "raw-nul-in-a-string", text: str(cp(0x00)), reason: "U+0000 unescaped", refusal: RAW_CONTROL },
+    { name: "raw-unit-separator-in-a-string", text: str(cp(0x1f)), reason: "U+001F unescaped", refusal: RAW_CONTROL },
+  ];
+
+  /** True iff two JSON values are the same value, telling -0 from 0. */
+  const identical = (a: unknown, b: unknown): boolean => {
+    if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) return Object.is(a, b);
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    const [ka, kb] = [Object.keys(a), Object.keys(b)];
+    return (
+      ka.length === kb.length &&
+      ka.every((k) => k in b && identical((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+    );
+  };
+
+  /** What the TypeScript implementation does with a case: canonical bytes, or a refusal. */
+  const outcome = (c: Input): { canonical: string } | { refusal: string } => {
+    let value: unknown;
+    if (c.text !== undefined) {
+      try {
+        value = JSON.parse(c.text);
+      } catch (e) {
+        if (!(e instanceof SyntaxError)) throw e;
+        return { refusal: "not JSON" };
+      }
+    } else {
+      value = c.value;
+    }
+    try {
+      return { canonical: canonicalJson(value) };
+    } catch (e) {
+      return { refusal: e instanceof Error ? e.message : String(e) };
+    }
+  };
+
+  const names = [...valid, ...invalid].map((c) => c.name);
+  const repeated = names.filter((n, i) => names.indexOf(n) !== i);
+  if (repeated.length > 0) throw new Error(`canonical vectors: name used twice: ${repeated.join(", ")}`);
+  for (const c of [...valid, ...invalid]) {
+    if ((c.value === undefined) === (c.text === undefined)) {
+      throw new Error(`canonical vector "${c.name}": give exactly one of value and text`);
+    }
+    if (c.text === undefined && !identical(c.value, JSON.parse(JSON.stringify(c.value)))) {
+      throw new Error(
+        `canonical vector "${c.name}": its value does not survive being written to the vector file ` +
+          "(JSON.stringify changes it), so no runner would be shown it. Give it as text.",
+      );
+    }
+  }
+  const input = (c: Input) => (c.text !== undefined ? { text: c.text } : { value: c.value });
+
+  const canonical = {
+    spec: "sje/0.1.0",
+    note:
+      "Each case gives its input as `value` (a JSON value; how this file spells it is not part of " +
+      "the test) or as `text` (the exact JSON text: parse it with your own JSON parser, then " +
+      "canonicalize the result; the spelling is the test, e.g. 10.0, -0, 1e2, an escaped letter). " +
+      "Valid: implementations MUST produce exactly `canonical` (as UTF-8 bytes) and `sha384`. " +
+      "Invalid: implementations MUST refuse, in the parser or in the canonicalizer, and produce no " +
+      "bytes; `refusal` holds a fragment of each reference implementation's own message (`ts`: " +
+      'TypeScript, where "not JSON" means JSON.parse rejected the text; `rs`: Rust), so a case cannot ' +
+      "pass by being refused for some other defect. A number is read as an IEEE-754 binary64 value " +
+      "(round to nearest, ties to even) before the canonical rule is applied to it. Every `text` is " +
+      "one JSON value with no repeated member name (travelers/reject/ covers those). This file is " +
+      "ASCII: any other character, in a `text` or anywhere else, is written as a \\uXXXX escape of " +
+      "this file's own JSON, so a character that is literal in a `text` shows one backslash here and " +
+      "an escape inside the `text` shows two.",
+    valid: valid.map((c) => {
+      const o = outcome(c);
+      if (!("canonical" in o)) throw new Error(`canonical vector "${c.name}" is listed as valid but is refused: ${o.refusal}`);
+      return { name: c.name, ...input(c), canonical: o.canonical, sha384: `sha384:${bytesToHex(sha384(utf8ToBytes(o.canonical)))}` };
+    }),
+    invalid: invalid.map((c) => {
+      const o = outcome(c);
+      if (!("refusal" in o)) throw new Error(`canonical vector "${c.name}" is listed as invalid but canonicalizes to ${o.canonical}`);
+      if (!o.refusal.includes(c.refusal.ts)) {
+        throw new Error(`canonical vector "${c.name}" is refused for "${o.refusal}", not for "${c.refusal.ts}"`);
+      }
+      return { name: c.name, ...input(c), reason: c.reason, refusal: c.refusal };
+    }),
+  };
+
+  const file =
+    JSON.stringify(canonical, null, 2).replace(
+      /[^\n -~]/g,
+      (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    ) + "\n";
+  if (!identical(JSON.parse(file), JSON.parse(JSON.stringify(canonical)))) {
+    throw new Error("canonical.json: the ASCII rendering does not read back as the same vectors");
+  }
+  writeFileSync(`${here}/canonical.json`, file);
+}
 
 /* ---------- traveler vectors ---------- */
 

@@ -1,0 +1,125 @@
+{
+  "spec": "sje/0.1.0",
+  "schemas": ["traveler-0.1.0.json", "quote-0.1.0.json"],
+  "note": "Every rule a traveler (or quote) must satisfy that traveler-0.1.0.json and quote-0.1.0.json do not state, and why. A document can pass the schemas and still be refused by both reference implementations, but only for a rule listed here. A validator that stops at the schemas accepts documents a conforming implementation refuses. `requires` is the rule. `why` is the reason the schemas do not state it: for most rules JSON Schema 2020-12 has no way to; where a rule could be written out only by enumeration (one definition per nesting level, one clause per possible value), or only for some validators' JSON parsers, the entry says so. `refusal.ts` lists fragments of the TypeScript reference implementation's refusal message that identify the rule. `reject_vectors` names the files under conformance/travelers/reject/ that break this rule and nothing else; each of them passes the schemas. `lenient_reading` is present when a strict JSON reader refuses the text itself, so a schema validator can only be shown what a lenient reader would have produced: `json-parse` is ECMAScript JSON.parse (keeps the last of a repeated member name, no depth or size limit), `strip-bom` removes the leading U+FEFF first, `replace-invalid-utf8` decodes with U+FFFD substitution first. This file is checked by src/lib/traveler/schema-contract.test.ts: a refused document that passes the schemas must be explained by a rule here, every listed vector must still pass the schemas, and every rule must still have a document that shows it.",
+  "rules": [
+    {
+      "rule": "byte-order-mark",
+      "kind": "wire-text",
+      "spec": "docs/SPEC.md, Parsing rule 7",
+      "requires": "The wire text does not begin with a byte-order mark (U+FEFF). It is refused, not stripped.",
+      "why": "A JSON Schema constrains a parsed JSON value. The mark is not part of any value: by the time a validator runs, its parser has already refused the text or silently dropped the mark.",
+      "refusal": { "ts": ["must not start with a byte-order mark"] },
+      "lenient_reading": "strip-bom",
+      "reject_vectors": ["byte-order-mark.json"]
+    },
+    {
+      "rule": "invalid-utf8",
+      "kind": "wire-text",
+      "spec": "docs/SPEC.md, Parsing rule 7",
+      "requires": "The wire text is valid UTF-8. An invalid sequence is refused, not replaced with U+FFFD.",
+      "why": "A JSON Schema constrains a parsed JSON value. A value has no memory of the bytes it was decoded from, or of a substitution the decoder made.",
+      "refusal": { "ts": ["is not valid UTF-8"] },
+      "lenient_reading": "replace-invalid-utf8",
+      "reject_vectors": []
+    },
+    {
+      "rule": "duplicate-member-name",
+      "kind": "wire-text",
+      "spec": "docs/SPEC.md, Parsing rule 6",
+      "requires": "No object, at any depth, has two members with the same name (names compared after JSON unescaping). The document is refused, never resolved first-wins or last-wins.",
+      "why": "A JSON Schema constrains a parsed JSON value, and an object value has one member per name. A repeated name exists only in the text; the parser has already discarded all but one before validation starts.",
+      "refusal": { "ts": ["duplicate member name"] },
+      "lenient_reading": "json-parse",
+      "reject_vectors": [
+        "duplicate-member-blob.json",
+        "duplicate-member-escaped.json",
+        "duplicate-member-shadows-value.json",
+        "duplicate-member-typed.json"
+      ]
+    },
+    {
+      "rule": "document-size",
+      "kind": "wire-text",
+      "spec": "docs/SPEC.md, Parsing rule 8",
+      "requires": "The traveler's wire text is at most 512 KiB (524,288 bytes of UTF-8, white space included). A value with no text is measured by its compact serialization.",
+      "why": "JSON Schema has no keyword for the size of a document or of a serialization. White space between tokens, which counts here, is not part of the value at all.",
+      "refusal": { "ts": ["exceeds 512 KiB"] },
+      "lenient_reading": "json-parse",
+      "reject_vectors": []
+    },
+    {
+      "rule": "nesting-depth",
+      "kind": "wire-text",
+      "spec": "docs/SPEC.md, Parsing rule 9",
+      "requires": "At most 127 containers (objects or arrays) are nested inside one another, counting the traveler itself. Only a free-form object (as_built, assumptions, capacity) can be that deep.",
+      "why": "JSON Schema has no keyword for nesting depth. A bound could only be spelled out as one definition per level, 127 definitions for each place a free-form object may start; these schemas do not attempt it.",
+      "refusal": { "ts": ["nesting exceeds the maximum depth"] },
+      "lenient_reading": "json-parse",
+      "reject_vectors": ["blob-nesting-over-max.json"]
+    },
+    {
+      "rule": "lone-surrogate",
+      "kind": "wire-text",
+      "spec": "docs/SPEC.md, Parsing rule 10",
+      "requires": "No string or member name contains a lone surrogate: an escape \\uD800-\\uDBFF not followed by an escape \\uDC00-\\uDFFF, or the reverse. Such text has no UTF-8 encoding.",
+      "why": "In the JSON data model a string is a sequence of Unicode characters; a lone surrogate is not one. What a validator receives for the escape depends on its parser (a refusal, U+FFFD, or an ill-formed string), so no schema can constrain it portably, and a pattern on every string and member name of a free-form object is not something these schemas attempt.",
+      "refusal": { "ts": ["lone surrogate"] },
+      "reject_vectors": ["lone-surrogate-in-notes.json"]
+    },
+    {
+      "rule": "number-not-binary64",
+      "kind": "wire-text",
+      "spec": "docs/SPEC.md, Parsing rule 11",
+      "requires": "Every number, including those inside a free-form object, rounds to a finite IEEE-754 binary64 value. A literal such as 1e309 is refused.",
+      "why": "The rule is about what a decimal literal rounds to. The exact threshold (2^1024 - 2^970) is not a binary64 value, so a schema cannot carry it as a bound and still be read by a binary64 JSON reader. The nearest bound that can be written, the largest finite binary64, would state the rule only for a validator that reads numbers as binary64; a validator that reads them exactly would refuse literals just above that bound, which both implementations accept (they round down to it). Every typed number in these schemas is already bounded far below this; only numbers inside a free-form object can reach it.",
+      "refusal": { "ts": ["non-finite number"] },
+      "reject_vectors": ["blob-nonfinite-number.json"]
+    },
+    {
+      "rule": "quote-validity-window",
+      "kind": "cross-member",
+      "spec": "docs/SPEC.md, Quotes (the validity rule)",
+      "requires": "A quote's valid_until is later than its created_at, compared as instants.",
+      "why": "JSON Schema 2020-12 cannot compare the value of one member with the value of another.",
+      "refusal": { "ts": ["valid_until must be after created_at"] },
+      "reject_vectors": []
+    },
+    {
+      "rule": "unique-quote-id",
+      "kind": "cross-member",
+      "spec": "docs/SPEC.md, Parsing rule 5",
+      "requires": "Within one traveler, no two quotes share a quote_id.",
+      "why": "JSON Schema's only uniqueness keyword, uniqueItems, compares whole array items. Two quotes with the same quote_id and different prices are different items, so it cannot state uniqueness of one member; and the possible ids cannot be enumerated.",
+      "refusal": { "ts": ["more than one quote with the same quote_id"] },
+      "reject_vectors": ["quote-id-duplicate.json"]
+    },
+    {
+      "rule": "unique-op-seq",
+      "kind": "cross-member",
+      "spec": "docs/SPEC.md, Parsing rule 5",
+      "requires": "Within one traveler, no two ops share a seq.",
+      "why": "uniqueItems compares whole array items; two ops with the same seq and different codes are different items. (A schema could enumerate all 1,000 seq values, one clause each; these schemas do not attempt it.)",
+      "refusal": { "ts": ["more than one op with the same seq"] },
+      "reject_vectors": ["ops-seq-duplicate.json"]
+    },
+    {
+      "rule": "unique-price-line-qty",
+      "kind": "cross-member",
+      "spec": "docs/SPEC.md, Parsing rule 5",
+      "requires": "Within one quote, no two price lines share a qty.",
+      "why": "uniqueItems compares whole array items; two lines with the same qty and different unit prices are different items. (A schema could enumerate all 1,000,000 quantities, one clause each; these schemas do not attempt it.)",
+      "refusal": { "ts": ["more than one price line for the same qty"] },
+      "reject_vectors": ["quote-line-qty-duplicate.json"]
+    },
+    {
+      "rule": "blob-size",
+      "kind": "serialized-size",
+      "spec": "src/lib/traveler/schema.ts (jsonBlob), crates/secure-job-envelope/src/validate.rs (json_blob); docs/CLAIMS.md G10; not yet stated in docs/SPEC.md",
+      "requires": "The compact serialization of each free-form object (as_built, a quote's assumptions and capacity) is at most 8,192 UTF-16 code units. One consequence is checked first: no array anywhere has more than 4,096 elements.",
+      "why": "JSON Schema has no keyword for the size of a serialization.",
+      "refusal": { "ts": ["exceeds 8 KiB", "array is longer than any field allows"] },
+      "reject_vectors": []
+    }
+  ]
+}
