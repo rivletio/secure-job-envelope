@@ -143,13 +143,10 @@ Other limits of this surface:
   reported per quote by `sje_evaluate`.
 - **`price_delta`.** The format does not say whether an exception's `price_delta`
   is per unit or per order; totals add each once, and say so.
-- **Verification work.** Checking a quote's signature re-verifies the whole
-  directory, so the cost is (signed quotes) × (directory size) — and the author
-  of a traveler chooses the first factor. Authorship and the award are always
-  checked. Quote signatures are checked only when all of them fit a fixed work
-  limit (64 signed quotes fit for a directory of up to about 60 entries);
-  otherwise each is reported as *not checked* — never as passed — and
-  `sje_evaluate` says so. Evaluate fewer quotes at a time to have them checked.
+- **Verification work.** A call verifies the key directory once (twice for an
+  ITAR evaluation), whatever the traveler carries, and then each signature
+  present: at most 8 on the traveler, one on the award and one on each of at
+  most 64 quotes. Every signed quote gets a real verdict; none is skipped.
 
 ## The demo
 

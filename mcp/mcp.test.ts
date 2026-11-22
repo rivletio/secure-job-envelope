@@ -1309,6 +1309,38 @@ describe("buyer tools bind to the body the buyer meant (MCP-2, MCP-7)", () => {
     assert.equal(out.award_signed, false);
   });
 
+  it("sje_award: a priced break quantity can be awarded even when the target quantity is not quoted", async () => {
+    // The guard used to ask for a price at the TARGET quantity whatever was awarded.
+    const composed = okOf(
+      await call("sje_compose", { ...COMPOSE, part: { ...COMPOSE.part, part_number: "NL-BRK-4499", qty: { target: 250 } } }),
+    );
+    const quoted = okOf(
+      await call("sje_quote", {
+        traveler: composed.traveler,
+        ...QUOTE_ARGS,
+        pricing: { currency: "USD", lines: [{ qty: 500, unit: 1175 }] },
+      }),
+    );
+    const award = (qty: number) =>
+      call("sje_award", {
+        traveler: quoted.traveler,
+        expected_traveler_hash: composed.traveler_hash,
+        quote_id: quoted.quote_id,
+        qty,
+        ops: OPS,
+        ship_to: SHIP,
+      });
+    // The target itself has no price on this quote: refused, with what is priced.
+    const atTarget = await award(250);
+    assert.match(errorOf(atTarget), /no price line for exactly the quantity awarded/);
+    assert.deepEqual(payload(atTarget).priced_quantities, [500]);
+    // The quantity the quote does price: awarded.
+    const out = okOf(await award(500));
+    assert.equal(out.level, "L2");
+    assert.equal(out.traveler.award.qty, 500);
+    assert.equal(out.award_commits_to.total, 500 * 1175);
+  });
+
   it("sje_award names exactly one bound, unexpired quote", async () => {
     const body = rfq();
     const hash = travelerHash(body);
@@ -2204,10 +2236,13 @@ describe("bounded work (MCP-4)", () => {
     assert.equal(okOf(res).recipient_directory_kid, "bulk-7");
   });
 
-  it("verification work is bounded: quote signatures are checked only when all of them fit the limit", async () => {
-    // The library verifies the whole directory again for each quote signature, so the
-    // work is (signed quotes) x (directory size) — and whoever writes the traveler picks
-    // the first factor. Here: 64 quotes, each "signed" with two characters of junk.
+  it("verification work does not grow with the number of signed quotes: every one gets a real verdict", async () => {
+    // Whoever writes a traveler chooses how many quote "signatures" ride on it. The
+    // library used to verify the whole directory again for each one — 64 junk
+    // signatures against a large directory took 15 seconds — and while it did, this
+    // server skipped the checks above a work limit. The directory is now established
+    // once per call, so nothing is skipped: 64 quotes, each "signed" with junk, against
+    // a directory of over a hundred orgs.
     const body = signedByBuyer(rfq());
     const quotes = Array.from({ length: 64 }, (_, i) =>
       quoteFor(body, `qot_bulk${String(i).padStart(6, "0")}`, {
@@ -2222,46 +2257,35 @@ describe("bounded work (MCP-4)", () => {
       ...entries,
       ...Array.from({ length: 100 }, (_, i) => entry(`org_bulk${i}`, `bulk-${i}`, deskSigner, bulkKey)),
     ]);
-    const overLimit = /^not checked: verifying this many signed quotes against a directory this large/;
 
-    // Against a large directory the quote signatures are not checked — and say so. What
-    // admission turns on (authorship, the award) is checked regardless.
+    const started = performance.now();
     const out = okOf(await call("sje_open", { sje: await sealToDesk(t), directory: large }));
+    const ev = okOf(await call("sje_evaluate", { traveler: t, directory: large }));
+    const elapsed = performance.now() - started;
+
     assert.equal(out.authenticity.status, "verified");
     assert.equal(out.authenticity.verified_buyer_org, BUYER_ORG);
     assert.equal(out.authenticity.quotes.length, 64);
-    for (const q of out.authenticity.quotes as Json[]) {
+    for (const [i, q] of (out.authenticity.quotes as Json[]).entries()) {
       assert.equal(q.signed, true);
-      assert.equal(q.check.ok, false, "never reported as passed");
-      assert.match(q.check.reason, overLimit);
+      // A real verdict on each: the key is enrolled for the org the quote names, and the
+      // junk does not verify. Never "not checked", never passed.
+      assert.deepEqual(q.check, { ok: false, kid: `bulk-${i}`, org_id: `org_bulk${i}`, reason: "signature does not verify" });
     }
-    assert.match(out.notes.join(" "), /quotes were not checked/);
-    const ev = okOf(await call("sje_evaluate", { traveler: t, directory: large }));
-    assert.equal(ev.seller_signatures, "not_checked");
-    assert.match(ev.seller_signatures_not_checked_because, overLimit);
-    assert.match(ev.evaluation[0].seller_signature.reason, overLimit);
+    assert.equal(ev.seller_signatures, "checked");
+    assert.equal(ev.evaluation.length, 64);
+    assert.equal(ev.evaluation[0].seller_signature.reason, "signature does not verify");
     assert.equal(ev.evaluation[0].seller_identified_by, "nothing (self-asserted)");
+    // Generous: it takes a fraction of a second. Per-signature directory verification
+    // took well over this.
+    assert.ok(elapsed < 8000, `open + evaluate took ${Math.round(elapsed)} ms`);
 
-    // The same document against a small directory, and a document with few signed
-    // quotes against the large one, are checked in full: real verdicts.
+    // Against the small directory the same quotes name keys nobody enrolled.
     const small = okOf(await call("sje_open", { sje: await sealToDesk(t), directory }));
     assert.ok(
       (small.authenticity.quotes as Json[]).every(
         (q) => q.check.reason === "no active in-window directory entry for kid",
       ),
-    );
-    assert.equal(okOf(await call("sje_evaluate", { traveler: t, directory })).seller_signatures, "checked");
-    const few = withQuotes(body, quotes[0]!, quotes[1]!);
-    const checked = okOf(await call("sje_open", { sje: await sealToDesk(few), directory: large }));
-    assert.deepEqual(checked.authenticity.quotes[0].check, {
-      ok: false,
-      kid: "bulk-0",
-      org_id: "org_bulk0",
-      reason: "signature does not verify",
-    });
-    assert.equal(
-      okOf(await call("sje_evaluate", { traveler: few, directory: large })).seller_signatures,
-      "checked",
     );
   });
 });
