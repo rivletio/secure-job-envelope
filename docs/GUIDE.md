@@ -205,8 +205,13 @@ remember to:
 1. Open **Keys**. Create an identity (passphrase) — it is stored encrypted; the
    public directory entry shown is what you publish so others can seal to you.
 2. Load a **trust anchor** (`{ root_public_key_hex, directory, bundles? }`),
-   obtained out of band. Confirm the root public key out of band — a swapped root
-   lets an attacker forge a directory.
+   obtained out of band. The desk shows the root's **fingerprint** (32 hex characters,
+   in fours) and loads nothing until you confirm it: compare it with the one the root's
+   operator gave you through another channel — a swapped root lets an attacker forge a
+   directory. Replacing a root you already trust asks again and shows both; an older
+   directory under the same root is refused. The built-in **demo** anchor is for trying
+   the desk only: its keys are printed in the source, a standing banner says so, and
+   every check that passes under it is shown as proving nothing.
 3. On a traveler, **Seal & send** to a directory-attested recipient. Before anything
    is sealed the dialog says what that recipient will **not** be sent — other sellers'
    quotes, and the award unless its quote won — and whether the envelope will be
@@ -216,7 +221,10 @@ remember to:
    embeds the traveler id). The plaintext `.zip`/JSON exports remain, relabeled
    "local copy" — they are the whole traveler, every quote included.
 4. To receive, **unlock** your identity, then **Open .traveler / .sje** — the desk
-   decrypts and runs the defensive import.
+   decrypts, runs the defensive import, verifies against the loaded trust anchor and
+   applies the receive policy (section 4): a signature that fails is refused, and an
+   award that is not verified as the buyer's is taken only after you acknowledge what
+   is unproven. The envelope's one-time key is spent only when the traveler is admitted.
 
 ### Over MCP
 
