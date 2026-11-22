@@ -16,6 +16,11 @@
  *  `forwardSecret: true`; otherwise it falls back to the static envelope
  *  (`sje-envelope/0.1.0`) and returns `false`. `requireForwardSecret` turns the
  *  fallback into an error so a caller can refuse to send without forward secrecy.
+ *
+ *  A forward-secret seal spends one of the recipient's one-time prekeys. The seal
+ *  reports which (`prekeyId`), and the SENDER keeps the list and passes it back
+ *  (`excludePrekeyIds`) so it never seals twice to one prekey — the second envelope
+ *  could not be opened. See `sealTraveler` for what that does and does not cover.
  */
 import { randomBytes } from "./bytes.ts";
 import { travelerToZip, importTravelerFile } from "./zip.ts";
@@ -34,7 +39,7 @@ import {
   type FsSealRecipient,
 } from "./envelope.ts";
 import { verifyDirectory, type Directory } from "./directory.ts";
-import type { PrekeyBundle } from "./prekeys.ts";
+import { prekeyBundleShapeError, verifyPrekeyBundle, type PrekeyBundle } from "./prekeys.ts";
 import type { Keystore, Unlocked } from "./keystore.ts";
 import { MAX_ENVELOPE_JSON_BYTES, type Traveler } from "./types.ts";
 import { parseStrictJson } from "./wire.ts";
@@ -52,10 +57,49 @@ export type SealOptions = {
   prekeyBundle?: PrekeyBundle;
   /** Throw instead of silently falling back to the static envelope. */
   requireForwardSecret?: boolean;
-  /** Choose a specific prekey from the bundle (default: a random one). Mainly for
-   *  tests and soak, which need collision-free, deterministic selection. */
+  /** Choose a specific prekey from the bundle (default: a random unused one). Mainly
+   *  for tests and soak, which need collision-free, deterministic selection. */
   prekeyId?: string;
+  /** One-time prekeys of this bundle the sender has ALREADY sealed to — the
+   *  `prekeyId`s earlier calls returned. They are never chosen again. When every prekey
+   *  in the bundle is excluded there is no usable prekey: the seal falls back to the
+   *  static envelope (reported: `forwardSecret: false`, `staticReason:
+   *  "prekeys-exhausted"`) or throws under `requireForwardSecret`.
+   *
+   *  A sender MUST keep this list. A one-time prekey opens exactly one envelope: the
+   *  recipient deletes it after the first, so a second envelope sealed to it can never
+   *  be opened. `sealTraveler` has no memory between calls — without the list it picks
+   *  at random from the same static bundle every time, and one honest sender sealing 20
+   *  travelers to an 8-prekey bundle loses most of them while each seal reports
+   *  `forwardSecret: true`. */
+  excludePrekeyIds?: readonly string[];
   at?: Date;
+};
+
+/** Why a seal used the static envelope instead of the forward-secret one. */
+export type StaticReason =
+  /** No prekey bundle was supplied for the recipient. */
+  | "no-bundle"
+  /** A bundle was supplied but cannot be used: malformed, outside its validity window,
+   *  not signed by the recipient org's directory key, or for another org. */
+  | "bundle-not-verified"
+  /** The bundle verifies, but every one-time prekey in it is in `excludePrekeyIds`
+   *  (or it lists none): this sender has used them all. The recipient has to publish a
+   *  fresh bundle. */
+  | "prekeys-exhausted"
+  /** The specific `prekeyId` asked for is not in the bundle, or is excluded. */
+  | "prekey-unavailable";
+
+export type SealResult = {
+  envelope: SjeEnvelope;
+  /** Whether the forward-secret envelope was used. Always reported; never a silent
+   *  downgrade. */
+  forwardSecret: boolean;
+  /** The one-time prekey this envelope was sealed to (forward-secret only). The sender
+   *  must remember it and pass it in `excludePrekeyIds` from now on. */
+  prekeyId?: string;
+  /** Present iff `forwardSecret` is false: why. */
+  staticReason?: StaticReason;
 };
 
 export type OpenOptions = {
@@ -72,36 +116,60 @@ function randomIndex(n: number): number {
   return new DataView(randomBytes(4).buffer).getUint32(0) % n;
 }
 
-/** Resolve a forward-secret recipient from the supplied bundle, or undefined if the
- *  bundle has no prekeys, the requested prekey is absent, or the bundle does not
- *  verify against the trust root for this org. */
-function resolveFsRecipient(opts: SealOptions, when: Date): FsSealRecipient | undefined {
+/** Resolve a forward-secret recipient from the supplied bundle — or the reason there
+ *  is none: no bundle, a bundle that does not verify against the trust root for this
+ *  org, no prekey the sender has not already used, or a requested prekey that is absent
+ *  or excluded. */
+function resolveFsRecipient(opts: SealOptions, when: Date): FsSealRecipient | StaticReason {
   const bundle = opts.prekeyBundle;
-  if (!bundle) return undefined;
-  const ids = (bundle.prekeys ?? []).map((p) => p.prekey_id);
-  if (ids.length === 0) return undefined;
-  let prekeyId: string;
-  if (opts.prekeyId !== undefined) {
-    if (!ids.includes(opts.prekeyId)) return undefined;
-    prekeyId = opts.prekeyId;
-  } else {
-    prekeyId = ids[randomIndex(ids.length)]!;
+  if (!bundle) return "no-bundle";
+  // Shape first: the bundle is whatever the caller was handed, and nothing below should
+  // read a `prekeys` that is not the array of { prekey_id, public_key } it claims to be.
+  if (prekeyBundleShapeError(bundle) !== null) return "bundle-not-verified";
+  const excluded = new Set(opts.excludePrekeyIds ?? []);
+  const unused = bundle.prekeys.map((p) => p.prekey_id).filter((id) => !excluded.has(id));
+  const wanted = opts.prekeyId;
+  const pool = wanted === undefined ? unused : unused.filter((id) => id === wanted);
+  if (pool.length === 0) {
+    // Nothing to seal to. "Exhausted" is a statement about a bundle that verifies, so
+    // say that only if it does.
+    const vetted = verifyPrekeyBundle(bundle, opts.directory, opts.rootPublicKeyHex, when);
+    if (!vetted || vetted.org_id !== opts.recipientOrg) return "bundle-not-verified";
+    return unused.length === 0 ? "prekeys-exhausted" : "prekey-unavailable";
   }
+  // Among the prekeys this sender has not used, pick at random. Random, not "the
+  // first": a second sender holding the same public bundle is choosing too, and both
+  // taking the first would collide every time. They can still collide — see
+  // sealTraveler.
+  const prekeyId = pool[randomIndex(pool.length)]!;
   // fsRecipientFromBundle re-verifies the directory + bundle signature and the org
   // match, so a tampered or wrong-org bundle resolves to nothing (fails closed).
-  return fsRecipientFromBundle(opts.directory, bundle, opts.recipientOrg, prekeyId, opts.rootPublicKeyHex, when);
+  return (
+    fsRecipientFromBundle(opts.directory, bundle, opts.recipientOrg, prekeyId, opts.rootPublicKeyHex, when) ??
+    "bundle-not-verified"
+  );
 }
 
 /** Encrypt a traveler to a directory-attested recipient. Verifies the directory
  *  against the trust root BEFORE resolving the recipient — `recipientByOrg` /
  *  `fsRecipientFromBundle` resolve attested keys, but skipping the directory check
  *  would still let a sealer trust an attacker-substituted directory. Returns the
- *  envelope and whether forward secrecy was used (always reported; never a silent
- *  downgrade). */
-export async function sealTraveler(
-  traveler: Traveler,
-  opts: SealOptions,
-): Promise<{ envelope: SjeEnvelope; forwardSecret: boolean }> {
+ *  envelope, whether forward secrecy was used (always reported; never a silent
+ *  downgrade), the one-time prekey it spent, and — when it fell back — why.
+ *
+ *  ONE-TIME PREKEYS ARE THE SENDER'S TO TRACK. A forward-secret seal spends one prekey
+ *  of the recipient's bundle and returns its id as `prekeyId`; pass every id you have
+ *  been given back in `excludePrekeyIds` on later seals to the same bundle (see
+ *  SealOptions). When they are all spent the seal says so (`prekeys-exhausted`) instead
+ *  of reusing one.
+ *
+ *  What this does NOT solve: two DIFFERENT senders. The bundle is a static public file
+ *  with no reservation, so two senders can each pick the same prekey; the envelope the
+ *  recipient opens second is unopenable, and neither sender is told. So can anyone
+ *  holding the bundle spend prekeys on purpose with junk envelopes. Preventing either
+ *  needs a party that hands each sender a different prekey — a server — which a file
+ *  format does not have. Tracking removes the loss a sender inflicts on itself. */
+export async function sealTraveler(traveler: Traveler, opts: SealOptions): Promise<SealResult> {
   const when = opts.at ?? new Date();
   if (!verifyDirectory(opts.directory, opts.rootPublicKeyHex, when)) {
     throw new Error("sealTraveler: key directory does not verify against the trust root");
@@ -109,13 +177,17 @@ export async function sealTraveler(
   const zipBytes = new Uint8Array(await (await travelerToZip(traveler)).arrayBuffer());
 
   // Prefer forward secrecy when a verifying bundle with a usable prekey exists.
-  const fsRecipient = resolveFsRecipient(opts, when);
-  if (fsRecipient) {
-    return { envelope: sealFsEnvelope(zipBytes, [fsRecipient]), forwardSecret: true };
+  const fs = resolveFsRecipient(opts, when);
+  if (typeof fs !== "string") {
+    return {
+      envelope: sealFsEnvelope(zipBytes, [fs]),
+      forwardSecret: true,
+      prekeyId: fs.prekey_id,
+    };
   }
   if (opts.requireForwardSecret) {
     throw new Error(
-      "sealTraveler: forward secrecy required but no verifying prekey bundle with a usable prekey is available",
+      `sealTraveler: forward secrecy required but no verifying prekey bundle with a usable prekey is available (${fs})`,
     );
   }
 
@@ -124,7 +196,7 @@ export async function sealTraveler(
   if (!recipient) {
     throw new Error(`sealTraveler: no in-window ML-KEM recipient for ${opts.recipientOrg}`);
   }
-  return { envelope: sealEnvelope(zipBytes, [recipient]), forwardSecret: false };
+  return { envelope: sealEnvelope(zipBytes, [recipient]), forwardSecret: false, staticReason: fs };
 }
 
 /** A decrypted traveler whose one-time prekey has not been spent yet. */
