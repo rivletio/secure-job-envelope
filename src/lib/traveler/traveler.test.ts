@@ -4,7 +4,7 @@ import JSZip from "jszip";
 import { MAX_CANONICAL_NESTING, canonicalJson } from "./canonical.ts";
 import { boundQuotes, levelOf, parseTraveler } from "./conformance.ts";
 import { GOLDEN_QUOTEABLE, seedTravelers } from "./fixtures.ts";
-import { cannotAward, cannotQuote, isQuoteExpired } from "./guards.ts";
+import { awardBlockers, cannotAward, cannotQuote, isQuoteExpired } from "./guards.ts";
 import { GOLDEN_HASH, hashQuoteable, sha384Hex, travelerHash, quoteableBody } from "./hash.ts";
 import { quoteSchema } from "./schema.ts";
 import type { Traveler, Quote } from "./types.ts";
@@ -197,6 +197,51 @@ describe("rivlet traveler 0.0.1", () => {
       cannotAward(bracket, noLine, new Date("2026-09-14T00:00:00.000Z")) ?? "",
       /no unit price/,
     );
+  });
+
+  it("awardBlockers says for every quote what cannotAward says for each one", () => {
+    const at = new Date("2026-09-14T00:00:00.000Z");
+    const [seed] = seedTravelers();
+    const body: Traveler = { ...seed! };
+    for (const member of ["quotes", "award", "ops", "ship_to"] as const) delete body[member];
+    const hash = travelerHash(body);
+    const target = body.part.qty.target;
+    const priced = { currency: "USD", lines: [{ qty: target, unit: 29 }] };
+    // One of each answer the guard can give on an unlocked traveler.
+    const quotes: Quote[] = [
+      validQuote({ quote_id: "qot_blockerok01", traveler_hash_quoted: hash, pricing: priced }),
+      validQuote({ quote_id: "qot_blockerstale", traveler_hash_quoted: "sha384:" + "a".repeat(96), pricing: priced }),
+      validQuote({
+        quote_id: "qot_blockerold01",
+        traveler_hash_quoted: hash,
+        pricing: priced,
+        created_at: "2026-08-01T00:00:00.000Z",
+        valid_until: "2026-09-01T00:00:00.000Z",
+      }),
+      validQuote({ quote_id: "qot_blockerqty01", traveler_hash_quoted: hash, pricing: { currency: "USD", lines: [{ qty: target + 1, unit: 29 }] } }),
+    ];
+    const open: Traveler = { ...body, quotes };
+    const each = (t: Traveler, qty?: number) =>
+      (t.quotes ?? []).map((q) => ({ quote_id: q.quote_id, blocker: cannotAward(t, q, at, qty) }));
+    assert.deepEqual(awardBlockers(open, at), each(open));
+    assert.deepEqual(
+      awardBlockers(open, at).map((b) => b.blocker),
+      [null, "Quote is not bound to the current hash.", "Quote has expired (valid_until).", `Quote has no unit price at qty ${target}.`],
+    );
+    // For another quantity: the one priced there is awardable, the others are not.
+    assert.deepEqual(awardBlockers(open, at, target + 1), each(open, target + 1));
+    assert.equal(awardBlockers(open, at, target + 1)[3]!.blocker, null);
+    // A locked traveler blocks every quote, and says so for each.
+    const lockedTraveler: Traveler = {
+      ...open,
+      award: { quote_id: "qot_blockerok01", awarded_at: "2026-09-10T00:00:00.000Z", qty: target },
+      ops: [{ seq: 1, code: "laser" }],
+      ship_to: { name: "Dock", line1: "1 Way", city: "Reno", region: "NV", postal: "89502", country: "US" },
+    };
+    assert.equal(levelOf(lockedTraveler).level, 2);
+    assert.deepEqual(awardBlockers(lockedTraveler, at), each(lockedTraveler));
+    assert.ok(awardBlockers(lockedTraveler, at).every((b) => b.blocker === "Traveler is already executable."));
+    assert.deepEqual(awardBlockers(body, at), [], "no quotes, no answers");
   });
 
   it("round-trips a zip and rejects path tricks and META mismatch", async () => {

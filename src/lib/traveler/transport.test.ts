@@ -4,21 +4,34 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  SealRefused,
+  itarRecipientBasis,
   sealTraveler,
   openTraveler,
   openTravelerDeferred,
   parseSjeEnvelope,
+  type SealOptions,
   type SjeEnvelope,
 } from "./transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "./keystore.ts";
-import { signDirectory, DIRECTORY_SPEC, type Directory } from "./directory.ts";
+import { signDirectory, DIRECTORY_SPEC, type Directory, type DirectoryEntry } from "./directory.ts";
 import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "./prekeys.ts";
-import { fsRecipientFromBundle, sealFsEnvelope, type FsEnvelope } from "./envelope.ts";
+import {
+  encKid,
+  fsRecipientFromBundle,
+  kemKeypairFromSeed,
+  openEnvelope,
+  sealFsEnvelope,
+  type Envelope,
+  type FsEnvelope,
+} from "./envelope.ts";
+import { quoteContentHash, signAward, signTraveler, verificationReport } from "./authenticity.ts";
+import { travelerHash } from "./hash.ts";
 import { keypairFromSeed, type Keypair } from "./signature.ts";
 import { bytesToHex } from "./bytes.ts";
 import { parseTraveler } from "./conformance.ts";
 import { importTravelerFile } from "./zip.ts";
-import type { Traveler } from "./types.ts";
+import type { Quote, Traveler } from "./types.ts";
 
 const PASS = "correct horse battery staple";
 /** What an open throws when an AES-256-GCM tag does not verify (the message is
@@ -488,6 +501,60 @@ describe("two-phase open: decrypting is not accepting", () => {
     assert.equal(ctx.unlocked.peekPrekey(prekeyIds[0]!), undefined);
   });
 
+  it("two DIFFERENT envelopes committed at once: neither one-time prekey is left in what is stored", async () => {
+    // Each commit stores "the keystore without my prekey" and only then forgets it. Run
+    // two at once and the second used to compute its blob while the first prekey was
+    // still held in memory — and write it back over the first deletion. Both commits
+    // "succeeded", both prekeys were gone from the session, and the stored keystore
+    // still held a spent one-time secret until something else rewrote it.
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 3);
+    const [a, b, c] = prekeyIds as [string, string, string];
+    let stored: Keystore | undefined;
+    let writes = 0;
+    const persistKeystore = async (ks: Keystore) => {
+      writes++;
+      await new Promise((resolve) => setTimeout(resolve, 2)); // a store that takes a moment
+      stored = ks;
+    };
+    const openA = await openTravelerDeferred(await fsSeal(ctx, bundle, a), ctx.unlocked, { persistKeystore });
+    const openB = await openTravelerDeferred(await fsSeal(ctx, bundle, b), ctx.unlocked, { persistKeystore });
+    await Promise.all([openA.commit(), openB.commit()]);
+
+    assert.equal(writes, 2);
+    assert.equal(ctx.unlocked.peekPrekey(a), undefined);
+    assert.equal(ctx.unlocked.peekPrekey(b), undefined);
+    const reloaded = await unlock(stored!, PASS);
+    assert.equal(reloaded.peekPrekey(a), undefined, "the first prekey spent is not written back by the second commit");
+    assert.equal(reloaded.peekPrekey(b), undefined);
+    assert.ok(reloaded.peekPrekey(c), "a prekey nobody spent is still there");
+
+    // A commit whose store FAILS does not hold up, or undo, the one behind it.
+    const ctx2 = await setup();
+    const two = signedBundle(ctx2.unlocked, ctx2.signer, 2);
+    const [x, y] = two.prekeyIds as [string, string];
+    let kept: Keystore | undefined;
+    const failing = await openTravelerDeferred(await fsSeal(ctx2, two.bundle, x), ctx2.unlocked, {
+      persistKeystore: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        throw new Error("disk full");
+      },
+    });
+    const working = await openTravelerDeferred(await fsSeal(ctx2, two.bundle, y), ctx2.unlocked, {
+      persistKeystore: (ks) => {
+        kept = ks;
+      },
+    });
+    const [first, second] = await Promise.allSettled([failing.commit(), working.commit()]);
+    assert.equal(first.status, "rejected");
+    assert.equal(second.status, "fulfilled");
+    assert.ok(ctx2.unlocked.peekPrekey(x), "the failed commit spent nothing");
+    assert.equal(ctx2.unlocked.peekPrekey(y), undefined);
+    const after = await unlock(kept!, PASS);
+    assert.ok(after.peekPrekey(x), "and what was stored still holds the prekey that was not spent");
+    assert.equal(after.peekPrekey(y), undefined);
+  });
+
   it("a static envelope has nothing to spend", async () => {
     const ctx = await setup();
     const { envelope } = await sealTraveler(sampleTraveler(), {
@@ -502,3 +569,208 @@ describe("two-phase open: decrypting is not accepting", () => {
   });
 });
 
+/* ------------------------------------------------------------------------------------
+ * What is sealed, and to whom. The rule itself is projection.ts (projection.test.ts);
+ * these hold `sealTraveler` to APPLYING it — on the bytes a recipient decrypts — and to
+ * the ITAR recipient rule, which used to be a function nothing called.
+ * ---------------------------------------------------------------------------------- */
+
+describe("sealTraveler decides what is sent, and to whom", () => {
+  const WINDOW = { valid_from: "2026-01-01T00:00:00.000Z", valid_until: "2030-01-01T00:00:00.000Z" };
+  const NOW = new Date("2027-01-01T00:00:00.000Z");
+  const trustRoot = keypairFromSeed(new Uint8Array(32).fill(7));
+  const rootPublicKeyHex = bytesToHex(trustRoot.publicKey);
+  // Each org's ML-KEM key is derived from a seed, so a test can read an envelope the way
+  // that org would. The buyer signs with a key the directory lists.
+  const KEM_SEED = { org_northline: 41, org_sellera: 42, org_sellerb: 43, org_itarshop: 44 } as const;
+  type Org = keyof typeof KEM_SEED;
+  const kem = (org: Org) => kemKeypairFromSeed(new Uint8Array(64).fill(KEM_SEED[org]));
+  const signers = Object.fromEntries(
+    (Object.keys(KEM_SEED) as Org[]).map((org) => [org, keypairFromSeed(new Uint8Array(32).fill(KEM_SEED[org] + 20))]),
+  ) as Record<Org, Keypair>;
+  const entryFor = (org: Org, extra: Partial<DirectoryEntry> = {}): DirectoryEntry => ({
+    org_id: org,
+    kid: `${org.slice(4)}-2026`,
+    alg: "ML-DSA-87",
+    public_key: bytesToHex(signers[org].publicKey),
+    ...WINDOW,
+    status: "active",
+    enc_alg: "ML-KEM-1024",
+    enc_public_key: bytesToHex(kem(org).publicKey),
+    ...extra,
+  });
+  function directoryOf(entries: DirectoryEntry[]): Directory {
+    const body: Directory = {
+      spec: DIRECTORY_SPEC,
+      issued_at: WINDOW.valid_from,
+      valid_until: WINDOW.valid_until,
+      root_kid: "root-2026",
+      entries,
+    };
+    return { ...body, sig: signDirectory(body, trustRoot.secretKey) };
+  }
+  const directory = directoryOf([
+    entryFor("org_northline"),
+    entryFor("org_sellera"),
+    entryFor("org_sellerb"),
+    entryFor("org_itarshop", { capabilities: { itar: true } }),
+  ]);
+  const seal = (t: Traveler, recipientOrg: Org, extra: Partial<SealOptions> = {}) =>
+    sealTraveler(t, { directory, rootPublicKeyHex, recipientOrg, at: NOW, ...extra });
+  /** What `org` reads when it opens the envelope with its own key: the full import. */
+  async function readAs(org: Org, envelope: SjeEnvelope): Promise<Traveler> {
+    const pair = kem(org);
+    const zip = openEnvelope(envelope as Envelope, encKid(bytesToHex(pair.publicKey)), pair.secretKey);
+    return importTravelerFile(new File([Buffer.from(zip)], "received.zip", { type: "application/zip" }));
+  }
+
+  // The buyer's RFQ (it names org_northline), signed; two sellers quoted; A was awarded.
+  const rfq: Traveler = (() => {
+    const t = sampleTraveler();
+    return { ...t, signatures: [signTraveler(t, "northline-2026", signers.org_northline.secretKey)] };
+  })();
+  const quoteBy = (id: string, org: Org, unit: number): Quote => ({
+    quote_id: id,
+    seller: { org_id: org, name: `Shop ${org}` },
+    traveler_hash_quoted: travelerHash(rfq),
+    created_at: "2026-10-01T00:00:00.000Z",
+    valid_until: "2028-01-01T00:00:00.000Z",
+    lead_time_days: 14,
+    pricing: { currency: "USD", lines: [{ qty: rfq.part.qty.target, unit }] },
+  });
+  const A = quoteBy("qot_sealgatea01", "org_sellera", 1500);
+  const B = quoteBy("qot_sealgateb01", "org_sellerb", 1420);
+  const quoted: Traveler = { ...rfq, quotes: [A, B] };
+  const awarded: Traveler = (() => {
+    const t: Traveler = {
+      ...quoted,
+      award: { quote_id: A.quote_id, quote_hash: quoteContentHash(A), awarded_at: "2026-11-01T00:00:00.000Z", qty: rfq.part.qty.target },
+      ship_to: { name: "Northline Dock 4", line1: "400 Industrial Way", city: "Reno", region: "NV", postal: "89502", country: "US" },
+      ops: [{ seq: 1, code: "laser" }],
+    };
+    return { ...t, award: { ...t.award!, sig: signAward(t, "northline-2026", signers.org_northline.secretKey) } };
+  })();
+  const ids = (t: Traveler) => (t.quotes ?? []).map((q) => q.quote_id);
+  const verify = (t: Traveler) => verificationReport(t, directory, rootPublicKeyHex, NOW);
+
+  it("by default a seller is sealed the request and its own quote: no other seller's price is in the envelope", async () => {
+    const { envelope, withheld } = await seal(quoted, "org_sellerb");
+    assert.deepEqual(withheld, { quotes: 1, award: false });
+    const seen = await readAs("org_sellerb", envelope);
+    assert.deepEqual(ids(seen), [B.quote_id]);
+    assert.doesNotMatch(JSON.stringify(seen), /qot_sealgatea01|1500/, "nothing of seller A's quote was encrypted to B");
+    // It is the buyer's document all the same: same body hash, and the signature holds.
+    assert.equal(travelerHash(seen), travelerHash(quoted));
+    assert.equal(verify(seen).authored, true);
+  });
+
+  it("the award is sealed to the winner and to the buyer; a loser is sent neither it nor where it ships", async () => {
+    const toWinner = await seal(awarded, "org_sellera");
+    assert.deepEqual(toWinner.withheld, { quotes: 1, award: false });
+    const winner = await readAs("org_sellera", toWinner.envelope);
+    assert.deepEqual(ids(winner), [A.quote_id]);
+    assert.equal(verify(winner).award?.ok, true, "the award the winner receives still verifies as the buyer's");
+
+    const toLoser = await seal(awarded, "org_sellerb");
+    assert.deepEqual(toLoser.withheld, { quotes: 1, award: true });
+    const loser = await readAs("org_sellerb", toLoser.envelope);
+    assert.deepEqual(ids(loser), [B.quote_id]);
+    for (const member of ["award", "ship_to", "ops", "as_built"] as const) {
+      assert.equal(loser[member], undefined, member);
+    }
+    assert.doesNotMatch(JSON.stringify(loser), /Industrial Way|qot_sealgatea01/);
+
+    const toBuyer = await seal(awarded, "org_northline");
+    assert.deepEqual(toBuyer.withheld, { quotes: 0, award: false });
+    assert.deepEqual(await readAs("org_northline", toBuyer.envelope), awarded);
+  });
+
+  it("senderOrg: the sender's own quote goes with what it seals; disclose 'everything' has to be asked for by name", async () => {
+    // A buyer that named no org: the recipient cannot be recognized as the buyer.
+    const { org_id: _dropped, ...anonymousBuyer } = rfq.buyer;
+    void _dropped;
+    const unsigned: Traveler = { ...sampleTraveler(), buyer: anonymousBuyer };
+    const mine: Quote = { ...A, traveler_hash_quoted: travelerHash(unsigned) };
+    const theirs: Quote = { ...B, traveler_hash_quoted: travelerHash(unsigned) };
+    const t: Traveler = { ...unsigned, quotes: [mine, theirs] };
+
+    const nobody = await seal(t, "org_northline");
+    assert.deepEqual(nobody.withheld, { quotes: 2, award: false });
+    assert.equal((await readAs("org_northline", nobody.envelope)).quotes, undefined);
+
+    const asSellerA = await seal(t, "org_northline", { senderOrg: "org_sellera" });
+    assert.deepEqual(asSellerA.withheld, { quotes: 1, award: false });
+    assert.deepEqual(ids(await readAs("org_northline", asSellerA.envelope)), [mine.quote_id]);
+
+    const all = await seal(t, "org_northline", { disclose: "everything" });
+    assert.deepEqual(all.withheld, { quotes: 0, award: false });
+    assert.deepEqual(await readAs("org_northline", all.envelope), t);
+    // "entitled" is the default, and is what naming it gives.
+    const named = await seal(t, "org_northline", { disclose: "entitled" });
+    assert.deepEqual(named.withheld, nobody.withheld);
+  });
+
+  it("a traveler marked ITAR is sealed only to an org the directory attests for it, or back to the buyer it names", async () => {
+    const itar: Traveler = { ...sampleTraveler(), itar: true };
+
+    const refused = await seal(itar, "org_sellera").then(
+      () => null,
+      (e: unknown) => e,
+    );
+    assert.ok(refused instanceof SealRefused, "an unattested recipient is refused");
+    assert.equal(refused.code, "itar-recipient-not-attested");
+    assert.match(refused.message, /marked ITAR and the directory does not attest the recipient for ITAR/);
+    // Asking for everything does not get around who may receive it.
+    await assert.rejects(() => seal(itar, "org_sellera", { disclose: "everything" }), SealRefused);
+
+    const attested = await seal(itar, "org_itarshop");
+    assert.equal(attested.itarBasis, "recipient-attested");
+    assert.equal((await readAs("org_itarshop", attested.envelope)).itar, true);
+
+    const back = await seal(itar, "org_northline");
+    assert.equal(back.itarBasis, "recipient-is-buyer");
+    // …an exception for the buyer org the TRAVELER names, not for whoever is called buyer.
+    const { org_id: _dropped, ...anonymousBuyer } = itar.buyer;
+    void _dropped;
+    await assert.rejects(() => seal({ ...itar, buyer: anonymousBuyer }, "org_northline"), SealRefused);
+
+    // An attestation counts only while its entry is usable: not revoked, and in its window.
+    const revoked = directoryOf([
+      entryFor("org_northline"),
+      entryFor("org_itarshop", { capabilities: { itar: true }, status: "revoked" }),
+    ]);
+    assert.equal(itarRecipientBasis(itar, revoked, "org_itarshop", NOW), null);
+    await assert.rejects(() => seal(itar, "org_itarshop", { directory: revoked }), SealRefused);
+    assert.equal(itarRecipientBasis(itar, directory, "org_itarshop", new Date("2031-01-01T00:00:00.000Z")), null);
+    assert.equal(itarRecipientBasis(itar, directory, "org_itarshop", NOW), "recipient-attested");
+    // `"itar": false` in a capability is not an attestation.
+    const notAttested = directoryOf([entryFor("org_itarshop", { capabilities: { itar: false } })]);
+    assert.equal(itarRecipientBasis(itar, notAttested, "org_itarshop", NOW), null);
+
+    // A traveler that is not marked ITAR is not gated, and says so by saying nothing.
+    const plain = await seal(sampleTraveler(), "org_sellera");
+    assert.equal(plain.itarBasis, undefined);
+    assert.equal(itarRecipientBasis(sampleTraveler(), directory, "org_sellera", NOW), "not-itar");
+  });
+
+  it("a refusal says which rule refused, for a caller that words it itself", async () => {
+    const codeOf = (p: Promise<unknown>) =>
+      p.then(
+        () => "sealed",
+        (e: unknown) => (e instanceof SealRefused ? `${e.code}${e.staticReason ? `/${e.staticReason}` : ""}` : `not a SealRefused: ${String(e)}`),
+      );
+    const t = sampleTraveler();
+    assert.equal(await codeOf(seal(t, "org_sellera", { rootPublicKeyHex: "00".repeat(2592) })), "directory-not-verified");
+    assert.equal(
+      await codeOf(seal(t, "org_sellera", { requireForwardSecret: true })),
+      "forward-secrecy-unavailable/no-bundle",
+    );
+    // An org the directory lists for signing only: it has no encryption key to seal to.
+    const { enc_alg: _alg, enc_public_key: _key, ...signingOnly } = entryFor("org_sellera");
+    void _alg;
+    void _key;
+    const noKey = directoryOf([entryFor("org_northline"), signingOnly]);
+    assert.equal(await codeOf(seal(t, "org_sellera", { directory: noKey })), "no-recipient-key");
+    assert.equal(await codeOf(seal({ ...t, itar: true }, "org_sellera")), "itar-recipient-not-attested");
+  });
+});

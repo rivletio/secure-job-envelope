@@ -2,8 +2,9 @@
  *
  *  Runs end to end with no server and no network. It mints two identities, publishes
  *  a signed directory and the seller's one-time prekey bundle, seals a traveler into
- *  a forward-secret `.sje` envelope, opens it, and then demonstrates the attacks the
- *  transport refuses. Everything uses the public library API
+ *  a forward-secret `.sje` envelope, opens it, demonstrates the attacks the transport
+ *  refuses, and shows what a seal sends: each recipient its part of the traveler, not
+ *  every seller's quote. Everything uses the public library API
  *  (src/lib/traveler/{keystore,transport,directory,prekeys,signature}) — the same
  *  code the MCP server and the browser desk call.
  *
@@ -15,10 +16,12 @@ import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
 import { createIdentity, unlock } from "../src/lib/traveler/keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
-import { sealTraveler, openTraveler } from "../src/lib/traveler/transport.ts";
+import { SealRefused, sealTraveler, openTraveler } from "../src/lib/traveler/transport.ts";
 import type { FsEnvelope } from "../src/lib/traveler/envelope.ts";
 import { parseTraveler } from "../src/lib/traveler/conformance.ts";
+import { travelerHash } from "../src/lib/traveler/hash.ts";
 import { bytesToHex } from "../src/lib/traveler/bytes.ts";
+import type { Quote } from "../src/lib/traveler/types.ts";
 
 const step = (n: number, s: string) => console.log(`\n[${n}] ${s}`);
 const note = (s: string) => console.log(`    ${s}`);
@@ -166,4 +169,53 @@ await assert.rejects(
 );
 note("requireForwardSecret refuses to downgrade when no prekey is available");
 
-console.log("\n=== DONE — one encrypted exchange; ciphertext on the wire; every attack refused. ===");
+/* 7. What a seal sends: the recipient's part of the traveler, not all of it. */
+step(7, "What a seal sends: each recipient its part, not every seller's quote");
+// Later, the buyer's copy carries two quotes: Summit's, and a competitor's.
+const hash = travelerHash(traveler);
+const quoteBy = (quote_id: string, org_id: string, name: string, unit: number): Quote => ({
+  quote_id,
+  seller: { org_id, name },
+  traveler_hash_quoted: hash,
+  created_at: "2026-11-01T00:00:00.000Z",
+  valid_until: "2027-06-01T00:00:00.000Z",
+  lead_time_days: 14,
+  pricing: { currency: "USD", lines: [{ qty: traveler.part.qty.target, unit }] },
+});
+const withBoth = parseTraveler({
+  ...traveler,
+  quotes: [
+    quoteBy("qot_summit0001", "org_summitfab", "Summit Fabrication", 1420),
+    quoteBy("qot_huron00001", "org_huron", "Huron Precision", 1500),
+  ],
+});
+
+// Sealed to Summit, Summit's own quote goes with the request. Huron's price does not:
+// nobody has to remember to take it out, and the result says what was left out.
+const toSummit = await sealTraveler(withBoth, { directory, rootPublicKeyHex, recipientOrg: "org_summitfab" });
+assert.deepEqual(toSummit.withheld, { quotes: 1, award: false });
+const summitSees = await openTraveler(toSummit.envelope, sellerDesk);
+assert.deepEqual(summitSees.quotes?.map((q) => q.quote_id), ["qot_summit0001"]);
+assert.ok(!JSON.stringify(summitSees).includes("qot_huron00001"), "a competitor's quote was sealed to a seller");
+assert.equal(travelerHash(summitSees), hash, "it is the same request: the hash covers the quoteable body");
+note(`to org_summitfab: its own quote; ${toSummit.withheld.quotes} other seller's quote withheld; same traveler hash`);
+
+// The buyer org the traveler names receives all of it.
+const toBuyer = await sealTraveler(withBoth, { directory, rootPublicKeyHex, recipientOrg: "org_northline" });
+assert.deepEqual(toBuyer.withheld, { quotes: 0, award: false });
+assert.deepEqual(await openTraveler(toBuyer.envelope, buyerDesk), withBoth);
+note("to org_northline, the buyer the traveler names: everything");
+
+// A traveler marked ITAR is sealed only to an org the directory attests for ITAR (or
+// back to its buyer). This directory attests nobody. A consistency rule over a
+// self-declared flag — it is not export control.
+await assert.rejects(
+  () =>
+    sealTraveler(parseTraveler({ ...traveler, itar: true }), { directory, rootPublicKeyHex, recipientOrg: "org_summitfab" }),
+  (e: unknown) => e instanceof SealRefused && e.code === "itar-recipient-not-attested",
+);
+note("an ITAR-marked traveler is not sealed to an org the directory does not attest for ITAR");
+
+console.log(
+  "\n=== DONE — one encrypted exchange; ciphertext on the wire; every attack refused; each recipient sealed only its part. ===",
+);

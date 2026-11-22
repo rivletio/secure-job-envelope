@@ -16,7 +16,9 @@
  *      (0.2): sealTraveler produces ciphertext on the wire (no plaintext field leaks,
  *      not a zip), openTraveler decrypts with a passphrase-encrypted keystore over
  *      directory resolution, tamper / wrong-recipient envelopes are refused, and a
- *      consumed one-time prekey cannot be reused.
+ *      consumed one-time prekey cannot be reused. Also WHAT is sealed: by default a
+ *      recipient is sent only its part of the traveler (never another seller's
+ *      quote), and a traveler marked ITAR is not sealed to an unattested org.
  *
  *  Exits non-zero if any invariant fails, so CI fails loudly.
  *
@@ -32,8 +34,8 @@ import { travelerHash } from "../src/lib/traveler/hash.ts";
 import { locked } from "../src/lib/traveler/guards.ts";
 import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { signTraveler, signQuote, verifyTravelerSignatures, verifyQuoteSignature, itarAttestationBlocker } from "../src/lib/traveler/authenticity.ts";
-import { recipientByOrg, sealEnvelope, openEnvelope, fsRecipientFromBundle, sealFsEnvelope, openFsEnvelope } from "../src/lib/traveler/envelope.ts";
-import { sealTraveler, openTraveler } from "../src/lib/traveler/transport.ts";
+import { recipientByOrg, sealEnvelope, openEnvelope, fsRecipientFromBundle, sealFsEnvelope, openFsEnvelope, kemKeypairFromSeed } from "../src/lib/traveler/envelope.ts";
+import { SealRefused, sealTraveler, openTraveler } from "../src/lib/traveler/transport.ts";
 import { createIdentity, unlock, type Unlocked } from "../src/lib/traveler/keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
 import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
@@ -317,7 +319,12 @@ function crypto(seed: number, trust: ReturnType<typeof buildTrust>) {
 type TransportTrust = {
   directory: Directory;
   rootPublicKeyHex: string;
+  /** The org whose keystore the soak holds. It is one of the generator's shops, so it
+   *  is sometimes a traveler's buyer, sometimes one of its sellers, usually neither;
+   *  and the directory attests it for ITAR, so any generated traveler may go to it. */
   recipientOrg: string;
+  /** An org with an encryption key and NO ITAR attestation, that no traveler names. */
+  unattestedOrg: string;
   unlocked: Unlocked;
   bundle: PrekeyBundle;
   prekeyIds: string[];
@@ -325,7 +332,8 @@ type TransportTrust = {
 
 async function buildTransportTrust(prekeyCount: number): Promise<TransportTrust> {
   const PASS = "soak-keystore-passphrase";
-  const recipientOrg = "org_recipient";
+  const recipientOrg = "org_summitfab";
+  const unattestedOrg = "org_unattested";
   const trustRoot = keypairFromSeed(new Uint8Array(32).fill(21));
   const signer = keypairFromSeed(new Uint8Array(32).fill(22)); // the org's (placeholder) signing key
   const { keystore, directoryEntry } = await createIdentity({ passphrase: PASS, orgId: recipientOrg });
@@ -343,8 +351,20 @@ async function buildTransportTrust(prekeyCount: number): Promise<TransportTrust>
         valid_from: "2026-01-01T00:00:00.000Z",
         valid_until: "2030-01-01T00:00:00.000Z",
         status: "active",
+        capabilities: { itar: true },
         enc_alg: "ML-KEM-1024",
         enc_public_key: directoryEntry.enc_public_key,
+      },
+      {
+        org_id: unattestedOrg,
+        kid: "unattested-2026",
+        alg: "ML-DSA-87",
+        public_key: bytesToHex(keypairFromSeed(new Uint8Array(32).fill(23)).publicKey),
+        valid_from: "2026-01-01T00:00:00.000Z",
+        valid_until: "2030-01-01T00:00:00.000Z",
+        status: "active",
+        enc_alg: "ML-KEM-1024",
+        enc_public_key: bytesToHex(kemKeypairFromSeed(new Uint8Array(64).fill(24)).publicKey),
       },
     ],
   };
@@ -369,6 +389,7 @@ async function buildTransportTrust(prekeyCount: number): Promise<TransportTrust>
     directory,
     rootPublicKeyHex: bytesToHex(trustRoot.publicKey),
     recipientOrg,
+    unattestedOrg,
     unlocked,
     bundle: bundleBody,
     prekeyIds: prekeys.map((p) => p.prekey_id),
@@ -380,11 +401,11 @@ async function transport(seed: number, tt: TransportTrust) {
   const level = rng.pick(["L0", "L1", "L2"] as const);
   const traveler = genTraveler(rng, { level, itar: rng.bool(0.2) });
 
-  const { envelope, forwardSecret } = await sealTraveler(traveler, {
-    directory: tt.directory,
-    rootPublicKeyHex: tt.rootPublicKeyHex,
-    recipientOrg: tt.recipientOrg,
-  });
+  // The mechanics, on the whole traveler: `disclose: "everything"` (what is sent by
+  // default is checked separately, below).
+  const to = { directory: tt.directory, rootPublicKeyHex: tt.rootPublicKeyHex, recipientOrg: tt.recipientOrg };
+  const { envelope, forwardSecret, withheld: none } = await sealTraveler(traveler, { ...to, disclose: "everything" });
+  ok(none.quotes === 0 && none.award === false, `#${seed} "everything" withholds nothing`);
   ok(forwardSecret === false, `#${seed} static transport path (no prekey bundle)`);
   if (envelope.spec !== "sje-envelope/0.1.0") {
     ok(false, `#${seed} static transport unexpectedly used spec ${envelope.spec}`);
@@ -410,6 +431,54 @@ async function transport(seed: number, tt: TransportTrust) {
   // Not addressed to this keystore: the recipient-mismatch guard refuses before decrypt.
   const foreign = { ...envelope, recipients: envelope.recipients.map((r) => ({ ...r, kid: "ffffffffffffffff" })) };
   await mustReject(() => openTraveler(foreign, tt.unlocked), `#${seed} envelope not addressed to this keystore is refused`);
+
+  // What is sealed BY DEFAULT is the recipient's part. Stated here from the rule, not by
+  // calling the function that implements it: the buyer the traveler names gets all of
+  // it; anyone else gets the same body, only the quotes that name it as seller, and the
+  // award (with ship-to and ops) only if the awarded quote is one of those.
+  const part = await sealTraveler(traveler, to);
+  const got = await openTraveler(part.envelope, tt.unlocked);
+  const all = traveler.quotes ?? [];
+  if (traveler.buyer.org_id === tt.recipientOrg) {
+    ok(canonicalJson(got) === canonicalJson(traveler), `#${seed} the traveler's buyer is sealed all of it`);
+    ok(part.withheld.quotes === 0 && !part.withheld.award, `#${seed} nothing is withheld from the buyer`);
+  } else {
+    const own = all.filter((q) => q.seller.org_id === tt.recipientOrg);
+    const sent = got.quotes ?? [];
+    ok(travelerHash(got) === travelerHash(traveler), `#${seed} the part sealed is the same body (same hash)`);
+    ok(sent.every((q) => q.seller.org_id === tt.recipientOrg), `#${seed} no other seller's quote is sealed to a seller`);
+    ok(
+      canonicalJson(sent) === canonicalJson(own),
+      `#${seed} the recipient's own quotes are all sealed to it, unchanged`,
+    );
+    ok(part.withheld.quotes === all.length - own.length, `#${seed} the count of withheld quotes is reported`);
+    const wonByRecipient = traveler.award != null && own.some((q) => q.quote_id === traveler.award!.quote_id);
+    ok((got.award != null) === wonByRecipient, `#${seed} the award is sealed to the winner only`);
+    ok(part.withheld.award === (traveler.award != null && !wonByRecipient), `#${seed} a withheld award is reported`);
+    if (traveler.award != null && !wonByRecipient) {
+      ok(got.ship_to === undefined && got.ops === undefined, `#${seed} a loser is not sent the ship-to or the ops`);
+    }
+  }
+
+  // ITAR: a marked traveler is not sealed to an org the directory does not attest —
+  // whatever disclosure is asked for — and an unmarked one is.
+  const elsewhere = { ...to, recipientOrg: tt.unattestedOrg };
+  if (traveler.itar === true) {
+    ok(part.itarBasis !== undefined, `#${seed} an ITAR seal says which rule allowed it`);
+    for (const disclose of ["entitled", "everything"] as const) {
+      const refusal = await sealTraveler(traveler, { ...elsewhere, disclose }).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      ok(
+        refusal instanceof SealRefused && refusal.code === "itar-recipient-not-attested",
+        `#${seed} an ITAR traveler is not sealed to an unattested org (${disclose})`,
+      );
+    }
+  } else {
+    const sealed = await sealTraveler(traveler, elsewhere);
+    ok(sealed.itarBasis === undefined, `#${seed} a traveler not marked ITAR is not gated`);
+  }
 }
 
 /** Forward-secret transport: seal with a one-time prekey (0.2), open it (consuming
@@ -427,6 +496,7 @@ async function fsTransport(seed: number, tt: TransportTrust, prekeyId: string) {
       recipientOrg: tt.recipientOrg,
       prekeyBundle: tt.bundle,
       prekeyId,
+      disclose: "everything",
     });
 
   const { envelope, forwardSecret } = await seal();

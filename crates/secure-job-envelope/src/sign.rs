@@ -156,6 +156,12 @@ impl Directory {
         self.entries.iter().find(|e| e.kid == kid && e.usable(at_ms))
     }
 
+    /// The entry with this kid that the directory lists as revoked, if it lists one.
+    /// Status decides; the window does not.
+    fn revoked(&self, kid: &str) -> Option<&Entry> {
+        self.entries.iter().find(|e| e.kid == kid && !e.active)
+    }
+
     /// Whether any usable entry of the org attests ITAR (order-independent).
     fn has_itar(&self, org: &str, at_ms: i64) -> bool {
         self.entries.iter().any(|e| e.org_id == org && e.usable(at_ms) && e.itar)
@@ -345,7 +351,16 @@ fn check_sig(
         return Check::refused(&sig.kid, "author names no org_id to bind the signature to");
     };
     let Some(entry) = dir.by_kid(&sig.kid, at_ms) else {
-        return Check::refused(&sig.kid, "no active in-window directory entry for kid");
+        // Listed and withdrawn is not the same answer as never listed.
+        return match dir.revoked(&sig.kid) {
+            Some(revoked) => Check {
+                ok: false,
+                kid: sig.kid.clone(),
+                org_id: Some(revoked.org_id.clone()),
+                reason: Some("signing key is revoked in the directory"),
+            },
+            None => Check::refused(&sig.kid, "no active in-window directory entry for kid"),
+        };
     };
     let named = Check { ok: false, kid: sig.kid.clone(), org_id: Some(entry.org_id.clone()), reason: None };
     if entry.org_id != claimed {

@@ -52,10 +52,16 @@ What the format defends, by design:
   business-email-compromise gap; and because the award commits to the awarded
   quote's content hash, a swapped unit price on that quote — even an unsigned one —
   is refused too (see `docs/CLAIMS.md` PQ11, G7).
-  Signature verification lives in the reference library (and is available to
-  CLI / MCP consumers) **and the browser desk verifies on receive** (the
-  Authenticity panel on a traveler); the desk still never holds signing keys
-  and never signs.
+  Signature verification lives in the reference library and the Rust core, and
+  **the browser desk and the MCP server verify on receive** and apply one receive
+  policy (`import-policy.ts`): a signature that is present and fails — the
+  buyer's, the award's, or a seller's on a quote, including one made with a key
+  the directory lists as revoked — is refused; a signature that cannot be checked
+  establishes nothing and is reported as unverified; an award not verified as the
+  buyer's is taken only on an explicit acknowledgment (refused by default over
+  MCP). The desk and the MCP server never hold signing keys and never sign: an
+  award made with them is unsigned until the buyer signs it elsewhere, and a
+  receiver will say so.
 - **Confidentiality (0.1).** The encrypted envelope (ML-KEM-1024 +
   HKDF-SHA-384 + AES-256-GCM) is designed to keep payloads confidential in
   transit and at rest against a harvest-now-decrypt-later adversary, subject to
@@ -68,6 +74,14 @@ What the format defends, by design:
   default** and opens them with the keystore below, so what is *sent* — over the
   MCP tools and from the browser desk — is ciphertext, under a random `.sje`
   filename that does not leak the traveler id.
+- **Confidentiality between sellers.** A traveler accumulates every seller's
+  quote. Sealing sends each recipient **its part**: the buyer org the traveler
+  names receives all of it; anyone else receives the request, its own quotes and
+  the sender's, and the award (with ship-to and ops) only if its quote won. No MCP
+  argument widens this; on the desk, sending the whole traveler is a choice made
+  per envelope, in so many words. The limits: the rule reads the org ids the
+  document carries (a quote that names no seller org goes only to the buyer), and
+  the desk's plaintext exports are the whole traveler.
 - **Key custody at rest.** The ML-KEM *decryption* secret needed to OPEN
   envelopes is held only in a passphrase-encrypted keystore
   (`src/lib/traveler/keystore.ts`): scrypt + AES-256-GCM, storing seeds not

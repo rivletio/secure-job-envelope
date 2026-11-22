@@ -1365,6 +1365,11 @@ const rotated = (newFirst: boolean, newFrom = "2026-06-01T00:00:00.000Z", newKid
 const directories: Record<string, Directory> = {
   main: directoryVector.directory as Directory,
   "northline-revoked": signedDir((d) => { entryOf(d, "org_northline").status = "revoked"; }),
+  "northline-revoked-and-expired": signedDir((d) => {
+    const e = entryOf(d, "org_northline");
+    e.status = "revoked";
+    e.valid_until = "2026-07-01T00:00:00.000Z";
+  }),
   "northline-expired-2026-07": signedDir((d) => { entryOf(d, "org_northline").valid_until = "2026-07-01T00:00:00.000Z"; }),
   "northline-from-2028": signedDir((d) => { entryOf(d, "org_northline").valid_from = "2028-01-01T00:00:00.000Z"; }),
   "huron-revoked": signedDir((d) => { entryOf(d, "org_huron").status = "revoked"; }),
@@ -1553,6 +1558,7 @@ const R = {
   traveler: "not a valid traveler",
   noOrg: "author names no org_id to bind the signature to",
   noEntry: "no active in-window directory entry for kid",
+  revoked: "signing key is revoked in the directory",
   wrongOrg: "signer org does not match author org",
   bad: "signature does not verify",
   unsigned: "award is present but not signed by the buyer",
@@ -1650,7 +1656,10 @@ const travelerCases: TravelerCase[] = [
     { ...signedTraveler, signatures: [{ ...signedTraveler.signatures![0]!, kid: "nobody-2026" }] }, authoredOnly([no(R.noEntry)], false)),
   tcase("buyer-names-no-org", "a signature with no org to bind it to",
     (() => { const t = structuredClone(signedTraveler); delete t.buyer.org_id; return t; })(), authoredOnly([no(R.noOrg)], false)),
-  tcase("signer-revoked", "the buyer's key is revoked in the directory", signedTraveler, authoredOnly([no(R.noEntry)], false), { directory: "northline-revoked" }),
+  tcase("signer-revoked", "the buyer's key is revoked in the directory: said to be revoked, not merely unlisted", signedTraveler, authoredOnly([no(R.revoked)], false), { directory: "northline-revoked" }),
+  tcase("signer-revoked-and-expired", "revoked, and its window has passed as well: status decides, it is still a revoked key", signedTraveler, authoredOnly([no(R.revoked)], false), { directory: "northline-revoked-and-expired" }),
+  tcase("signer-revoked-other-org", "a revoked key on a traveler that names ANOTHER org as buyer: the key is not usable at all, so that is the answer before whose key it was",
+    { ...signedTraveler, buyer: { ...signedTraveler.buyer, org_id: "org_summitfab" } }, authoredOnly([no(R.revoked)], false), { directory: "northline-revoked" }),
   tcase("signer-expired", "the buyer's entry expired before at_ms (the directory itself is still valid)", signedTraveler, authoredOnly([no(R.noEntry)], false), { directory: "northline-expired-2026-07" }),
   tcase("signer-in-window-earlier", "the same directory, evaluated while the entry was valid", signedTraveler, authoredOnly([NORTH], true), { directory: "northline-expired-2026-07", at_ms: Date.parse("2026-03-01T00:00:00.000Z") }),
   tcase("signer-not-yet-valid", "the buyer's entry starts after at_ms", signedTraveler, authoredOnly([no(R.noEntry)], false), { directory: "northline-from-2028" }),
@@ -1673,6 +1682,17 @@ const travelerCases: TravelerCase[] = [
       verified: true,
     }),
   },
+  tcase("quote-signer-revoked", "the same four quotes after the first seller's key was revoked: that quote's check says so; the others are unchanged", threeQuotes, {
+    authorship: [NORTH],
+    award: null,
+    quotes: [
+      { quote_id: "qot_verify0001", check: no(R.revoked) },
+      { quote_id: "qot_verify0002", check: no(R.wrongOrg) },
+      { quote_id: "qot_verify0003", check: null },
+      { quote_id: "qot_verify0004", check: no(R.bad) },
+    ],
+    verified: true,
+  }, { directory: "huron-revoked" }),
   // ---- awards ----
   tcase("award-verified", "the buyer signed this award and it binds the awarded quote", awardTraveler, awardWant(NORTH)),
   tcase("award-unsigned", "an award with no signature is a failure, not an absence",
@@ -1699,7 +1719,7 @@ const travelerCases: TravelerCase[] = [
     }), awardWant(no(R.quoteStale))),
   tcase("awarded-quantity-unpriced", "buyer-signed, but the awarded quote has no price line for the awarded quantity",
     editAward((t) => { t.award!.qty = 1_000_000; }), awardWant(no(R.unpriced))),
-  tcase("award-signer-revoked", "the buyer's key is revoked", awardTraveler, awardWant(no(R.noEntry), [no(R.noEntry)]), { directory: "northline-revoked" }),
+  tcase("award-signer-revoked", "the buyer's key is revoked", awardTraveler, awardWant(no(R.revoked), [no(R.revoked)]), { directory: "northline-revoked" }),
   tcase("award-untrusted-directory", "the directory is not trusted", awardTraveler,
     { authorship: [no(R.directory)], award: no(R.directory), quotes: [], verified: false }, { root: bytesToHex(otherRoot.publicKey) }),
 ];

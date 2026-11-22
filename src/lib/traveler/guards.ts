@@ -101,10 +101,46 @@ export function cannotAward(
   now = new Date(),
   qty: number = traveler.part.qty.target,
 ): string | null {
-  if (locked(traveler)) return "Traveler is already executable.";
-  if (!boundQuotes(traveler).some((q) => q.quote_id === quote.quote_id)) {
-    return "Quote is not bound to the current hash.";
-  }
+  return awardBlockerIn(awardState(traveler), traveler, quote, now, qty);
+}
+
+/** `cannotAward` for every quote on the traveler, in order — with the traveler's own
+ *  state (is it locked; which quotes are bound) established ONCE.
+ *
+ *  Establishing it validates every quote, so asking `cannotAward` once per quote did
+ *  that once per quote: quadratic. A traveler inside every size cap — 60 quotes, each
+ *  with an 8 KiB free-form object — took six seconds to evaluate. */
+export function awardBlockers(
+  traveler: Traveler,
+  now = new Date(),
+  qty: number = traveler.part.qty.target,
+): { quote_id: string; blocker: string | null }[] {
+  const state = awardState(traveler);
+  return (traveler.quotes ?? []).map((quote) => ({
+    quote_id: quote.quote_id,
+    blocker: awardBlockerIn(state, traveler, quote, now, qty),
+  }));
+}
+
+/** What an award guard needs to know about the traveler itself, whatever the quote. */
+type AwardState = { locked: boolean; bound: ReadonlySet<string> };
+
+function awardState(traveler: Traveler): AwardState {
+  return {
+    locked: locked(traveler),
+    bound: new Set(boundQuotes(traveler).map((q) => q.quote_id)),
+  };
+}
+
+function awardBlockerIn(
+  state: AwardState,
+  traveler: Traveler,
+  quote: Quote,
+  now: Date,
+  qty: number,
+): string | null {
+  if (state.locked) return "Traveler is already executable.";
+  if (!state.bound.has(quote.quote_id)) return "Quote is not bound to the current hash.";
   if (isQuoteExpired(quote, now)) return "Quote has expired (valid_until).";
   if (traveler.itar && quote.seller.itar !== true) {
     return "Cannot award an ITAR traveler to a non-ITAR seller.";

@@ -217,6 +217,14 @@ export function entryByKid(dir: Directory, kid: string, at: Date = new Date()): 
   return dir.entries.find((e) => e.kid === kid && inWindow(e, t));
 }
 
+/** The entry with this key id that the directory lists as REVOKED, if it lists one (a
+ *  kid is on at most one entry). A key the root WITHDREW is not the same answer as a key
+ *  it never listed or one outside its window: a signature made with it is evidence that
+ *  something is wrong, not an absence of evidence. Status decides; the window does not. */
+export function revokedEntryByKid(dir: Directory, kid: string): DirectoryEntry | undefined {
+  return dir.entries.find((e) => e.kid === kid && e.status === "revoked");
+}
+
 /** The entry to ENCRYPT to for an org: among its active, in-window entries that carry
  *  an encryption key, the one whose validity started most recently (ties: the greater
  *  kid). An org legitimately has several in-window entries while it rotates keys, so

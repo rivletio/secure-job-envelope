@@ -136,6 +136,24 @@ separately, the award (award decision + ship-to); the desk **verifies both on
 receive** — the **Authenticity** panel on a traveler checks them against the trust
 anchor loaded in **Keys**.
 
+Verifying is not the same as accepting. What a receiver *does* with the verdicts is
+the **receive policy** (`src/lib/traveler/import-policy.ts`), shared by the desk and
+the MCP server:
+
+- a signature that is present and **fails** is refused — the buyer's, the award's, or
+  a seller's on a quote; a changed body, a signer from another org, or a key the
+  directory lists as **revoked**;
+- a signature that cannot be **checked** (no trust anchor, a key the directory does not
+  list or one outside its window) establishes nothing: the traveler is admitted as
+  unverified and says so;
+- an **award** that is not verified as the buyer's is taken only after the reader
+  acknowledges what is unproven (on the desk), or is refused by default (over MCP);
+- over a copy already held: an older revision, the same revision with different
+  content, or a different buyer is refused; quotes are added, never dropped; an award
+  verified as the buyer's cannot be replaced, and an unverified one yields to it;
+- a ship-to or ops list that arrives **without** an award is a draft nobody signed: it
+  is never merged into a held copy, and on a new traveler it is said to be one.
+
 ---
 
 ## 5. Walkthrough C — confidentiality (encrypt & send)
@@ -167,37 +185,86 @@ Three parts cooperate:
   fallback to the static envelope is explicit, and `requireForwardSecret` refuses
   to downgrade.
 
+`sealTraveler` also decides **what** is sent and **to whom**, so that no caller has to
+remember to:
+
+- **Each recipient is sealed its part of the traveler.** The buyer org the traveler
+  names receives all of it. Anyone else receives the quoteable body (same hash, same
+  buyer signature), the quotes that are its own or the sender's (`senderOrg`), and the
+  award — with ship-to, ops and as-built data — only if the awarded quote is one of
+  those. What was left out is reported (`withheld`). A seller is never sent another
+  seller's price by default; sending the whole traveler to a non-buyer has to be
+  asked for by name (`disclose: "everything"`).
+- **A traveler marked ITAR** is sealed only to an org the directory attests for ITAR,
+  or back to the buyer org it names; anything else is refused (`SealRefused`). This is
+  a consistency rule over a self-declared flag and a directory attestation — it is not
+  export control.
+
 ### On the browser desk
 
 1. Open **Keys**. Create an identity (passphrase) — it is stored encrypted; the
    public directory entry shown is what you publish so others can seal to you.
 2. Load a **trust anchor** (`{ root_public_key_hex, directory, bundles? }`),
-   obtained out of band. Confirm the root public key out of band — a swapped root
-   lets an attacker forge a directory.
-3. On a traveler, **Seal & send** to a directory-attested recipient. The download
-   is an encrypted `.sje` with a random filename (it never embeds the traveler
-   id). The plaintext `.zip`/JSON exports remain, relabeled "local copy".
+   obtained out of band. The desk shows the root's **fingerprint** (32 hex characters,
+   in fours) and loads nothing until you confirm it: compare it with the one the root's
+   operator gave you through another channel — a swapped root lets an attacker forge a
+   directory. Replacing a root you already trust asks again and shows both; an older
+   directory under the same root is refused. The built-in **demo** anchor is for trying
+   the desk only: its keys are printed in the source, a standing banner says so, and
+   every check that passes under it is shown as proving nothing.
+3. On a traveler, **Seal & send** to a directory-attested recipient. Before anything
+   is sealed the dialog says what that recipient will **not** be sent — other sellers'
+   quotes, and the award unless its quote won — and whether the envelope will be
+   forward-secret. Sending the whole traveler instead is a tick you give per envelope.
+   A traveler marked ITAR cannot be sealed to an org your directory does not attest
+   for ITAR. The download is an encrypted `.sje` with a random filename (it never
+   embeds the traveler id). The plaintext `.zip`/JSON exports remain, relabeled
+   "local copy" — they are the whole traveler, every quote included.
 4. To receive, **unlock** your identity, then **Open .traveler / .sje** — the desk
-   decrypts and runs the defensive import.
+   decrypts, runs the defensive import, verifies against the loaded trust anchor and
+   applies the receive policy (section 4): a signature that fails is refused, and an
+   award that is not verified as the buyer's is taken only after you acknowledge what
+   is unproven. The envelope's one-time key is spent only when the traveler is admitted.
 
 ### Over MCP
 
+Everything that decides whom the desk trusts is set by its **operator**, in the
+server's environment. None of it is a tool argument, so nothing an agent reads can
+change it:
+
 ```bash
-# generate an identity; save `keystore` to a file and publish `directory_entry`
-sje_identity { "passphrase": "…", "org_id": "org_me", "prekeys": 8 }
-
-# seal (public inputs only — no secret needed)
-sje_seal { "traveler": {…}, "directory": {…}, "root_public_key_hex": "…",
-           "recipient_org": "org_them", "prekey_bundle": {…} }
-
-# open (the desk's keystore is loaded from the environment)
-SJE_KEYSTORE=/path/desk.keystore.json SJE_KEYSTORE_PASSPHRASE=… npm run mcp
-sje_open { "sje": {…} }
+SJE_TRUST_ROOT_FILE=/etc/sje/root.hex          # the pinned trust root (or SJE_TRUST_ROOT)
+SJE_DIRECTORY_FILE=/etc/sje/directory.json    # the signed directory; re-read on every call
+SJE_ORG=org_me                                 # the org this desk acts as
+SJE_KEYSTORE=/var/lib/sje/desk.keystore.json   # where the desk's keystore lives
+SJE_KEYSTORE_PASSPHRASE=…  npm run mcp
 ```
 
-`SJE_KEYSTORE` points at the saved keystore file and `SJE_KEYSTORE_PASSPHRASE`
-unlocks it; only `sje_open` needs them. `npm run demo` is a scripted two-desk
-version of exactly this.
+The tools then need only public inputs:
+
+```bash
+# mint this desk's identity ON THE SERVER: the keystore is written to SJE_KEYSTORE
+# (never overwritten); only the public directory entry and prekeys come back
+sje_identity { "org_id": "org_me", "prekeys": 8 }
+sje_prekeys  { "count": 8 }                    # later: more one-time prekeys, same identity
+
+# seal: the recipient's key comes from a directory the pinned root signed; only the
+# recipient's part of the traveler is sealed, and the result says what was left out
+sje_seal { "traveler": {…}, "recipient_org": "org_them", "prekey_bundle": {…},
+           "exclude_prekey_ids": ["…every prekey_id earlier seals to this bundle returned…"] }
+
+# open: say which document and which buyer you expect; the result says what was verified
+sje_open { "sje": {…}, "expected_traveler_hash": "sha384:…", "expected_buyer_org": "org_them" }
+```
+
+A passphrase is never an argument and a keystore is never a result. An award that is
+not verified as the buyer's is refused unless the caller passes
+`accept_unverified_award: true` after confirming it out of band; a signature that is
+present and fails — including one made with a key the directory lists as revoked — is
+refused whatever is passed. The server signs nothing: a directory entry, a prekey
+bundle and an award are signed with the org's ML-DSA key outside it.
+[`mcp/README.md`](../mcp/README.md) has every setting, every tool and the limits;
+`npm run demo` is a scripted two-desk version of exactly this.
 
 ---
 

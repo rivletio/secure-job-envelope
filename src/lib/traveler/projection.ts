@@ -59,3 +59,18 @@ export function projectForRecipient(
   }
   return { traveler: out, withheld: { quotes: all.length - kept.length, award: withholdAward } };
 }
+
+/** What a projection left out, in words for the person sealing — or null when it left
+ *  nothing out. Counts only: nothing here is taken from the document's text. */
+export function withheldSummary(withheld: Projection["withheld"]): string | null {
+  const parts: string[] = [];
+  if (withheld.quotes > 0) {
+    parts.push(
+      withheld.quotes === 1
+        ? "1 quote that is neither the recipient's nor yours"
+        : `${withheld.quotes} quotes that are neither the recipient's nor yours`,
+    );
+  }
+  if (withheld.award) parts.push("the award, with its ship-to, ops and as-built data");
+  return parts.length > 0 ? parts.join(", and ") : null;
+}
