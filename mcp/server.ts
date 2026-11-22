@@ -59,6 +59,7 @@ import { newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
 import { decideImport } from "../src/lib/traveler/import-policy.ts";
 import {
   SealRefused,
+  keystoreExclusive,
   sealTraveler,
   openTravelerDeferred,
   parseSjeEnvelope,
@@ -78,7 +79,7 @@ import {
   TRAVELER_ID_RE,
   TRAVELER_SPEC,
 } from "../src/lib/traveler/types.ts";
-import { exceedsUtf8Bytes } from "../src/lib/traveler/wire.ts";
+import { MAX_JSON_DEPTH, exceedsUtf8Bytes, findDuplicateMember } from "../src/lib/traveler/wire.ts";
 import type { Award, Quote, Traveler } from "../src/lib/traveler/types.ts";
 import {
   MAX_DIRECTORY_JSON_BYTES,
@@ -118,6 +119,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { Transform } from "node:stream";
 
 /* ---------------- keystore file: load / save ----------------
  *
@@ -237,7 +239,9 @@ function serverKeystore(): Promise<Unlocked> {
   const passphrase = process.env.SJE_KEYSTORE_PASSPHRASE;
   if (!path || !passphrase) {
     return Promise.reject(
-      new Error("sje_open needs SJE_KEYSTORE (keystore file path) and SJE_KEYSTORE_PASSPHRASE"),
+      new Error(
+        "this desk has no keystore configured (operator: set SJE_KEYSTORE, the keystore file, and SJE_KEYSTORE_PASSPHRASE in the server's environment)",
+      ),
     );
   }
   if (cachedKeystore) {
@@ -1065,7 +1069,31 @@ function amendTool(a: Args, { now }: Ctx): ToolResult {
   } catch (e) {
     throw validationRefusal("sje_amend", e);
   }
-  return ok({ ...counterparty("traveler"), ...report(next, now), traveler: next });
+  // What the new revision no longer carries. A locked traveler was refused above, so an
+  // award here is one that was not in effect; it is dropped like any other, and that
+  // used to go unsaid.
+  const droppedAward = t.award != null;
+  const droppedSignatures = (t.signatures ?? []).length;
+  return ok({
+    ...counterparty("traveler"),
+    ...report(next, now),
+    amendment_dropped: { award: droppedAward, buyer_signatures: droppedSignatures },
+    ...(droppedAward || droppedSignatures > 0
+      ? {
+          amendment_note: [
+            droppedAward
+              ? "The traveler handed in carried an award that was not in effect (it did not lock the traveler). The new revision carries no award."
+              : null,
+            droppedSignatures > 0
+              ? "The buyer's signatures covered the previous revision's body and were dropped: the new revision is unsigned until the buyer signs it."
+              : null,
+          ]
+            .filter((x) => x !== null)
+            .join(" "),
+        }
+      : {}),
+    traveler: next,
+  });
 }
 
 function quoteTool(a: Args, { now }: Ctx): ToolResult {
@@ -1140,8 +1168,9 @@ function evaluateTool(a: Args, { cfg, now }: Ctx): ToolResult {
     const sellerSignature = q.sig === undefined ? null : check ? shownCheck(check) : notChecked();
     return {
       quote_id: q.quote_id,
-      // Typed by the quote's author. It identifies the seller only if seller_signature.ok.
-      seller_org_id: q.seller.org_id ?? null,
+      // Who the seller is: the org a VERIFIED signature names (seller_signature.org_id,
+      // from the directory), or nobody. What the quote says about itself — its
+      // seller.org_id, typed by whoever wrote it — is under `quote`, with the rest of it.
       seller_identified_by:
         sellerSignature?.ok === true ? "verified signature" : "nothing (self-asserted)",
       signed: q.sig !== undefined,
@@ -1305,6 +1334,60 @@ async function identityTool(a: Args): Promise<ToolResult> {
   } finally {
     minting = false;
   }
+}
+
+/** Most unspent one-time prekeys one keystore may hold: enough for several published
+ *  bundles (a bundle carries at most 256), and a bound on what a caller can make the
+ *  keystore file grow to. */
+const MAX_HELD_PREKEYS = 1024;
+
+/** Mint more one-time prekeys into the keystore this desk already has.
+ *
+ *  They could only be minted when the keystore was created, so a desk had at most 64
+ *  forward-secret opens in its life: after that every sender fell back to a static
+ *  envelope, and the only remedy was a new identity. */
+async function prekeysTool(a: Args): Promise<ToolResult> {
+  const count = a.count as number;
+  let keystore: Unlocked;
+  try {
+    keystore = await serverKeystore();
+  } catch (e) {
+    throw new Refusal(`sje_prekeys: ${e instanceof Error ? e.message : "keystore unavailable"}.`);
+  }
+  const path = process.env.SJE_KEYSTORE!; // set: serverKeystore() resolved
+  let minted: { prekeys: PublicPrekey[]; held: number };
+  try {
+    // One change to the keystore at a time (an open may be recording a spent prekey):
+    // minted in memory and written to the file in one step.
+    minted = await keystoreExclusive(keystore, () => {
+      const held = keystore.prekeyCount();
+      if (held + count > MAX_HELD_PREKEYS) {
+        throw new Refusal(
+          `sje_prekeys: refused. This desk's keystore holds ${held} unspent one-time prekeys, and may hold at most ${MAX_HELD_PREKEYS}. Nothing was minted.`,
+        );
+      }
+      const { keystore: blob, prekeys } = keystore.addPrekeys(count);
+      saveKeystoreFile(path, JSON.stringify(blob));
+      return { prekeys, held: keystore.prekeyCount() };
+    });
+  } catch (e) {
+    if (e instanceof Refusal) throw e;
+    // This server's copy may now hold prekeys the file does not: discard it, so the next
+    // use starts from the file. (A file changed elsewhere has already done so.)
+    dropCachedKeystore(path);
+    logLine("one-time prekeys not minted", e);
+    throw new Refusal(
+      e instanceof KeystoreFileChangedError
+        ? "sje_prekeys: another process changed this desk's keystore file, so this server's copy of it was not written over the other's. Nothing was minted. Call sje_prekeys again: the keystore is reloaded from the file first."
+        : "sje_prekeys: the keystore file could not be rewritten (operator: see the server log). Nothing was minted.",
+    );
+  }
+  // Public material only.
+  return ok({
+    prekeys: minted.prekeys,
+    held_prekeys: minted.held,
+    note: "These are the PUBLIC halves; the secrets stay in this desk's keystore. A sender can use them only from a prekey bundle signed with this org's directory signing key, which this server does not hold: sign and publish the bundle outside it.",
+  });
 }
 
 /** Why a forward-secret envelope cannot be made for this recipient, or null if it can. */
@@ -1536,7 +1619,7 @@ async function openTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
   try {
     keystore = await serverKeystore();
   } catch (e) {
-    throw new Refusal(e instanceof Error ? e.message : "keystore unavailable");
+    throw new Refusal(`sje_open: ${e instanceof Error ? e.message : "keystore unavailable"}.`);
   }
   let envelope: SjeEnvelope;
   try {
@@ -1574,13 +1657,20 @@ async function openTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
   // Is it the document, and the buyer, the caller expected?
   const hash = hashAsExpected(tool, t, a);
   const expectedBuyer = optString(a, "expected_buyer_org");
-  const wrongBuyer = (which: string, found: string | null) =>
-    new Refusal(
-      `sje_open: refused. ${which} is not the org given as expected_buyer_org. ${unspent}`,
-      { expected_buyer_org: expectedBuyer, found_buyer_org: found, traveler_hash: hash },
-    );
+  // The org that was found instead is NOT repeated: it is what the document says about
+  // itself — up to 64 characters of words joined by underscores, typed by whoever wrote
+  // the file — and a refusal is read as this server's own words.
+  const wrongBuyer = (which: string) =>
+    new Refusal(`sje_open: refused. ${which} is not the org given as expected_buyer_org. ${unspent}`, {
+      expected_buyer_org: expectedBuyer,
+      traveler_hash: hash,
+    });
   if (expectedBuyer !== undefined && t.buyer.org_id !== expectedBuyer) {
-    throw wrongBuyer("The buyer org this traveler names", t.buyer.org_id ?? null);
+    throw wrongBuyer(
+      t.buyer.org_id === undefined
+        ? "This traveler names no buyer org, which"
+        : "The buyer org this traveler names",
+    );
   }
 
   // What does verification establish, and what does the receive policy make of it?
@@ -1599,8 +1689,10 @@ async function openTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
     });
   }
   const signer = verification?.authorship.find((c) => c.ok)?.org_id;
+  // (Cannot differ today: a signature verifies only as the org the traveler names, and
+  // that org was compared above. Kept so the expectation still holds if that changes.)
   if (expectedBuyer !== undefined && signer !== undefined && signer !== expectedBuyer) {
-    throw wrongBuyer("The org whose key signed this traveler", signer);
+    throw wrongBuyer("The org whose key signed this traveler");
   }
   if (decision.acknowledge.length > 0 && !acceptUnverifiedAward) {
     throw new Refusal(
@@ -1920,6 +2012,16 @@ const TOOLS: ToolDef[] = [
     run: identityTool,
   },
   {
+    name: "sje_prekeys",
+    title: "Mint more one-time prekeys",
+    description: `Mint more one-time prekeys into this desk's EXISTING keystore (the file the operator configured), and return their public halves. Each forward-secret envelope sealed to this desk spends one; when none are left, senders fall back to static envelopes. The secrets never leave the keystore, and the identity is unchanged. The public prekeys are usable only from a prekey bundle signed with this org's directory signing key, outside this server. A keystore holds at most ${MAX_HELD_PREKEYS} unspent prekeys.`,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    args: {
+      count: req(intArg("How many one-time prekeys to mint.", 1, MAX_MINTED_PREKEYS)),
+    },
+    run: prekeysTool,
+  },
+  {
     name: "sje_seal",
     title: "Seal a traveler to a recipient",
     description:
@@ -2042,6 +2144,144 @@ function describeConfig(cfg: DeskConfig): string {
   ].join("; ");
 }
 
+/* ---------------- the wire: what is refused before the SDK parses it ----------------
+ *
+ * By the time a tool handler sees its arguments the MCP SDK has parsed the request, and
+ * two things have already happened that this server would never do with an argument:
+ *
+ *   - a member name given TWICE has become its last value, silently — at any depth, so
+ *     inside a document passed as an object too;
+ *   - an argument named `__proto__` has been dropped by the SDK's own schema.
+ *
+ * "This server never ignores an argument it does not know" was untrue for that name, and
+ * a request whose text said one thing and then another was acted on as the second. So
+ * each line is checked as TEXT first. One that fails is answered with a JSON-RPC error
+ * and never reaches the SDK.
+ *
+ * What this cannot see: whatever produced the text. A host that turns a model's tool
+ * call into an object and serializes it again has already resolved any repeated name,
+ * its own way, before a byte reaches this process. */
+
+/** JSON-RPC wraps arguments three containers deep; allow a little more than that above
+ *  what a document itself may nest. */
+const RAW_REQUEST_MAX_DEPTH = MAX_JSON_DEPTH + 8;
+/** A line longer than this is not held here to be checked: it is handed on as it comes,
+ *  and the SDK's own reader — which stops at 10 MiB — refuses it. */
+const RAW_REQUEST_MAX_BYTES = 12 * 1024 * 1024;
+
+/** Whether a parsed JSON value has a member named `__proto__` anywhere. (`JSON.parse`
+ *  makes it an ordinary own member.) Iterative: depth is whatever the text nested. */
+function hasProtoMember(root: unknown): boolean {
+  const todo: unknown[] = [root];
+  while (todo.length > 0) {
+    const v = todo.pop();
+    if (v === null || typeof v !== "object") continue;
+    if (!Array.isArray(v) && Object.hasOwn(v, "__proto__")) return true;
+    for (const child of Object.values(v)) todo.push(child);
+  }
+  return false;
+}
+
+/** Why one line of JSON-RPC text is refused before it is parsed into a request — or null.
+ *  Text that is not JSON at all is not this function's business: the SDK refuses it. */
+export function rawRequestProblem(line: string): string | null {
+  let repeated: string | undefined;
+  try {
+    repeated = findDuplicateMember(line, RAW_REQUEST_MAX_DEPTH);
+  } catch {
+    return "is nested more deeply than any request this server accepts";
+  }
+  if (repeated !== undefined) return "gives the same member name twice within one JSON object";
+  // Only text that could spell the name at all is parsed to look for it.
+  if (!line.includes("proto") && !line.includes("\\u")) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  return hasProtoMember(parsed) ? "has a member named __proto__" : null;
+}
+
+/** The JSON-RPC error for a refused line, as one line of text — or null when the line
+ *  carried no usable request id (a notification, or an id that is not a string or a
+ *  number): then there is nothing to answer, and it is only dropped. */
+export function rawRequestRefusal(line: string, problem: string): string | null {
+  let id: unknown;
+  try {
+    id = (JSON.parse(line) as { id?: unknown } | null)?.id;
+  } catch {
+    return null;
+  }
+  if (typeof id !== "string" && !(typeof id === "number" && Number.isFinite(id))) return null;
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    error: {
+      code: -32600,
+      message: `Invalid request: the message ${problem}. This server does not choose between two values or ignore a member; the request was not read any further. Nothing was done.`,
+    },
+  });
+}
+
+/** A stream to put between stdin and the SDK's transport: whole lines pass through
+ *  untouched, or are answered with `reply` and withheld. */
+export function screenedRequests(reply: (line: string) => void): Transform {
+  let held: Buffer[] = [];
+  let heldBytes = 0;
+  let passing = false; // inside a line too long to hold: handed on as it comes
+  const judge = (line: Buffer): Buffer | null => {
+    const text = line.toString("utf8");
+    const problem = rawRequestProblem(text);
+    if (problem === null) return line;
+    logLine("request refused before parsing", new Error(problem));
+    const answer = rawRequestRefusal(text, problem);
+    if (answer !== null) reply(`${answer}\n`);
+    return null;
+  };
+  return new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      let rest = chunk;
+      for (;;) {
+        const newline = rest.indexOf(0x0a);
+        if (newline === -1) break;
+        const tail = rest.subarray(0, newline + 1);
+        rest = rest.subarray(newline + 1);
+        if (passing) {
+          this.push(tail);
+          passing = false;
+          continue;
+        }
+        const line = held.length === 0 ? tail : Buffer.concat([...held, tail]);
+        held = [];
+        heldBytes = 0;
+        const forward = judge(line);
+        if (forward !== null) this.push(forward);
+      }
+      if (rest.length > 0) {
+        if (passing) {
+          this.push(rest);
+        } else {
+          held.push(rest);
+          heldBytes += rest.length;
+          if (heldBytes > RAW_REQUEST_MAX_BYTES) {
+            for (const part of held) this.push(part);
+            held = [];
+            heldBytes = 0;
+            passing = true;
+          }
+        }
+      }
+      done();
+    },
+    flush(done) {
+      // An unterminated last line is not a message; hand it on as the SDK would see it.
+      for (const part of held) this.push(part);
+      done();
+    },
+  });
+}
+
 const isMain = process.argv[1]?.endsWith("server.ts");
 if (isMain) {
   let server: Server;
@@ -2055,5 +2295,7 @@ if (isMain) {
     console.error(`[sje] not started. ${e instanceof Error ? stripUnsafe(e.message) : "configuration error"}`);
     process.exit(1);
   }
-  await server.connect(new StdioServerTransport());
+  const requests = screenedRequests((line) => void process.stdout.write(line));
+  process.stdin.pipe(requests);
+  await server.connect(new StdioServerTransport(requests, process.stdout));
 }
