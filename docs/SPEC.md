@@ -141,11 +141,36 @@ struct:
    "the awarded quote" or "the unit price" ambiguous — and lets what a reader is shown
    differ from what an award commits to. A document with a duplicate is refused.
 
-All five rules are held across the two implementations by the conformance vectors
+6. **A member name appears at most once in any object,** at any depth — in the typed
+   fields and inside the free-form blobs alike. Names are compared after JSON
+   unescaping (`"lot"` and `"lo\u0074"` are the same name). A document with a repeated
+   member name is refused; it is never resolved first-wins or last-wins. (JavaScript's
+   `JSON.parse` keeps the last and never examines the others, so a value hidden behind
+   a duplicate — an out-of-range number, a second `award` — is invisible to every check
+   that runs on the parsed object, while a strict parser reads it. Two readers would
+   judge two different documents.)
+
+7. **The wire text is UTF-8 with no byte-order mark.** A leading U+FEFF is refused, not
+   stripped; an invalid UTF-8 sequence is refused, not replaced. (Many decoders strip a
+   BOM or substitute U+FFFD by default; a reader that does has silently accepted bytes
+   another reader refuses.)
+
+8. **Size is measured on the wire.** Traveler text longer than 512 KiB — 524,288 bytes of
+   UTF-8, whitespace included — is refused before it is parsed. An implementation that
+   is handed an already-parsed value rather than text (an API argument, a store entry)
+   applies the same limit to the UTF-8 length of the value's compact serialization, the
+   shortest text it could have arrived as. The limit is in bytes, not in characters or
+   UTF-16 code units.
+
+An implementation MUST apply rules 6–8 to the bytes as received — a traveler read from
+a file, from an archive member, or from a decrypted envelope is parsed from those bytes,
+not from a value some earlier layer already parsed leniently.
+
+All eight rules are held across the two implementations by the conformance vectors
 (`travelers/l0-intfloat.json`; `travelers/reject/*` — each reject vector's refusal
 *reason* is pinned per implementation in `travelers/reject-reasons.json`, so a vector
-cannot pass by being refused for some other defect), the seeded differential, and the
-committed fuzz corpus.
+cannot pass by being refused for some other defect; both runners parse every vector
+from its bytes), the seeded differential, and the committed fuzz corpus.
 
 ## Conformance ladder
 
@@ -191,9 +216,16 @@ quoteable.canonical.json     canonical quoteable-body bytes (optional)
 traveler_json_sha384 }` and normally also `{ spec, media_type, archive, itar,
 export_control }`. Any other member — including `NOTES.txt` — is refused.
 
-Import rules: refuse any member outside the allowlist; refuse paths
-containing `/`, `\`, `..`, a leading `/`, or a NUL; cap compressed and
-uncompressed sizes. Integrity is verified with SHA-384 cross-checks, not
+Import rules: refuse any member outside the allowlist; refuse a member whose
+**stored** name is not exactly the plain root name — so `../traveler.json`,
+`./traveler.json`, `a/../traveler.json`, and anything containing `/`, `\`, `..`
+or a NUL are refused (the check is on the name as stored in the archive: a zip
+library may hand back an already-normalized name, on which this check would
+refuse nothing); refuse an archive holding two members with the same name, or
+whose member count differs from the count its end-of-central-directory record
+declares; refuse directory entries; cap compressed and uncompressed sizes.
+`traveler.json` is parsed from its bytes under the §Parsing rules, and
+`traveler_json_sha384` is the SHA-384 of exactly those bytes. Integrity is verified with SHA-384 cross-checks, not
 CRC32 (CRC is deliberately skipped so a hostile archive is not fully
 inflated before the guards run). `META.json` is **required** — its
 `traveler_id` and `traveler_hash` must match the received `traveler.json`,
@@ -213,10 +245,14 @@ award (the award decision + ship-to, bound to the traveler revision, and binding
 the awarded quote's priced content via `quote_hash`), so a re-sealed archive that
 forges the award, redirects the ship-to, or swaps the awarded quote's price is
 refused by that signature even though its digest recomputes. `ops` and `as_built` remain
-post-award workflow state not covered by a signature. A duplicate member name resolves to the
-**last** entry (which is then digest-checked); an external tool that resolves
-duplicates as "first" may disagree, so treat a duplicate-membered archive as
-suspect.
+post-award workflow state not covered by a signature.
+
+A reader works from the archive's central directory, as zip readers do. An archive with
+a repeated member name is refused (above), because readers disagree on which copy wins.
+Bytes that are present in the file but not listed in the central directory are not
+examined; a streaming extractor that walks local headers instead can surface content
+this reader never saw. Open archives with a conforming reader, not a general-purpose
+unzip tool.
 
 ## Export control & commercial reality
 

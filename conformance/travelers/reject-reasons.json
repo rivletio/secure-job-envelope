@@ -11,54 +11,35 @@
   "blob-nonfinite-number.json": { "ts": "non-finite number", "rs": "number out of range" },
   "blob-proto-member-nested.json": { "ts": "__proto__", "rs": "as_built contains a member named __proto__" },
   "blob-proto-member.json": { "ts": "__proto__", "rs": "as_built contains a member named __proto__" },
+  "byte-order-mark.json": { "ts": "must not start with a byte-order mark", "rs": "expected value at line 1 column 1" },
   "created-at-feb31.json": { "ts": "created_at: ISO-8601 UTC datetime", "rs": "created_at is not a canonical" },
   "created-at-offset.json": { "ts": "created_at: ISO-8601 UTC datetime", "rs": "created_at is not a canonical" },
   "created-at-second-60.json": { "ts": "created_at: ISO-8601 UTC datetime", "rs": "created_at is not a canonical" },
-  "itar-mismatch.json": {
-    "ts": "ITAR traveler cannot carry a quote from a non-ITAR seller",
-    "rs": "ITAR traveler cannot carry a quote from a non-ITAR seller"
-  },
+  "duplicate-member-blob.json": { "ts": "duplicate member name \"lot\"", "rs": "duplicate member name in a free-form object" },
+  "duplicate-member-escaped.json": { "ts": "duplicate member name \"lot\"", "rs": "duplicate member name in a free-form object" },
+  "duplicate-member-shadows-value.json": { "ts": "duplicate member name \"measured_mm\"", "rs": "number out of range" },
+  "duplicate-member-typed.json": { "ts": "duplicate member name \"revision\"", "rs": "duplicate field `revision`" },
+  "itar-mismatch.json": { "ts": "ITAR traveler cannot carry a quote from a non-ITAR seller", "rs": "ITAR traveler cannot carry a quote from a non-ITAR seller" },
   "lone-surrogate-in-notes.json": { "ts": "lone surrogate", "rs": "hex escape" },
   "need-by-feasible-null.json": { "ts": "need_by_feasible", "rs": "field must not be null" },
   "ops-seq-duplicate.json": { "ts": "more than one op with the same seq", "rs": "more than one entry with the same seq" },
   "org-id-null.json": { "ts": "buyer.org_id", "rs": "field must not be null" },
-  "positional-struct-award-terms.json": {
-    "ts": "award.terms: Invalid input: expected object, received array",
-    "rs": "a JSON array was supplied where an object is required"
-  },
-  "positional-struct-part.json": {
-    "ts": "part.material: Invalid input: expected object, received array",
-    "rs": "a JSON array was supplied where an object is required"
-  },
-  "positional-struct-quote.json": {
-    "ts": "quotes.0: Invalid input: expected object, received array",
-    "rs": "a JSON array was supplied where an object is required"
-  },
-  "positional-struct-traveler.json": {
-    "ts": "expected object, received array",
-    "rs": "a JSON array was supplied where an object is required"
-  },
+  "positional-struct-award-terms.json": { "ts": "award.terms: Invalid input: expected object, received array", "rs": "a JSON array was supplied where an object is required" },
+  "positional-struct-part.json": { "ts": "part.material: Invalid input: expected object, received array", "rs": "a JSON array was supplied where an object is required" },
+  "positional-struct-quote.json": { "ts": "quotes.0: Invalid input: expected object, received array", "rs": "a JSON array was supplied where an object is required" },
+  "positional-struct-traveler.json": { "ts": "expected object, received array", "rs": "a JSON array was supplied where an object is required" },
   "qty-target-over-max.json": { "ts": "part.qty.target", "rs": "qty.target is out of range" },
   "quote-blob-proto-member.json": { "ts": "__proto__", "rs": "assumptions contains a member named __proto__" },
   "quote-currency-lowercase.json": { "ts": "pricing.currency", "rs": "currency is not a 3-letter uppercase code" },
-  "quote-id-duplicate.json": {
-    "ts": "more than one quote with the same quote_id",
-    "rs": "more than one quote with the same quote_id"
-  },
+  "quote-id-duplicate.json": { "ts": "more than one quote with the same quote_id", "rs": "more than one quote with the same quote_id" },
   "quote-lead-time-over-max.json": { "ts": "lead_time_days", "rs": "lead_time_days is out of range" },
-  "quote-line-qty-duplicate.json": {
-    "ts": "more than one price line for the same qty",
-    "rs": "more than one line for the same qty"
-  },
+  "quote-line-qty-duplicate.json": { "ts": "more than one price line for the same qty", "rs": "more than one line for the same qty" },
   "quote-lines-over-16.json": { "ts": "pricing.lines", "rs": "pricing.lines must have between 1 and 16 entries" },
   "revision-over-max.json": { "ts": "revision:", "rs": "revision is out of range" },
   "revision-zero.json": { "ts": "revision:", "rs": "revision is out of range" },
   "thickness-below-min.json": { "ts": "thickness_mm", "rs": "thickness_mm is out of range" },
   "thickness-over-max.json": { "ts": "thickness_mm", "rs": "thickness_mm is out of range" },
   "unknown-field.json": { "ts": "Unrecognized key", "rs": "unknown field `mystery`" },
-  "untrimmed-name.json": {
-    "ts": "must not have leading or trailing whitespace",
-    "rs": "must not have leading or trailing whitespace"
-  },
+  "untrimmed-name.json": { "ts": "must not have leading or trailing whitespace", "rs": "must not have leading or trailing whitespace" },
   "wrong-spec.json": { "ts": "spec:", "rs": "unsupported spec" }
 }

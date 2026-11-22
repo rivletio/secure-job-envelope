@@ -33,6 +33,7 @@ import {
   levelOf,
   parseQuote,
   parseTraveler,
+  parseTravelerJson,
   staleQuotes,
 } from "../src/lib/traveler/conformance.ts";
 import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/traveler/guards.ts";
@@ -99,23 +100,13 @@ function serverKeystore(): Promise<Unlocked> {
 /* ---------------- helpers ---------------- */
 
 function asTraveler(input: unknown): Traveler {
-  // Early-out cap for the string form. Object input (already JSON-parsed by the MCP
-  // SDK) is bounded instead by parseTraveler's per-field schema limits (numeric
-  // ceilings, string/array caps — docs/CLAIMS.md C12), which are the authoritative
-  // bound; there is no unbounded path here.
-  if (typeof input === "string" && input.length > MAX_TRAVELER_JSON_BYTES) {
-    throw new Error("traveler JSON exceeds 512 KiB");
-  }
-  let doc: unknown = input;
-  if (typeof input === "string") {
-    try {
-      doc = JSON.parse(input) as unknown;
-    } catch {
-      // Normalize a raw V8 SyntaxError to a generic message (don't echo parser internals).
-      throw new Error("traveler is not valid JSON");
-    }
-  }
-  return parseTraveler(doc);
+  // A JSON string is wire text: it goes through the strict text entry point, which
+  // applies the 512 KiB cap to its UTF-8 bytes and refuses what only the text can show
+  // (a duplicate member name, a byte-order mark) — exactly as the Rust core would.
+  // An object (already JSON-parsed by the MCP SDK) cannot carry a duplicate member; it
+  // is bounded by its compact serialization, checked before the schema runs.
+  if (typeof input === "string") return parseTravelerJson(input);
+  return parseTraveler(input);
 }
 
 function report(traveler: Traveler) {

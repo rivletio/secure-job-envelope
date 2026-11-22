@@ -4,7 +4,6 @@ import {
   CURRENCY_RE,
   HASH_RE,
   MAX_NAME,
-  MAX_TRAVELER_JSON_BYTES,
   MAX_STRING,
   TRAVELER_ID_RE,
   TRAVELER_SPEC,
@@ -232,9 +231,9 @@ export const travelerSchema = z
   })
   .strict()
   .superRefine((p, ctx) => {
-    if (JSON.stringify(p).length > MAX_TRAVELER_JSON_BYTES) {
-      ctx.addIssue({ code: "custom", message: "traveler exceeds 512 KiB" });
-    }
+    // (The 512 KiB cap is not a schema rule: it is measured on the wire bytes by
+    // `parseTravelerJson`, or on the compact serialization by `parseTraveler` — see
+    // conformance.ts. Measured here it could only see UTF-16 units of a re-serialization.)
     // quote_id identifies a quote within a traveler, and an award names a quote by id.
     // Two quotes sharing an id let an award bind a different quote from the one a
     // reader is shown — a buyer was shown the bound $14.20 quote while the award (and
