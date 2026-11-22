@@ -7,8 +7,12 @@
 //! interchangeable" premise the whole project rests on.
 //!
 //! Two rules are subtle enough to call out:
-//!   * String length limits count UTF-16 code units, because that is what
-//!     JavaScript's `String.prototype.length` (and therefore zod `.max`) counts.
+//!   * String length limits count Unicode code points (`str::chars().count()`),
+//!     because zod v4's `.min`/`.max` on a string count code points, not UTF-16
+//!     code units (e.g. `z.string().max(3)` accepts "😀😀😀" — three code points,
+//!     six UTF-16 units). The one exception is the `jsonBlob` 8 KiB cap, which
+//!     mirrors zod's `JSON.stringify(v).length` and so counts UTF-16 code units
+//!     (see `json_blob`).
 //!   * `.trim()` fields are validated, not transformed: a string with leading or
 //!     trailing whitespace is *rejected* rather than silently trimmed, so the two
 //!     implementations never hash a different byte string for the "same" document.
@@ -30,6 +34,15 @@ fn err(msg: impl Into<String>) -> Error {
     Error::Invalid(msg.into())
 }
 
+/// Code-point length, matching zod v4's string `.min`/`.max`. Used for every
+/// user string field.
+fn cp_len(s: &str) -> usize {
+    s.chars().count()
+}
+
+/// UTF-16 code-unit length, matching JavaScript's `String.prototype.length`.
+/// Used only for the `jsonBlob` 8 KiB cap, which zod measures with
+/// `JSON.stringify(v).length`.
 fn utf16_len(s: &str) -> usize {
     s.chars().map(char::len_utf16).sum()
 }
@@ -48,7 +61,7 @@ fn is_js_ws(c: char) -> bool {
 }
 
 /// zod `.trim().min(1).max(max)`: reject empty, reject leading/trailing whitespace
-/// (no silent trim), enforce the UTF-16 max.
+/// (no silent trim), enforce the code-point max.
 fn trimmed(field: &str, s: &str, max: usize) -> Result<(), Error> {
     let Some(first) = s.chars().next() else {
         return Err(err(format!("{field} must not be empty")));
@@ -57,7 +70,7 @@ fn trimmed(field: &str, s: &str, max: usize) -> Result<(), Error> {
     if is_js_ws(first) || is_js_ws(last) {
         return Err(err(format!("{field} must not have leading or trailing whitespace")));
     }
-    let n = utf16_len(s);
+    let n = cp_len(s);
     if n < 1 || n > max {
         return Err(err(format!("{field} length is out of range")));
     }
@@ -67,7 +80,7 @@ fn trimmed(field: &str, s: &str, max: usize) -> Result<(), Error> {
 /// zod `.min(min).max(max)` with no `.trim()`: length only (whitespace-only values
 /// are allowed, matching the reference — only the trimmed fields reject them).
 fn sized(field: &str, s: &str, min: usize, max: usize) -> Result<(), Error> {
-    let n = utf16_len(s);
+    let n = cp_len(s);
     if n < min || n > max {
         return Err(err(format!("{field} length is out of range")));
     }
@@ -413,4 +426,28 @@ pub fn traveler(t: &Traveler) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn length_limits_count_code_points_like_zod_v4() {
+        // zod v4's string `.min`/`.max` count code points, not UTF-16 code units.
+        // "😀" (U+1F600) is one code point but two UTF-16 units, so a field capped at
+        // MAX_NAME=128 must accept 128 emoji and reject 129 — matching the reference,
+        // which previously disagreed because this core counted UTF-16 units.
+        let n128: String = "😀".repeat(128);
+        let n129: String = "😀".repeat(129);
+        assert_eq!(cp_len(&n128), 128);
+        assert_eq!(utf16_len(&n128), 256);
+        assert!(trimmed("family", &n128, MAX_NAME).is_ok());
+        assert!(trimmed("family", &n129, MAX_NAME).is_err());
+        // The no-trim `sized` fields count code points too.
+        assert!(sized("code", &"😀".repeat(32), 1, 32).is_ok());
+        assert!(sized("code", &"😀".repeat(33), 1, 32).is_err());
+        // The blob cap deliberately still counts UTF-16 units (JSON.stringify length).
+        assert_eq!(utf16_len("😀"), 2);
+    }
 }
