@@ -19,8 +19,9 @@ import {
   staticReasonText,
   usedPrekeyIds,
 } from "@/lib/traveler/prekey-ledger";
+import { projectForRecipient, withheldSummary } from "@/lib/traveler/projection";
 import { useTravelerStore } from "@/lib/traveler/store";
-import { sealTraveler } from "@/lib/traveler/transport";
+import { itarRecipientBasis, sealTraveler } from "@/lib/traveler/transport";
 import { downloadEnvelope } from "@/lib/traveler/zip";
 import type { Traveler } from "@/lib/traveler/types";
 import { visibleText } from "@/lib/traveler/visible-text";
@@ -38,7 +39,14 @@ import { visibleText } from "@/lib/traveler/visible-text";
  *
  *  Under the DEMO trust anchor the recipients' decryption keys are public, so sealing
  *  protects nothing; the dialog says so and takes an explicit acknowledgment for every
- *  envelope. */
+ *  envelope.
+ *
+ *  WHAT IS SENT is the recipient's part of the traveler, not all of it: a recipient that
+ *  is not the buyer org the traveler names gets the body, its own quotes and — in the
+ *  seller view — the quotes of the shop this desk is quoting as; the award travels only
+ *  with the quote that won. The dialog says what is left out before anything is sealed.
+ *  Sending the whole traveler instead is a choice made per envelope, in so many words.
+ *  A traveler marked ITAR is not sealed to an org the directory does not attest for it. */
 export function SealDialog({
   traveler,
   open,
@@ -52,10 +60,16 @@ export function SealDialog({
   const ledger = useKeysStore((s) => s.prekeyLedger);
   const recordPrekeyUse = useKeysStore((s) => s.recordPrekeyUse);
   const logAudit = useTravelerStore((s) => s.logAudit);
+  const role = useTravelerStore((s) => s.role);
+  const sellerOrgId = useTravelerStore((s) => s.sellerOrgId);
+  // The quotes that are this desk's own to send: those of the shop it is quoting as.
+  // The buyer view has none (a buyer writes no quotes).
+  const senderOrg = role === "seller" ? sellerOrgId : undefined;
   const [org, setOrg] = useState("");
   const [requireFs, setRequireFs] = useState(false);
   const [busy, setBusy] = useState(false);
   const [demoAck, setDemoAck] = useState(false);
+  const [sendAll, setSendAll] = useState(false);
   const [proposal, setProposal] = useState<TrustAnchorInput | null>(null);
 
   const demo = trust ? isDemoTrustRoot(trust.rootPublicKeyHex) : false;
@@ -87,8 +101,28 @@ export function SealDialog({
     [trust, chosen, bundle, ledger],
   );
 
+  // What a seal to this recipient would put in the envelope and what it would leave
+  // out — by the functions sealTraveler itself applies, so the two cannot disagree.
+  const entitled = useMemo(
+    () =>
+      chosen
+        ? projectForRecipient(traveler, chosen.org_id, senderOrg ? { senderOrg } : {})
+        : null,
+    [traveler, chosen, senderOrg],
+  );
+  const leftOut = entitled ? withheldSummary(entitled.withheld) : null;
+  const itarBasis = useMemo(
+    () => (trust && chosen ? itarRecipientBasis(traveler, trust.directory, chosen.org_id) : "not-itar"),
+    [traveler, trust, chosen],
+  );
+  const itarBlocked = itarBasis === null;
+
   function close(v: boolean) {
-    if (!v) setDemoAck(false); // the acknowledgment is per envelope, never remembered
+    if (!v) {
+      // Both are per envelope, never remembered.
+      setDemoAck(false);
+      setSendAll(false);
+    }
     onOpenChange(v);
   }
 
@@ -115,6 +149,8 @@ export function SealDialog({
           ? { prekeyBundle: bundle, excludePrekeyIds: usedPrekeyIds(ledger, bundle) }
           : {}),
         ...(requireFs ? { requireForwardSecret: true } : {}),
+        ...(senderOrg ? { senderOrg } : {}),
+        ...(sendAll ? { disclose: "everything" as const } : {}),
       });
       // Remember the spent prekey BEFORE the envelope leaves: if that cannot be
       // recorded (storage full, or another tab used the same prekey meanwhile), this
@@ -124,9 +160,12 @@ export function SealDialog({
       }
       downloadEnvelope(result.envelope);
       logAudit({ act: "export", traveler_id: traveler.traveler_id, hash: travelerHash(traveler) });
-      const how = result.forwardSecret
-        ? `forward-secret (one-time prekey ${visibleText(result.prekeyId ?? "")})`
-        : `static envelope, no forward secrecy — ${staticReasonText(result.staticReason ?? "no-bundle", chosen.org_id)}`;
+      const kept = withheldSummary(result.withheld);
+      const how =
+        (result.forwardSecret
+          ? `forward-secret (one-time prekey ${visibleText(result.prekeyId ?? "")})`
+          : `static envelope, no forward secrecy — ${staticReasonText(result.staticReason ?? "no-bundle", chosen.org_id)}`) +
+        (kept ? ` · not sent: ${kept}` : "");
       if (demo) {
         toast.warning(
           `Sealed to DEMO recipient ${chosen.org_id} · ${how}. Its decryption key is public: anyone can read this file.`,
@@ -141,6 +180,7 @@ export function SealDialog({
       toast.error(err instanceof Error ? err.message : "Could not seal");
     } finally {
       setDemoAck(false);
+      setSendAll(false);
       setBusy(false);
     }
   }
@@ -190,6 +230,7 @@ export function SealDialog({
                   setOrg(e.target.value);
                   setRequireFs(false);
                   setDemoAck(false);
+                  setSendAll(false);
                 }}
                 className="h-9 rounded-sm border border-border bg-card-navy px-2 text-sm text-text"
               >
@@ -206,6 +247,60 @@ export function SealDialog({
                 {demo ? " (DEMO)" : ""}
               </p>
             </div>
+
+            {chosen && itarBlocked && (
+              <p
+                data-testid="itar-blocked"
+                role="alert"
+                className="rounded-sm border-2 border-ink bg-warn/20 px-3 py-2 text-sm"
+              >
+                <span className="font-medium">Not sealed to {chosen.org_id}.</span> This traveler
+                is marked ITAR and your directory does not attest {chosen.org_id} for ITAR. It is
+                sealed only to an ITAR-attested org, or back to the buyer org it names.
+              </p>
+            )}
+
+            {chosen && !itarBlocked && entitled && (
+              <div
+                data-testid="seal-disclosure"
+                data-withheld-quotes={entitled.withheld.quotes}
+                data-withheld-award={entitled.withheld.award ? "yes" : "no"}
+                className="grid gap-2 rounded-sm border border-border px-3 py-2 text-sm"
+              >
+                {leftOut === null ? (
+                  <p>
+                    <span className="font-medium">The whole traveler is sent</span>
+                    {(traveler.quotes?.length ?? 0) > 0 || traveler.award
+                      ? `: ${traveler.quotes?.length ?? 0} ${(traveler.quotes?.length ?? 0) === 1 ? "quote" : "quotes"}${traveler.award ? " and the award" : ""}.`
+                      : "."}
+                  </p>
+                ) : (
+                  <>
+                    <p>
+                      <span className="font-medium">Not sent to {chosen.org_id}:</span> {leftOut}.{" "}
+                      {chosen.org_id} is not the buyer org this traveler names, so it gets the
+                      request, its own quotes
+                      {senderOrg ? ` and ${senderOrg}'s` : ""}, and the award only if its quote
+                      won.
+                    </p>
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={sendAll}
+                        onChange={(e) => setSendAll(e.target.checked)}
+                        className="mt-0.5 size-4 accent-primary"
+                        data-testid="send-all"
+                      />
+                      <span>
+                        Send the whole traveler anyway. {chosen.org_id} will be able to read{" "}
+                        <strong>every seller&apos;s quote and price</strong>
+                        {traveler.award ? ", who won, and where it ships" : ""}.
+                      </span>
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
 
             {chosen && outlook && (
               <div
@@ -276,7 +371,11 @@ export function SealDialog({
               </label>
             )}
 
-            <Button type="button" onClick={seal} disabled={busy || !chosen || (demo && !demoAck)}>
+            <Button
+              type="button"
+              onClick={seal}
+              disabled={busy || !chosen || itarBlocked || (demo && !demoAck)}
+            >
               {demo ? "Seal to DEMO recipient & download .sje" : "Seal & download .sje"}
             </Button>
           </div>
