@@ -58,11 +58,14 @@ import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/tra
 import { newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
 import { decideImport } from "../src/lib/traveler/import-policy.ts";
 import {
+  SealRefused,
   sealTraveler,
   openTravelerDeferred,
   parseSjeEnvelope,
   type OpenedTraveler,
+  type SealResult,
   type SjeEnvelope,
+  type StaticReason,
 } from "../src/lib/traveler/transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "../src/lib/traveler/keystore.ts";
 import type { PublicPrekey } from "../src/lib/traveler/keystore.ts";
@@ -82,14 +85,15 @@ import {
   ML_DSA_87_PUBLIC_KEY_BYTES,
   ORG_ID_RE,
   directoryShapeError,
+  KEY_ID_RE,
   encryptionEntryByOrg,
   isHexOf,
-  orgHasCapability,
   parseDirectoryJson,
   verifyDirectory,
   type Directory,
 } from "../src/lib/traveler/directory.ts";
 import {
+  MAX_BUNDLE_PREKEYS,
   MAX_PREKEY_BUNDLE_JSON_BYTES,
   prekeyBundleShapeError,
   verifyPrekeyBundle,
@@ -466,6 +470,9 @@ function validationRefusal(tool: string, e: unknown): Refusal {
  *  server is built; nothing here can be changed by a tool call. */
 type DeskConfig = {
   company: string;
+  /** SJE_ORG: the org_id this desk acts as, or null. It decides one thing: a quote
+   *  naming this org as its seller is this desk's own, and travels with what it seals. */
+  org: string | null;
   /** The pinned trust-root public key (lowercase hex), or null: no root, nothing verifies. */
   rootPublicKeyHex: string | null;
   trustRootFingerprint: string | null;
@@ -542,8 +549,13 @@ function loadConfig(env: NodeJS.ProcessEnv): DeskConfig {
   if (requireVerified !== undefined && requireVerified !== "1" && requireVerified !== "0") {
     throw configError('SJE_REQUIRE_VERIFIED_AWARD must be "1" (unverified awards are never admitted) or "0"');
   }
+  const org = env.SJE_ORG;
+  if (org !== undefined && !ORG_ID_RE.test(org)) {
+    throw configError(`SJE_ORG is not an org_id (${ORG_ID_RE.source})`);
+  }
   return {
     company: shownName(env.SJE_COMPANY ?? "unnamed-desk"),
+    org: org ?? null,
     rootPublicKeyHex,
     trustRootFingerprint: rootPublicKeyHex === null ? null : rootFingerprint(rootPublicKeyHex),
     demoAnchor: rootPublicKeyHex !== null && isDemoTrustRoot(rootPublicKeyHex),
@@ -653,7 +665,7 @@ type ArgKind =
   | { kind: "boolean" }
   | { kind: "integer"; min: number; max: number }
   | { kind: "object"; maxBytes: number }
-  | { kind: "array"; maxBytes: number }
+  | { kind: "array"; maxBytes: number; maxItems?: number; itemPattern?: RegExp }
   /** A whole document: a JSON object, or its JSON text. */
   | { kind: "document"; maxBytes: number };
 
@@ -690,6 +702,19 @@ const arrArg = (description: string, items: Record<string, unknown>, maxItems: n
   kind: "array",
   maxBytes: MAX_TRAVELER_JSON_BYTES,
   schema: { type: "array", maxItems, items, description },
+});
+/** A list of short identifiers: every item a string of the given form. */
+const idListArg = (description: string, itemPattern: RegExp, maxItems: number): ArgSpec => ({
+  kind: "array",
+  maxBytes: 64 * 1024,
+  maxItems,
+  itemPattern,
+  schema: {
+    type: "array",
+    maxItems,
+    items: { type: "string", pattern: itemPattern.source },
+    description,
+  },
 });
 const docArg = (description: string, maxBytes: number): ArgSpec => ({
   kind: "document",
@@ -745,9 +770,19 @@ function argProblem(spec: ArgSpec, v: unknown): string | null {
     case "object":
       if (!isJsonObject(v)) return "must be a JSON object.";
       return oversize(v, spec.maxBytes);
-    case "array":
+    case "array": {
       if (!Array.isArray(v)) return "must be a JSON array.";
-      return oversize(v, spec.maxBytes);
+      const tooLarge = oversize(v, spec.maxBytes);
+      if (tooLarge !== null) return tooLarge;
+      if (spec.maxItems !== undefined && v.length > spec.maxItems) {
+        return `must have at most ${spec.maxItems} items.`;
+      }
+      const pattern = spec.itemPattern;
+      if (pattern && !v.every((item) => typeof item === "string" && pattern.test(item))) {
+        return `must contain only JSON strings of the required form (${pattern.source}).`;
+      }
+      return null;
+    }
     case "document":
       if (typeof v === "string") {
         return exceedsUtf8Bytes(v, spec.maxBytes)
@@ -1230,6 +1265,21 @@ function forwardSecrecyObstacle(
   return null;
 }
 
+/** Why the library made a static envelope, in this tool's words. */
+const WHY_STATIC: Record<StaticReason, string> = {
+  "no-bundle": "no prekey_bundle was supplied for the recipient",
+  "bundle-not-verified":
+    "the prekey_bundle does not verify against the directory (its signature, its signing key, or its validity window)",
+  "prekeys-exhausted":
+    "every one-time prekey in the prekey_bundle is listed in exclude_prekey_ids: all of them have been sealed to already, and a prekey opens exactly one envelope. Ask the recipient for a fresh prekey bundle",
+  "prekey-unavailable": "the one-time prekey asked for is not available in the prekey_bundle",
+};
+
+const ITAR_GATE: Record<NonNullable<SealResult["itarBasis"]>, string> = {
+  "recipient-is-buyer": "recipient_is_the_buyer_named_in_the_traveler",
+  "recipient-attested": "recipient_attested_for_itar_by_the_directory",
+};
+
 async function sealTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
   const tool = "sje_seal";
   const t = readTraveler(tool, a.traveler);
@@ -1250,21 +1300,6 @@ async function sealTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
       trustFields(cfg),
     );
   }
-  // ITAR: the recipient must be attested for it by the directory — unless the traveler
-  // is going back to the buyer who wrote it (a seller returning a quote).
-  let itarGate = "not_itar";
-  if (t.itar === true) {
-    if (t.buyer.org_id !== undefined && t.buyer.org_id === recipientOrg) {
-      itarGate = "recipient_is_the_buyer_named_in_the_traveler";
-    } else if (orgHasCapability(directory, recipientOrg, "itar", now)) {
-      itarGate = "recipient_attested_for_itar_by_the_directory";
-    } else {
-      throw new Refusal(
-        "sje_seal: refused. This traveler is marked ITAR, and the directory does not attest recipient_org for ITAR. It is sealed only to an ITAR-attested org, or back to the buyer org named in the traveler. Nothing was sealed.",
-        trustFields(cfg),
-      );
-    }
-  }
   const obstacle = forwardSecrecyObstacle(a.prekey_bundle, directory, rootPublicKeyHex, recipientOrg, now);
   const requireForwardSecret = optBoolean(a, "require_forward_secret") === true;
   if (requireForwardSecret && obstacle !== null) {
@@ -1272,28 +1307,51 @@ async function sealTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
       `sje_seal: refused. require_forward_secret is set and a forward-secret envelope cannot be made: ${obstacle}. Nothing was sealed.`,
     );
   }
-  let envelope: SjeEnvelope;
-  let forwardSecret: boolean;
+  const excluded = a.exclude_prekey_ids as string[] | undefined;
+  // What may be sealed to whom, and how much of it, is the library's decision
+  // (`sealTraveler`): the ITAR recipient rule, and what this recipient is entitled to
+  // see. Nothing here can widen either — there is no argument for it.
+  let sealed: SealResult;
   try {
-    ({ envelope, forwardSecret } = await sealTraveler(t, {
+    sealed = await sealTraveler(t, {
       directory,
       rootPublicKeyHex,
       recipientOrg,
       // Only a bundle already found usable is handed on: anything else is the reported
       // fallback to a static envelope, decided here rather than by how the library
       // happens to treat a value that is not a bundle.
-      ...(obstacle === null ? { prekeyBundle: a.prekey_bundle as PrekeyBundle } : {}),
+      ...(obstacle === null
+        ? {
+            prekeyBundle: a.prekey_bundle as PrekeyBundle,
+            ...(excluded !== undefined ? { excludePrekeyIds: excluded } : {}),
+          }
+        : {}),
       ...(requireForwardSecret ? { requireForwardSecret: true } : {}),
+      ...(cfg.org !== null ? { senderOrg: cfg.org } : {}),
       at: now,
-    }));
+    });
   } catch (e) {
+    if (e instanceof SealRefused && e.code === "itar-recipient-not-attested") {
+      throw new Refusal(
+        "sje_seal: refused. This traveler is marked ITAR, and the directory does not attest recipient_org for ITAR. It is sealed only to an ITAR-attested org, or back to the buyer org named in the traveler. Nothing was sealed.",
+        trustFields(cfg),
+      );
+    }
+    if (e instanceof SealRefused && e.code === "forward-secrecy-unavailable") {
+      throw new Refusal(
+        `sje_seal: refused. require_forward_secret is set and a forward-secret envelope cannot be made: ${WHY_STATIC[e.staticReason ?? "no-bundle"]}. Nothing was sealed.`,
+      );
+    }
     logLine("seal failed", e);
     throw new Refusal("sje_seal: the traveler could not be sealed. Nothing was produced.");
   }
+  const { envelope, forwardSecret, withheld } = sealed;
   if (requireForwardSecret && !forwardSecret) {
     throw new Refusal("sje_seal: refused. require_forward_secret is set and the envelope would not be forward-secret.");
   }
   const sealedTo = envelope.recipients[0]!;
+  const quotesHeld = t.quotes?.length ?? 0;
+  const awardSent = t.award != null && !withheld.award;
   return ok({
     spec: envelope.spec,
     recipient_org: recipientOrg,
@@ -1303,19 +1361,36 @@ async function sealTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
     recipient_directory_kid: entry.kid,
     recipients: envelope.recipients.length,
     forward_secret: forwardSecret,
+    // The one-time prekey this envelope spent. KEEP IT: this server remembers nothing
+    // between calls, so the next seal to the same bundle must list it in
+    // exclude_prekey_ids, or it may pick the same prekey and produce an envelope the
+    // recipient can never open.
     ...(forwardSecret
-      ? { prekey_id: "prekey_id" in sealedTo ? sealedTo.prekey_id : null }
-      : { not_forward_secret_because: obstacle ?? "no usable one-time prekey" }),
+      ? { prekey_id: sealed.prekeyId ?? null }
+      : { not_forward_secret_because: obstacle ?? WHY_STATIC[sealed.staticReason ?? "no-bundle"] }),
     traveler_hash: hash,
+    // How much of the traveler went into the envelope. A recipient that is not the
+    // buyer org the traveler names is sent the body, its own quotes and this desk's
+    // own — never another seller's — and the award only if the awarded quote is one of
+    // those.
+    sent: { quotes: quotesHeld - withheld.quotes, award: awardSent },
+    withheld,
+    ...(withheld.quotes > 0 || withheld.award
+      ? {
+          withheld_note:
+            "Part of this traveler was NOT put in the envelope. A recipient other than the buyer org the traveler names receives the quoteable body, the quotes that name the recipient as seller, the quotes that name this desk's own org as seller (operator: SJE_ORG), and the award with ship-to, ops and as-built data only when the awarded quote is one of those. Other sellers' quotes are never sent to a seller. There is no argument that overrides this.",
+        }
+      : {}),
+    sender_org: cfg.org,
     // What the recipient's desk will make of it, said before it is sent.
-    ...(t.award && !t.award.sig
+    ...(awardSent && !t.award!.sig
       ? {
           unsigned_award_note:
             "The award on this traveler is not signed. The recipient's desk will report it as unverified and refuse it by default; sign it with the buyer's ML-DSA key (outside this server), or expect to confirm it out of band.",
         }
       : {}),
     itar: t.itar === true,
-    itar_gate: itarGate,
+    itar_gate: sealed.itarBasis === undefined ? "not_itar" : ITAR_GATE[sealed.itarBasis],
     directory_source: trust.source,
     directory_issued_at: directory.issued_at,
     directory_valid_until: directory.valid_until,
@@ -1762,7 +1837,7 @@ const TOOLS: ToolDef[] = [
     name: "sje_seal",
     title: "Seal a traveler to a recipient",
     description:
-      "Encrypt a traveler to a recipient org and return the `.sje` envelope — the ONLY artifact sent between companies (ML-KEM-1024 + AES-256-GCM). The recipient's key is taken from a key directory that verifies against the trust root PINNED ON THIS SERVER by its operator; a root is never an argument, and a directory that does not verify is refused. An ITAR traveler is sealed only to an org the directory attests for ITAR (or back to the buyer named in it). The result names the recipient org and key used, the trust-root fingerprint, and whether the envelope is forward-secret — and why not when it is not. Pass the recipient's signed prekey_bundle for forward secrecy; set require_forward_secret to refuse rather than send without it.",
+      "Encrypt a traveler to a recipient org and return the `.sje` envelope — the ONLY artifact sent between companies (ML-KEM-1024 + AES-256-GCM). The recipient's key is taken from a key directory that verifies against the trust root PINNED ON THIS SERVER by its operator; a root is never an argument, and a directory that does not verify is refused. An ITAR traveler is sealed only to an org the directory attests for ITAR (or back to the buyer named in it). Only what the recipient is entitled to see is sealed: the buyer org the traveler names receives all of it; anyone else receives the body, its own quotes and this desk's own, and the award only if it won — never another seller's quote. `sent` and `withheld` say what went in. The result names the recipient org and key used, the trust-root fingerprint, and whether the envelope is forward-secret — and why not when it is not. Pass the recipient's signed prekey_bundle for forward secrecy; set require_forward_secret to refuse rather than send without it. A forward-secret result carries the `prekey_id` it spent: keep it, and pass every one you hold for that bundle as exclude_prekey_ids on later seals.",
     annotations: PURE,
     args: {
       traveler: travelerArg(),
@@ -1774,6 +1849,11 @@ const TOOLS: ToolDef[] = [
         MAX_PREKEY_BUNDLE_JSON_BYTES,
       ),
       require_forward_secret: boolArg("true: refuse to seal unless the envelope is forward-secret."),
+      exclude_prekey_ids: idListArg(
+        "Every `prekey_id` earlier sje_seal calls returned for THIS prekey_bundle. A one-time prekey opens exactly one envelope and this server remembers nothing between calls: without this list a later seal may pick a prekey already used, and the recipient can never open that envelope.",
+        KEY_ID_RE,
+        MAX_BUNDLE_PREKEYS,
+      ),
       expected_traveler_hash: expectedHashArg("Use it to be sure you are sealing the document you mean."),
     },
     run: sealTool,
@@ -1869,6 +1949,7 @@ function describeConfig(cfg: DeskConfig): string {
       : `trust root ${cfg.trustRootFingerprint}${cfg.demoAnchor ? " — the public DEMO root: verdicts prove nothing" : ""}`;
   return [
     `${cfg.company} desk on stdio — ${TRAVELER_SPEC}`,
+    cfg.org === null ? "no org_id set (SJE_ORG)" : `acting as ${cfg.org}`,
     root,
     cfg.directoryFile === null ? "no operator directory" : "operator directory: SJE_DIRECTORY_FILE (re-read on every call)",
     cfg.requireVerifiedAward ? "unverified awards are never admitted" : "unverified awards need accept_unverified_award",

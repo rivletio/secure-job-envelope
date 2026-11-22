@@ -45,7 +45,13 @@ import {
   type Keystore,
   type PublicPrekey,
 } from "../src/lib/traveler/keystore.ts";
-import { encKid, kemKeypairFromSeed, sealEnvelope } from "../src/lib/traveler/envelope.ts";
+import {
+  encKid,
+  kemKeypairFromSeed,
+  openEnvelope,
+  sealEnvelope,
+  type Envelope,
+} from "../src/lib/traveler/envelope.ts";
 import { keypairFromSeed, type Keypair } from "../src/lib/traveler/signature.ts";
 import {
   signDirectory,
@@ -228,9 +234,9 @@ before(async () => {
   // The directory both honest companies share, signed by the root the operator pinned.
   entries = [
     entry(DESK_ORG, DESK_KID, deskSigner, id.directoryEntry.enc_public_key),
-    entry(BUYER_ORG, BUYER_KID, buyerSigner, kemPublicHex(21)),
-    entry(ITAR_ORG, ITAR_KID, itarSigner, kemPublicHex(22), { capabilities: { itar: true } }),
-    entry(EVIL_ORG, EVIL_KID, evilSigner, kemPublicHex(23)),
+    entry(BUYER_ORG, BUYER_KID, buyerSigner, kemPublicHex(BUYER_KEM_SEED)),
+    entry(ITAR_ORG, ITAR_KID, itarSigner, kemPublicHex(ITAR_KEM_SEED), { capabilities: { itar: true } }),
+    entry(EVIL_ORG, EVIL_KID, evilSigner, kemPublicHex(EVIL_KEM_SEED)),
   ];
   directory = signedDirectory(entries);
 
@@ -329,16 +335,30 @@ const awardSignedByBuyer = (t: Traveler): Traveler => ({
   ...t,
   award: { ...t.award!, sig: signAward(t, BUYER_KID, buyerSigner.secretKey) },
 });
-/** Seal to this desk the way any party holding the PUBLIC directory can. */
+/** Seal to this desk the way any party holding the PUBLIC directory can. Such a party
+ *  is under no obligation to leave anything out, so the whole traveler is sent: what
+ *  `sje_open` is tested against is whatever can arrive, not what a careful desk sends. */
 async function sealToDesk(t: Traveler, opts: Partial<SealOptions> = {}): Promise<SjeEnvelope> {
   const { envelope } = await sealTraveler(t, {
     directory,
     rootPublicKeyHex: rootHex,
     recipientOrg: DESK_ORG,
+    disclose: "everything",
     ...opts,
   });
   return envelope;
 }
+/** What a static envelope sealed to ANOTHER org holds, read the way that org would: with
+ *  its decryption key (the directory entries above derive each from a seed). */
+async function contentsFor(sje: unknown, kemSeed: number): Promise<Traveler> {
+  const pair = kemKeypairFromSeed(seed64(kemSeed));
+  const zip = openEnvelope(sje as Envelope, encKid(bytesToHex(pair.publicKey)), pair.secretKey);
+  const archive = await JSZip.loadAsync(zip);
+  return parseTraveler(JSON.parse(await archive.file("traveler.json")!.async("string")));
+}
+const BUYER_KEM_SEED = 21;
+const ITAR_KEM_SEED = 22;
+const EVIL_KEM_SEED = 23;
 /** Seal forward-secretly to one specific, unused one-time prekey of this desk. */
 async function sealToDeskOnce(t: Traveler, prekey: PublicPrekey): Promise<SjeEnvelope> {
   const envelope = await sealToDesk(t, { prekeyBundle: bundleOf([prekey]), prekeyId: prekey.prekey_id });
@@ -2320,6 +2340,152 @@ describe("sje_seal gates", () => {
 
     // A traveler that is not ITAR imposes no gate.
     assert.equal(okOf(await seal(DESK_ORG, rfq())).itar_gate, "not_itar");
+  });
+
+  it("each recipient is sealed only what it is entitled to see: no seller is sent another's quote", async () => {
+    // Two sellers quoted the buyer's RFQ. Here ITAR_ORG and EVIL_ORG are simply two
+    // competing shops, each with its own decryption key.
+    const body = signedByBuyer(rfq());
+    const qA = quoteFor(body, "qot_sellerquotea", { seller: { org_id: ITAR_ORG, name: "Seller A" } });
+    const qB = quoteFor(body, "qot_sellerquoteb", {
+      seller: { org_id: EVIL_ORG, name: "Seller B" },
+      pricing: { currency: "USD", lines: [{ qty: 250, unit: 999 }] },
+    });
+    const both = withQuotes(body, qA, qB);
+    const seal = (traveler: Traveler, recipient_org: string) =>
+      call("sje_seal", { traveler, directory, recipient_org });
+    const ids = (t: Traveler) => (t.quotes ?? []).map((q) => q.quote_id);
+
+    // The buyer sends the RFQ on to seller B after A has quoted: A's price stays home.
+    const toB = okOf(await seal(both, EVIL_ORG));
+    assert.deepEqual(toB.sent, { quotes: 1, award: false });
+    assert.deepEqual(toB.withheld, { quotes: 1, award: false });
+    assert.match(toB.withheld_note, /NOT put in the envelope/);
+    const seenByB = await contentsFor(toB.sje, EVIL_KEM_SEED);
+    assert.deepEqual(ids(seenByB), [qB.quote_id]);
+    assert.ok(!JSON.stringify(seenByB).includes("qot_sellerquotea"), "nothing of A's quote is in what B decrypts");
+    // It is still the buyer's document: the same body, the same hash, the same signature.
+    assert.equal(travelerHash(seenByB), travelerHash(both));
+    assert.equal(toB.traveler_hash, travelerHash(both));
+    assert.deepEqual(seenByB.signatures, both.signatures);
+
+    // After the award: the winner is sent it; the loser learns neither that there is
+    // one, nor where the parts ship, nor how they will be made.
+    const won = awardSignedByBuyer(awarded(both, qA.quote_id));
+    const toWinner = okOf(await seal(won, ITAR_ORG));
+    assert.deepEqual(toWinner.sent, { quotes: 1, award: true });
+    assert.deepEqual(toWinner.withheld, { quotes: 1, award: false });
+    const seenByWinner = await contentsFor(toWinner.sje, ITAR_KEM_SEED);
+    assert.deepEqual(ids(seenByWinner), [qA.quote_id]);
+    assert.deepEqual(seenByWinner.award, won.award);
+    assert.deepEqual(seenByWinner.ship_to, won.ship_to);
+    assert.deepEqual(seenByWinner.ops, won.ops);
+
+    const toLoser = okOf(await seal(won, EVIL_ORG));
+    assert.deepEqual(toLoser.sent, { quotes: 1, award: false });
+    assert.deepEqual(toLoser.withheld, { quotes: 1, award: true });
+    const seenByLoser = await contentsFor(toLoser.sje, EVIL_KEM_SEED);
+    assert.deepEqual(ids(seenByLoser), [qB.quote_id]);
+    assert.equal(seenByLoser.award, undefined);
+    assert.equal(seenByLoser.ship_to, undefined);
+    assert.equal(seenByLoser.ops, undefined);
+    // An award that is not sent is not described either.
+    const unsignedToLoser = okOf(await seal(awarded(both, qA.quote_id), EVIL_ORG));
+    assert.equal(unsignedToLoser.unsigned_award_note, undefined);
+
+    // The buyer org the traveler names receives all of it.
+    const toBuyer = okOf(await seal(won, BUYER_ORG));
+    assert.deepEqual(toBuyer.sent, { quotes: 2, award: true });
+    assert.deepEqual(toBuyer.withheld, { quotes: 0, award: false });
+    assert.equal(toBuyer.withheld_note, undefined);
+    assert.deepEqual(await contentsFor(toBuyer.sje, BUYER_KEM_SEED), won);
+
+    // Nothing an agent can be talked into passing widens it.
+    for (const extra of [{ disclose: "everything" }, { sender_org: EVIL_ORG }, { include_all_quotes: true }]) {
+      const res = await call("sje_seal", { traveler: both, directory, recipient_org: EVIL_ORG, ...extra });
+      assert.match(errorOf(res), /not recognized/);
+      assert.equal(payload(res).sje, undefined);
+    }
+  });
+
+  it("this desk's own quote travels with what it seals only when its operator says which org it is", async () => {
+    // A buyer that named no org in its traveler: no recipient is identifiable as "the
+    // buyer", so nothing is sent on the strength of being it.
+    const anonymous = rfq({ buyer: { name: "No Org Id" } });
+    const mine = quoteFor(anonymous, "qot_deskownquote"); // names DESK_ORG as seller
+    const theirs = quoteFor(anonymous, "qot_otherseller1", { seller: { org_id: EVIL_ORG, name: "Other" } });
+    const args = { traveler: withQuotes(anonymous, mine, theirs), directory, recipient_org: BUYER_ORG };
+
+    const unset = okOf(await call("sje_seal", args));
+    assert.equal(unset.sender_org, null);
+    assert.deepEqual(unset.sent, { quotes: 0, award: false });
+    assert.deepEqual(unset.withheld, { quotes: 2, award: false });
+    assert.match(unset.withheld_note, /SJE_ORG/);
+
+    const asDesk = await connect({ SJE_TRUST_ROOT: rootHex, SJE_ORG: DESK_ORG });
+    const set = okOf(await asDesk.call("sje_seal", args));
+    assert.equal(set.sender_org, DESK_ORG);
+    assert.deepEqual(set.sent, { quotes: 1, award: false });
+    assert.deepEqual(set.withheld, { quotes: 1, award: false });
+    const seen = await contentsFor(set.sje, BUYER_KEM_SEED);
+    assert.deepEqual(seen.quotes!.map((q) => q.quote_id), [mine.quote_id]);
+
+    // The operator's value is an org_id, or the server does not start. It is never an
+    // argument (above), and never taken from a document.
+    for (const bad of ["", "Summit Fab", `org_${"x".repeat(80)}`, `org_a${LF}b`]) {
+      assert.throws(
+        () => buildServer({ SJE_TRUST_ROOT: rootHex, SJE_ORG: bad }),
+        /SJE server configuration: SJE_ORG is not an org_id/,
+        JSON.stringify(bad),
+      );
+    }
+  });
+
+  it("exclude_prekey_ids: a one-time prekey this sender already sealed to is never chosen again", async () => {
+    // Three prekeys of the recipient's. Sealing needs only their public halves.
+    const three = [31, 32, 33].map((n) => ({ prekey_id: `otp-${n}`, public_key: kemPublicHex(n) }));
+    const base = { traveler: EXAMPLE, directory, recipient_org: DESK_ORG, prekey_bundle: bundleOf(three) };
+    const used: string[] = [];
+    for (let i = 0; i < three.length; i++) {
+      const sealed = okOf(await call("sje_seal", { ...base, exclude_prekey_ids: used }));
+      assert.equal(sealed.forward_secret, true);
+      assert.ok(!used.includes(sealed.prekey_id), "a prekey already sealed to was chosen again");
+      used.push(sealed.prekey_id);
+    }
+    assert.deepEqual([...used].sort(), three.map((p) => p.prekey_id).sort());
+
+    // All of them used: a static envelope, reported as one with the reason — or, when
+    // forward secrecy was required, nothing at all.
+    const exhausted = okOf(await call("sje_seal", { ...base, exclude_prekey_ids: used }));
+    assert.equal(exhausted.forward_secret, false);
+    assert.equal(exhausted.spec, "sje-envelope/0.1.0");
+    assert.equal(exhausted.prekey_id, undefined);
+    assert.match(exhausted.not_forward_secret_because, /every one-time prekey in the prekey_bundle is listed in exclude_prekey_ids/);
+    const required = await call("sje_seal", { ...base, exclude_prekey_ids: used, require_forward_secret: true });
+    assert.match(
+      errorOf(required),
+      /require_forward_secret is set and a forward-secret envelope cannot be made: every one-time prekey in the prekey_bundle is listed/,
+    );
+    assert.equal(payload(required).sje, undefined);
+
+    // The argument is exact: a bounded list of prekey ids, and nothing else.
+    const refused: Array<[unknown, RegExp]> = [
+      ["otp-31", /argument "exclude_prekey_ids" must be a JSON array/],
+      [[31], /argument "exclude_prekey_ids" must contain only JSON strings of the required form/],
+      [[null], /must contain only JSON strings of the required form/],
+      [["has space"], /must contain only JSON strings of the required form/],
+      [[`otp-31${LF}`], /must contain only JSON strings of the required form/],
+      [["x".repeat(65)], /must contain only JSON strings of the required form/],
+      [Array.from({ length: 257 }, (_, i) => `otp-${i}`), /argument "exclude_prekey_ids" must have at most 256 items/],
+    ];
+    for (const [exclude_prekey_ids, why] of refused) {
+      const res = await call("sje_seal", { ...base, exclude_prekey_ids });
+      assert.match(errorOf(res), why, JSON.stringify(exclude_prekey_ids).slice(0, 60));
+      assert.equal(payload(res).sje, undefined);
+    }
+    // Ids that are not in the bundle exclude nothing.
+    const unrelated = okOf(await call("sje_seal", { ...base, exclude_prekey_ids: ["otp-99"] }));
+    assert.equal(unrelated.forward_secret, true);
   });
 
   it("says which org and key it sealed to, whether it is forward-secret, and why not", async () => {
