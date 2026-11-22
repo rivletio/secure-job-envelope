@@ -5,12 +5,14 @@ import { AppShell } from "@/components/app-shell";
 import { HashChip } from "@/components/hash-chip";
 import { LevelBadge } from "@/components/level-badge";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { levelOf } from "@/lib/traveler/conformance";
 import { travelerHash } from "@/lib/traveler/hash";
 import { isoNow, newTravelerId } from "@/lib/traveler/ids";
+import { parseComposeNumbers } from "@/lib/traveler/input";
 import { useTravelerStore } from "@/lib/traveler/store";
 import {
   MATERIAL_PRESETS,
@@ -44,13 +46,20 @@ function Compose() {
   const [notes, setNotes] = useState("");
   const [processes, setProcesses] = useState<string[]>(["cnc_mill"]);
 
-  const draft: Traveler = useMemo(() => {
-    const target = Math.max(1, Number(qty) || 1);
-    const br = breaks
-      .split(",")
-      .map((s) => Number(s.trim()))
-      .filter((n) => Number.isInteger(n) && n >= 1);
-    const th = Number(thickness);
+  // The three numeric fields are parsed strictly: each either means exactly one value
+  // or is refused with a message shown under it. There is no fallback — a target qty
+  // that does not parse is not quietly sealed as 1, a break that does not parse is not
+  // dropped from the list, and a thickness that does not parse is not left out.
+  const numbers = useMemo(
+    () => parseComposeNumbers({ qty, breaks, thickness }),
+    [qty, breaks, thickness],
+  );
+
+  /** The traveler as typed, or null while a numeric field is refused (there is then no
+   *  honest draft to hash or seal). */
+  const draft: Traveler | null = useMemo(() => {
+    if (!numbers.values) return null;
+    const { target, breaks: br, thickness_mm } = numbers.values;
     return {
       spec: TRAVELER_SPEC,
       traveler_id: "tvl_draftlive",
@@ -69,9 +78,9 @@ function Compose() {
         material: {
           spec: material.trim(),
           form: form.trim() || undefined,
-          thickness_mm: Number.isFinite(th) && th > 0 ? th : undefined,
+          thickness_mm,
         },
-        qty: { target, breaks: br.length ? br : undefined },
+        qty: { target, breaks: br },
         processes,
         finish: finish.trim() || undefined,
         tolerances: tolerances.trim() || undefined,
@@ -91,9 +100,7 @@ function Compose() {
     description,
     material,
     form,
-    thickness,
-    qty,
-    breaks,
+    numbers,
     finish,
     tolerances,
     needBy,
@@ -108,12 +115,23 @@ function Compose() {
   // render to the app error boundary and discarding the half-filled form.
   let info: ReturnType<typeof levelOf>;
   let hash: string;
-  try {
-    info = levelOf(draft);
-    hash = travelerHash(draft);
-  } catch {
-    info = { level: 0, name: "Draft", code: "D", missing: ["remove unencodable characters"] };
+  if (!draft) {
+    // A refused numeric field: there is no body to grade or hash until it is fixed.
+    const invalid = [
+      numbers.errors.qty && "a valid target qty",
+      numbers.errors.breaks && "valid breaks",
+      numbers.errors.thickness && "a valid thickness",
+    ].filter((x): x is string => Boolean(x));
+    info = { level: 0, name: "Draft", code: "D", missing: invalid };
     hash = "—";
+  } else {
+    try {
+      info = levelOf(draft);
+      hash = travelerHash(draft);
+    } catch {
+      info = { level: 0, name: "Draft", code: "D", missing: ["remove unencodable characters"] };
+      hash = "—";
+    }
   }
 
   function toggleProcess(code: string) {
@@ -122,6 +140,17 @@ function Compose() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (!draft) {
+      // Refused: nothing is sealed, and the cursor goes to the first field that is wrong.
+      toast.error("Fix the highlighted fields. Nothing was sealed.");
+      const wrong = numbers.errors.thickness
+        ? "thickness-mm"
+        : numbers.errors.qty
+          ? "target-qty"
+          : "breaks";
+      document.getElementById(wrong)?.focus();
+      return;
+    }
     if (info.code === "D") {
       toast.error(`Not quoteable yet: ${info.missing.join(", ")}`);
       return;
@@ -182,7 +211,7 @@ function Compose() {
           <fieldset className="on-paper traveler-shadow grid gap-3 rounded-sm border-0 p-4">
             <legend className="bg-paper px-2 text-sm font-medium">Material & qty</legend>
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="grid gap-1">
+              <div className="grid content-start gap-1">
                 <Label htmlFor="mat">Material spec</Label>
                 <Input
                   id="mat"
@@ -197,9 +226,33 @@ function Compose() {
                 </datalist>
               </div>
               <Field label="Form" value={form} onChange={setForm} />
-              <Field label="Thickness mm" value={thickness} onChange={setThickness} />
-              <Field label="Target qty" value={qty} onChange={setQty} />
-              <Field label="Breaks" value={breaks} onChange={setBreaks} className="sm:col-span-2" />
+              <Field
+                label="Thickness mm"
+                value={thickness}
+                onChange={setThickness}
+                inputMode="decimal"
+                error={numbers.errors.thickness}
+              />
+              <Field
+                label="Target qty"
+                value={qty}
+                onChange={setQty}
+                inputMode="numeric"
+                error={numbers.errors.qty}
+              />
+              <Field
+                label="Breaks"
+                value={breaks}
+                onChange={setBreaks}
+                className="sm:col-span-2"
+                error={numbers.errors.breaks}
+                hint={
+                  // Echo the list as it was read: "1,250" is two breaks, not 1250.
+                  numbers.values?.breaks
+                    ? `Read as ${numbers.values.breaks.length} break${numbers.values.breaks.length === 1 ? "" : "s"}: ${numbers.values.breaks.join(" · ")}`
+                    : undefined
+                }
+              />
             </div>
             <div className="flex flex-wrap gap-1.5">
               {PROCESS_OPTIONS.map((code) => (
@@ -257,7 +310,7 @@ function Compose() {
             <Row k="Family" v={family || "—"} />
             <Row k="PN" v={partNumber || "—"} />
             <Row k="Material" v={material || "—"} />
-            <Row k="Qty" v={qty || "—"} />
+            <Row k="Qty" v={numbers.values ? String(numbers.values.target) : "—"} />
             <Row k="Need by" v={needBy || "—"} />
           </dl>
           {info.code === "D" && (
@@ -277,17 +330,39 @@ function Field({
   value,
   onChange,
   className,
+  inputMode,
+  error,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   className?: string;
+  inputMode?: "numeric" | "decimal";
+  /** Why the typed value is refused; shown under the field. */
+  error?: string;
+  /** How a valid value was read; shown under the field when there is no error. */
+  hint?: string;
 }) {
   const id = label.replaceAll(" ", "-").toLowerCase();
   return (
-    <div className={cn("grid gap-1", className)}>
+    <div className={cn("grid content-start gap-1", className)}>
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        id={id}
+        value={value}
+        inputMode={inputMode}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+        className={error ? "border-danger" : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <FieldError id={`${id}-error`} message={error} />
+      {!error && hint && (
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

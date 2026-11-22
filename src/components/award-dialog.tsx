@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,12 +10,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cannotAward, isQuoteExpired } from "@/lib/traveler/guards";
-import { money, pricedLine } from "@/lib/traveler/format";
+import { cannotAward } from "@/lib/traveler/guards";
 import { isoNow } from "@/lib/traveler/ids";
 import { opsFromProcesses } from "@/lib/traveler/network";
+import { quoteTerms } from "@/lib/traveler/quote-terms";
 import { useTravelerStore } from "@/lib/traveler/store";
 import type { Traveler, Quote, AwardTerms } from "@/lib/traveler/types";
+import { QuoteTermsView } from "./quote-terms";
 
 export function AwardDialog({
   traveler,
@@ -29,6 +30,7 @@ export function AwardDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const award = useTravelerStore((s) => s.award);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(traveler.ship_to?.name ?? traveler.buyer.name);
   const [line1, setLine1] = useState(traveler.ship_to?.line1 ?? "");
   const [city, setCity] = useState(traveler.ship_to?.city ?? traveler.buyer.city ?? "");
@@ -93,12 +95,23 @@ export function AwardDialog({
     }
   }
 
-  const targetLine = quote ? pricedLine(quote.pricing.lines, traveler.part.qty.target) : undefined;
-  const expired = quote ? isQuoteExpired(quote) : false;
+  // The award is for the traveler's target quantity (see `submit`), so that is the
+  // quantity the terms are totalled at.
+  const terms = quote ? quoteTerms(quote, traveler.part.qty.target) : null;
+  const expired = terms?.expired ?? false;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        ref={contentRef}
+        className="max-w-2xl gap-4"
+        // Open at the top, on the terms. By default the first input takes focus, which
+        // would scroll the ship-to form into view and the terms out of it.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          contentRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Award & make executable</DialogTitle>
           <DialogDescription>
@@ -106,14 +119,18 @@ export function AwardDialog({
             order and does not form a contract by itself.
           </DialogDescription>
         </DialogHeader>
-        {quote && (
-          <p className="rounded-md bg-wash px-3 py-2 text-sm">
-            {quote.seller.name} · {quote.lead_time_days}d
-            {targetLine
-              ? ` · ${money(targetLine.unit, quote.pricing.currency)} × ${targetLine.qty}`
-              : " · no price at target qty"}
-            {expired ? " · expired" : ""}
-          </p>
+        {terms && (
+          <section
+            aria-label="What you are awarding"
+            className="rounded-sm border border-border p-4"
+          >
+            <h3 className="font-sans text-sm font-medium tracking-normal">What you are awarding</h3>
+            <p className="mt-1 mb-4 text-xs text-muted-foreground">
+              The award records this quote&apos;s content hash, so it commits to every term below —
+              totalled at qty {terms.total.qty}, the traveler&apos;s target quantity.
+            </p>
+            <QuoteTermsView terms={terms} />
+          </section>
         )}
         {expired && (
           <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -143,7 +160,9 @@ export function AwardDialog({
           <Field label="Payment terms (optional)" value={pay} onChange={setPay} />
         </div>
         <Button type="button" onClick={submit} disabled={!quote || expired}>
-          Award to {quote?.seller.name ?? "seller"}
+          <span>
+            Award to <bdi>{quote?.seller.name ?? "seller"}</bdi>
+          </span>
         </Button>
       </DialogContent>
     </Dialog>
