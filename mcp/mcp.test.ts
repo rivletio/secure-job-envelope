@@ -3,16 +3,30 @@
  */
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import JSZip from "jszip";
-import { buildServer } from "./server.ts";
+import {
+  buildServer,
+  loadKeystoreFile,
+  saveKeystoreFile,
+  KeystoreFileChangedError,
+} from "./server.ts";
 import { parseTraveler } from "../src/lib/traveler/conformance.ts";
 import { travelerHash } from "../src/lib/traveler/hash.ts";
-import { createIdentity, unlock } from "../src/lib/traveler/keystore.ts";
+import { createIdentity, unlock, type Keystore } from "../src/lib/traveler/keystore.ts";
+import { sealTraveler } from "../src/lib/traveler/transport.ts";
 import { sealEnvelope } from "../src/lib/traveler/envelope.ts";
 import { keypairFromSeed } from "../src/lib/traveler/signature.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "../src/lib/traveler/directory.ts";
@@ -29,6 +43,11 @@ let directory: Directory;
 let rootPublicKeyHex: string;
 let recipient: { kid: string; public_key: string };
 let prekeyBundle: PrekeyBundle;
+/** A second bundle of one-time prekeys the keystore also holds, reserved for the
+ *  keystore-file tests: they seal to a NAMED prekey, so they never collide with the
+ *  random picks `sje_seal` makes from `prekeyBundle`. */
+let reservedBundle: PrekeyBundle;
+let ksPath: string;
 const RECIP_ORG = "org_test";
 const KS_PASS = "mcp-test-passphrase";
 
@@ -38,10 +57,11 @@ before(async () => {
   // on-disk blob carries one-time prekeys so the server can open forward-secret
   // envelopes, consuming (and persisting) them as it goes.
   workdir = mkdtempSync(join(tmpdir(), "sje-mcp-test-"));
-  const ksPath = join(workdir, "desk.keystore.json");
+  ksPath = join(workdir, "desk.keystore.json");
   const id = await createIdentity({ passphrase: KS_PASS, orgId: RECIP_ORG });
   const u = await unlock(id.keystore, KS_PASS);
-  const { keystore: ksWithPrekeys, prekeys } = u.addPrekeys(4);
+  const { prekeys } = u.addPrekeys(4);
+  const { keystore: ksWithPrekeys, prekeys: reservedPrekeys } = u.addPrekeys(3);
   writeFileSync(ksPath, JSON.stringify(ksWithPrekeys));
   process.env.SJE_KEYSTORE = ksPath;
   process.env.SJE_KEYSTORE_PASSPHRASE = KS_PASS;
@@ -86,6 +106,9 @@ before(async () => {
   };
   bundleBody.sig = signPrekeyBundle(bundleBody, signer.secretKey);
   prekeyBundle = bundleBody;
+  const reservedBody: PrekeyBundle = { ...bundleBody, prekeys: reservedPrekeys, sig: undefined };
+  reservedBody.sig = signPrekeyBundle(reservedBody, signer.secretKey);
+  reservedBundle = reservedBody;
 
   const [ct, st] = InMemoryTransport.createLinkedPair();
   server = buildServer();
@@ -240,7 +263,7 @@ describe("sje mcp surface", () => {
     );
     const ks = res.keystore as Record<string, unknown>;
     const entry = res.directory_entry as Record<string, unknown>;
-    assert.equal(ks.spec, "sje-keystore/0.1.0");
+    assert.equal(ks.spec, "sje-keystore/0.2.0");
     assert.equal(ks.enc_alg, "ML-KEM-1024");
     assert.equal(entry.kid, ks.kid);
     assert.equal(entry.org_id, "org_minted");
@@ -452,5 +475,128 @@ describe("sje mcp surface", () => {
     assert.equal(t.ops ?? null, null);
     assert.equal(t.ship_to ?? null, null);
     assert.equal(t.as_built ?? null, null);
+  });
+});
+
+describe("sje mcp keystore file (shared between processes, private on disk)", () => {
+  /** Seal the example traveler to ONE named reserved prekey, with the library. */
+  const sealToReserved = async (i: number) =>
+    (
+      await sealTraveler(parseTraveler(EXAMPLE), {
+        directory,
+        rootPublicKeyHex,
+        recipientOrg: RECIP_ORG,
+        prekeyBundle: reservedBundle,
+        prekeyId: reservedBundle.prekeys[i]!.prekey_id,
+      })
+    ).envelope;
+  const onDisk = () => JSON.parse(readFileSync(ksPath, "utf8")) as Keystore;
+  const mode = (path: string) => statSync(path).mode & 0o777;
+
+  it("save is compare-and-swap on the file's content: a blob this process did not load is never overwritten", () => {
+    const path = join(workdir, "cas.keystore.json");
+    writeFileSync(path, '{"v":"A"}', { mode: 0o644 });
+
+    // Never loaded by this process: there is nothing to compare with, so no write.
+    assert.throws(() => saveKeystoreFile(path, '{"v":"B"}'), KeystoreFileChangedError);
+    assert.equal(readFileSync(path, "utf8"), '{"v":"A"}');
+
+    // Loaded, unchanged since: the write goes through.
+    assert.deepEqual(loadKeystoreFile(path), { v: "A" });
+    saveKeystoreFile(path, '{"v":"B"}');
+    assert.equal(readFileSync(path, "utf8"), '{"v":"B"}');
+    // …and again, against what this process itself wrote.
+    saveKeystoreFile(path, '{"v":"C"}');
+    assert.equal(readFileSync(path, "utf8"), '{"v":"C"}');
+
+    // ANOTHER process rewrites the file. This process's next write is refused, with an
+    // error that tells the operator what happened, and the file is left alone.
+    writeFileSync(path, '{"v":"theirs"}');
+    assert.throws(
+      () => saveKeystoreFile(path, '{"v":"D"}'),
+      (e: unknown) =>
+        e instanceof KeystoreFileChangedError &&
+        /changed by another process/.test(e.message) &&
+        /NOT written/.test(e.message),
+    );
+    assert.equal(readFileSync(path, "utf8"), '{"v":"theirs"}', "the other process's blob is intact");
+
+    // After loading the current file again, writing works again.
+    loadKeystoreFile(path);
+    saveKeystoreFile(path, '{"v":"D"}');
+    assert.equal(readFileSync(path, "utf8"), '{"v":"D"}');
+    // A deleted file is "changed" too.
+    rmSync(path);
+    assert.throws(() => saveKeystoreFile(path, '{"v":"E"}'), KeystoreFileChangedError);
+    // No temp files are left behind, by the successful writes or the refused ones.
+    assert.deepEqual(
+      readdirSync(workdir).filter((f) => f.includes(".tmp-")),
+      [],
+    );
+  });
+
+  // POSIX permission bits; Windows has no equivalent to assert on.
+  const posix = { skip: process.platform === "win32" };
+
+  it("save writes the file 0600 — whatever mode it had, whatever the umask", posix, () => {
+    const path = join(workdir, "mode.keystore.json");
+    writeFileSync(path, "{}", { mode: 0o644 });
+    chmodSync(path, 0o644);
+    loadKeystoreFile(path);
+    // The most permissive umask there is must not widen it, and the most restrictive
+    // must not leave the owner unable to read their own keystore.
+    for (const mask of [0o000, 0o777]) {
+      const umask = process.umask(mask);
+      try {
+        saveKeystoreFile(path, JSON.stringify({ saved: true, mask }));
+      } finally {
+        process.umask(umask);
+      }
+      assert.equal(mode(path), 0o600, `umask ${mask.toString(8)}`);
+    }
+  });
+
+  it("sje_open leaves the keystore file 0600 after consuming a one-time prekey", posix, async () => {
+    chmodSync(ksPath, 0o644); // as created by a default umask
+    const opened = await call("sje_open", { sje: await sealToReserved(0) });
+    assert.ok(!opened.isError, "the forward-secret envelope opens");
+    assert.equal(mode(ksPath), 0o600, "rewriting the keystore must not widen (or keep wide) its permissions");
+  });
+
+  it("a second process sharing the keystore: neither resurrects the other's consumed prekeys nor drops its new ones", async () => {
+    const [, r1, r2] = reservedBundle.prekeys.map((p) => p.prekey_id) as [string, string, string];
+    // This server has the keystore unlocked in memory (make sure of it).
+    const first = payload(
+      await call("sje_seal", {
+        traveler: EXAMPLE,
+        directory,
+        root_public_key_hex: rootPublicKeyHex,
+        recipient_org: RECIP_ORG,
+      }),
+    );
+    assert.ok(!(await call("sje_open", { sje: first.sje })).isError);
+
+    // A second process — another MCP server, a CLI — unlocks the same file, consumes
+    // reserved prekey r1, mints a new prekey, and writes the file.
+    const other = await unlock(onDisk(), KS_PASS);
+    assert.ok(other.consumePrekey(r1).secretKey, "the other process held r1 and consumed it");
+    const { keystore: theirs, prekeys: mintedByOther } = other.addPrekeys(1);
+    writeFileSync(ksPath, JSON.stringify(theirs), { mode: 0o600 });
+
+    // This server now opens an envelope sealed to r2. Its in-memory vault predates the
+    // other process's write: re-sealing from it would put r1 back on disk and drop the
+    // minted prekey.
+    const opened = await call("sje_open", { sje: await sealToReserved(2) });
+    assert.ok(!opened.isError, "the envelope opens (the server reloaded the keystore first)");
+
+    const after = await unlock(onDisk(), KS_PASS);
+    assert.equal(after.peekPrekey(r2), undefined, "r2: consumed by this server");
+    assert.equal(after.peekPrekey(r1), undefined, "r1: consumed by the other process — NOT resurrected");
+    assert.ok(after.peekPrekey(mintedByOther[0]!.prekey_id), "the prekey the other process minted — NOT dropped");
+
+    // And this server no longer opens an envelope sealed to r1: it works from the file,
+    // where r1 is gone, not from the copy it unlocked before.
+    const stale = await call("sje_open", { sje: await sealToReserved(1) });
+    assert.ok(stale.isError, "a prekey consumed by the other process is spent for this server too");
   });
 });

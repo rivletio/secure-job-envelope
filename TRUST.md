@@ -22,8 +22,10 @@ Plain statements first:
   (award decision + ship-to), so a forged award or redirected ship-to by a
   non-buyer is refused, and the desk **verifies these on receive**.
 - **The trust root is operator-configured, not vendor-owned.** Verification
-  takes the root public key as a parameter; no root is baked into the format or
-  code, anyone can run a directory, and independent roots coexist. See
+  takes the root public key as a parameter; no root is trusted by the format or
+  the code, anyone can run a directory, and independent roots coexist. (The code
+  does carry the digest of the public *demo* root, for one purpose: to recognize
+  it and label everything under it as proving nothing.) See
   [GOVERNANCE.md](GOVERNANCE.md).
 - **Archive import is defensive**: allowlisted members, size caps,
   path-traversal refusal, and SHA-384 META.json digest cross-checks (CRC32 is

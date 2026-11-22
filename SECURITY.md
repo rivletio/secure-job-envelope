@@ -70,14 +70,20 @@ What the format defends, by design:
   filename that does not leak the traveler id.
 - **Key custody at rest.** The ML-KEM *decryption* secret needed to OPEN
   envelopes is held only in a passphrase-encrypted keystore
-  (`src/lib/traveler/keystore.ts`): scrypt (N=2¹⁶) + AES-256-GCM, storing seeds
-  not expanded keys, the clear header bound as AAD, and a substitution check on
-  unlock (a tampered header cannot point the vault at another identity). A wrong
-  passphrase and a tampered blob both fail with one **uniform** error — no oracle.
-  Sealing needs only public keys, so it never touches a secret. A one-time prekey
-  is deleted — and the deletion persisted — once the traveler its envelope carried
-  has been admitted, not when the envelope is decrypted (see
-  `docs/ENVELOPE-DRAFT.md`, "What this does and does not give you").
+  (`src/lib/traveler/keystore.ts`): scrypt + AES-256-GCM, storing seeds not
+  expanded keys. The stored blob is treated as untrusted input: its shape and its
+  cost parameters are checked before any key is derived (N from 2¹⁵ to 2²⁰; this
+  version writes 2¹⁶), the whole clear header — the org label included — is
+  authenticated, and unlock refuses a header that points the vault at another
+  identity. A wrong passphrase, a tampered blob and a malformed one all fail with
+  one **uniform** error — no oracle. Sealing needs only public keys, so it never
+  touches a secret. A one-time prekey is deleted once the traveler its envelope
+  carried has been admitted, not when the envelope is decrypted: the keystore
+  without it is stored first and the key is forgotten in memory only when that
+  write has succeeded, and the desk reads the write back and says so if the
+  browser did not keep it (see `docs/ENVELOPE-DRAFT.md`, "What this does and does
+  not give you"). Copies this software does not control — a backup, browser sync,
+  an older blob restored later — still hold the key.
 
 What the format does **not** defend — known, stated, and the roadmap for
 future versions:

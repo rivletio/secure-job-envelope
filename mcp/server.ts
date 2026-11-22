@@ -45,33 +45,134 @@ import { exceedsUtf8Bytes } from "../src/lib/traveler/wire.ts";
 import type { Award, Op, ShipTo, Traveler } from "../src/lib/traveler/types.ts";
 import { MAX_DIRECTORY_JSON_BYTES, type Directory } from "../src/lib/traveler/directory.ts";
 import type { PrekeyBundle } from "../src/lib/traveler/prekeys.ts";
-import { readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  openSync,
+  fsyncSync,
+  fchmodSync,
+  closeSync,
+  unlinkSync,
+} from "node:fs";
+import { randomBytes } from "node:crypto";
 
 const COMPANY = process.env.SJE_COMPANY ?? "unnamed-desk";
 
-/** Write the keystore atomically: a crash or ENOSPC mid-write must never truncate
- *  the live file (that would brick the desk's identity). Write a temp file, fsync it,
- *  then rename over the target (atomic within a filesystem). */
-function atomicWriteFile(path: string, data: string): void {
-  const tmp = `${path}.tmp-${process.pid}`;
-  const fd = openSync(tmp, "w");
+/* ---------------- keystore file: load / save ----------------
+ *
+ * The keystore file may be shared — two MCP servers pointed at one SJE_KEYSTORE, or a
+ * server and a CLI. Each process unlocks its OWN copy of the vault and re-encrypts the
+ * file from that copy whenever a one-time prekey is consumed. Left alone, the process
+ * that writes second puts back every prekey the first one consumed (so a "deleted"
+ * one-time secret is on disk again) and drops every prekey the first one minted. So:
+ *
+ *   - a process only ever REPLACES the file text it last read or wrote (compare-and-
+ *     swap on content). If the file holds anything else, another process changed it:
+ *     the write is refused, loudly, and this process's unlocked copy is discarded;
+ *   - before each use, a process whose copy is out of date reloads the file instead of
+ *     working from it;
+ *   - the file is written owner-read/write only (0600). It used to be recreated with
+ *     the process's default mode, silently undoing a `chmod 600`.
+ *
+ * The compare and the replace are not one atomic step: two processes that both pass
+ * the compare in the same instant can still race. Closing that needs a lock both
+ * processes honour; this closes the ordinary case, where one process has simply not
+ * looked since the other wrote. */
+
+/** The text of each keystore file as this process last read or wrote it. */
+const keystoreFileSeen = new Map<string, string>();
+
+/** The keystore file holds something this process did not put there or read. */
+export class KeystoreFileChangedError extends Error {
+  constructor() {
+    super(
+      "The keystore file was changed by another process since this server loaded it. This server's " +
+        "copy is out of date and was NOT written: it would restore one-time prekeys the other process " +
+        "consumed and drop any it minted. The keystore will be reloaded from the file on the next use — retry.",
+    );
+    this.name = "KeystoreFileChangedError";
+  }
+}
+
+/** Read a keystore file, remembering exactly the text that was read (the baseline
+ *  every later write is compared against). Throws if it cannot be read or parsed. */
+export function loadKeystoreFile(path: string): Keystore {
+  const text = readFileSync(path, "utf8");
+  const blob = JSON.parse(text) as Keystore;
+  keystoreFileSeen.set(path, text);
+  return blob;
+}
+
+function keystoreFileIsAsSeen(path: string): boolean {
+  const seen = keystoreFileSeen.get(path);
+  if (seen === undefined) return false;
   try {
+    return readFileSync(path, "utf8") === seen;
+  } catch {
+    return false;
+  }
+}
+
+/** Replace a keystore file with `data` — only if the file still holds what this
+ *  process last read or wrote there (`loadKeystoreFile` / an earlier save). Otherwise
+ *  throws `KeystoreFileChangedError`, leaves the file alone, and drops this process's
+ *  unlocked copy of that keystore.
+ *
+ *  The write itself is atomic and private: a temp file created exclusively with mode
+ *  0600, fsynced, then renamed over the target — a crash or ENOSPC mid-write never
+ *  truncates the live file (that would brick the desk's identity), and the result is
+ *  0600 whatever the target's mode or the process umask was. */
+export function saveKeystoreFile(path: string, data: string): void {
+  if (!keystoreFileIsAsSeen(path)) {
+    dropCachedKeystore(path);
+    throw new KeystoreFileChangedError();
+  }
+  const tmp = `${path}.tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+  const fd = openSync(tmp, "wx", 0o600);
+  try {
+    fchmodSync(fd, 0o600); // the mode asked for above is subject to the umask; this is not
     writeFileSync(fd, data);
     fsyncSync(fd);
-  } finally {
+  } catch (e) {
     closeSync(fd);
+    try {
+      unlinkSync(tmp);
+    } catch {
+      /* nothing to clean up */
+    }
+    throw e;
   }
+  closeSync(fd);
   renameSync(tmp, path);
+  keystoreFileSeen.set(path, data);
+}
+
+/** The keystore writer the `sje_open` handler calls. */
+function atomicWriteFile(path: string, data: string): void {
+  saveKeystoreFile(path, data);
 }
 
 /** This desk's decryption identity, loaded lazily from the passphrase-encrypted
  *  keystore file (SJE_KEYSTORE) and unlocked with SJE_KEYSTORE_PASSPHRASE. Only
  *  `sje_open` needs it — sealing uses the recipient's public key, never a secret.
- *  Cached for the process; a failed unlock clears the cache so config can be fixed
- *  and retried. */
-let cachedKeystore: Promise<Unlocked> | undefined;
+ *  Cached for the process while the file stays as this process last saw it; if
+ *  another process has rewritten it, the cached copy is discarded and the file is
+ *  loaded again. A failed unlock clears the cache so config can be fixed and retried. */
+let cachedKeystore: { path: string; unlocked: Promise<Unlocked> } | undefined;
+
+/** Forget (and wipe) this process's unlocked copy of the keystore at `path`. */
+function dropCachedKeystore(path: string): void {
+  if (cachedKeystore?.path !== path) return;
+  const stale = cachedKeystore.unlocked;
+  cachedKeystore = undefined;
+  stale.then(
+    (u) => u.lock(),
+    () => {},
+  );
+}
+
 function serverKeystore(): Promise<Unlocked> {
-  if (cachedKeystore) return cachedKeystore;
   const path = process.env.SJE_KEYSTORE;
   const passphrase = process.env.SJE_KEYSTORE_PASSPHRASE;
   if (!path || !passphrase) {
@@ -79,10 +180,16 @@ function serverKeystore(): Promise<Unlocked> {
       new Error("sje_open needs SJE_KEYSTORE (keystore file path) and SJE_KEYSTORE_PASSPHRASE"),
     );
   }
+  if (cachedKeystore) {
+    if (cachedKeystore.path === path && keystoreFileIsAsSeen(path)) return cachedKeystore.unlocked;
+    // Another process re-sealed the file (or the configured path changed): this
+    // process's vault predates that. Work from the file, not from memory.
+    dropCachedKeystore(cachedKeystore.path);
+  }
   const p = (async () => {
     let blob: Keystore;
     try {
-      blob = JSON.parse(readFileSync(path, "utf8")) as Keystore;
+      blob = loadKeystoreFile(path);
     } catch (e) {
       // Don't surface the on-disk path or parser internals to the tool caller;
       // log the detail server-side and return a uniform, path-free message.
@@ -91,10 +198,11 @@ function serverKeystore(): Promise<Unlocked> {
     }
     return unlock(blob, passphrase); // throws the uniform UNLOCK_FAIL (no path leak)
   })();
+  const entry = { path, unlocked: p };
   p.catch(() => {
-    if (cachedKeystore === p) cachedKeystore = undefined;
+    if (cachedKeystore === entry) cachedKeystore = undefined;
   });
-  cachedKeystore = p;
+  cachedKeystore = entry;
   return p;
 }
 

@@ -1,3 +1,4 @@
+import { DocText } from "@/components/doc-text";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,9 @@ export function QuoteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Quote {traveler.part.part_number}</DialogTitle>
+          <DialogTitle>
+            Quote <DocText text={traveler.part.part_number} />
+          </DialogTitle>
           <DialogDescription>
             Bound to this buyer revision. If the traveler hash moves, this quote goes stale.
             A bound quote is a structured price, not a signed offer.

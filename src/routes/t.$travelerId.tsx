@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { AuthenticityPanel } from "@/components/authenticity-panel";
 import { AwardDialog } from "@/components/award-dialog";
+import { DocText } from "@/components/doc-text";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SealDialog } from "@/components/seal-dialog";
 import { HashChip } from "@/components/hash-chip";
@@ -18,6 +19,7 @@ import { formatDay, processLabel } from "@/lib/traveler/format";
 import { awardStanding, itarExportWarning, lockedAtLevel } from "@/lib/traveler/guards";
 import { travelerHash } from "@/lib/traveler/hash";
 import { quoteTerms } from "@/lib/traveler/quote-terms";
+import { visibleText } from "@/lib/traveler/visible-text";
 import { useTravelerStore } from "@/lib/traveler/store";
 import { TRAVELER_ID_RE, type Quote } from "@/lib/traveler/types";
 import { downloadJson, downloadArchive } from "@/lib/traveler/zip";
@@ -105,11 +107,18 @@ function TravelerPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-xs text-faint">{traveler.traveler_id}</p>
-          <h1 className="mt-1 text-3xl tracking-tight text-paper">{traveler.part.family}</h1>
+          <h1 className="mt-1 text-3xl tracking-tight text-paper">
+            <DocText text={traveler.part.family} />
+          </h1>
           <p className="text-sm text-soft">
-            {traveler.part.part_number}
-            {traveler.part.drawing_rev ? ` · drawing ${traveler.part.drawing_rev}` : ""} · r
-            {traveler.revision}
+            <DocText text={traveler.part.part_number} />
+            {traveler.part.drawing_rev ? (
+              <>
+                {" · drawing "}
+                <DocText text={traveler.part.drawing_rev} />
+              </>
+            ) : null}{" "}
+            · r{traveler.revision}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -179,14 +188,18 @@ function TravelerPage() {
             </div>
             {traveler.part.processes?.length ? (
               <p className="mt-4 font-mono text-xs text-muted-foreground">
-                {traveler.part.processes.map(processLabel).join(" · ")}
+                <DocText text={traveler.part.processes.map(processLabel).join(" · ")} />
               </p>
             ) : null}
             {traveler.part.description && (
-              <p className="mt-3 text-sm leading-relaxed">{traveler.part.description}</p>
+              <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap">
+                <DocText text={traveler.part.description} block />
+              </p>
             )}
             {traveler.part.notes && (
-              <p className="mt-2 text-sm text-muted-foreground">{traveler.part.notes}</p>
+              <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">
+                <DocText text={traveler.part.notes} block />
+              </p>
             )}
           </section>
 
@@ -278,14 +291,16 @@ function TravelerPage() {
               )}
               {standing.state === "in-effect" && (
                 <p className="mt-2 text-sm">
-                  Awarded to <bdi>{standing.quote.seller.name}</bdi> on{" "}
+                  Awarded to <DocText text={standing.quote.seller.name} /> on{" "}
                   {formatDay(traveler.award?.awarded_at)} · qty {traveler.award?.qty}
                 </p>
               )}
               {traveler.ship_to && (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Ship-to {traveler.ship_to.name}, {traveler.ship_to.line1}, {traveler.ship_to.city},{" "}
-                  {traveler.ship_to.region} {traveler.ship_to.postal}
+                  Ship-to{" "}
+                  <DocText
+                    text={`${traveler.ship_to.name}, ${traveler.ship_to.line1}, ${traveler.ship_to.city}, ${traveler.ship_to.region} ${traveler.ship_to.postal}`}
+                  />
                 </p>
               )}
               {traveler.ops?.length ? (
@@ -293,8 +308,14 @@ function TravelerPage() {
                   {traveler.ops.map((op) => (
                     <li key={op.seq} className="flex gap-3 font-mono text-sm">
                       <span className="w-6 text-faint">{String(op.seq).padStart(2, "0")}</span>
-                      <span className="font-medium">{op.code}</span>
-                      {op.notes && <span className="text-muted-foreground">{op.notes}</span>}
+                      <span className="font-medium">
+                        <DocText text={op.code} />
+                      </span>
+                      {op.notes && (
+                        <span className="text-muted-foreground">
+                          <DocText text={op.notes} />
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ol>
@@ -343,7 +364,7 @@ function TravelerPage() {
         body={
           isLocked
             ? `${traveler.traveler_id} is ${info.code} ${info.name} — an executable, locked traveler carrying the award, the ops and the ship-to. Deleting it removes this desk's copy and cannot be undone. It does not cancel the award, and it does not reach any copy another party holds. Export it first if you need the record.`
-            : `This removes ${traveler.traveler_id} (${traveler.part.family}, ${traveler.part.part_number}, revision ${traveler.revision}) and the ${quoteCount} quote${quoteCount === 1 ? "" : "s"} on it from this desk. It cannot be undone — the desk keeps no copy. Export it first if you may need it again. Copies other parties hold are not affected.`
+            : `This removes ${traveler.traveler_id} (${visibleText(traveler.part.family)}, ${visibleText(traveler.part.part_number)}, revision ${traveler.revision}) and the ${quoteCount} quote${quoteCount === 1 ? "" : "s"} on it from this desk. It cannot be undone — the desk keeps no copy. Export it first if you may need it again. Copies other parties hold are not affected.`
         }
         confirmLabel={`Delete ${traveler.traveler_id}`}
         destructive
@@ -357,7 +378,9 @@ function Fact({ k, v }: { k: string; v: string }) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{k}</dt>
-      <dd className="text-sm">{v}</dd>
+      <dd className="text-sm">
+        <DocText text={v} />
+      </dd>
     </div>
   );
 }

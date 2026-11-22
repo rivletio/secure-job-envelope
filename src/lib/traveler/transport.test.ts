@@ -3,7 +3,13 @@ import { describe, it } from "node:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sealTraveler, openTraveler, openTravelerDeferred, parseSjeEnvelope } from "./transport.ts";
+import {
+  sealTraveler,
+  openTraveler,
+  openTravelerDeferred,
+  parseSjeEnvelope,
+  type SjeEnvelope,
+} from "./transport.ts";
 import { createIdentity, unlock, type Keystore, type Unlocked } from "./keystore.ts";
 import { signDirectory, DIRECTORY_SPEC, type Directory } from "./directory.ts";
 import { signPrekeyBundle, PREKEY_BUNDLE_SPEC, type PrekeyBundle } from "./prekeys.ts";
@@ -218,6 +224,107 @@ describe("encrypted transport (forward-secret path)", () => {
     }
   });
 
+  it("a sender that tracks its prekeys never reuses one: N seals use N distinct prekeys, the (N+1)th reports the fallback", async () => {
+    const N = 8; // the desk's default bundle size
+    const { directory, rootPublicKeyHex, unlocked, signer } = await setup();
+    const { bundle, prekeyIds } = signedBundle(unlocked, signer, N);
+    const common = { directory, rootPublicKeyHex, recipientOrg: "org_recipient", prekeyBundle: bundle };
+
+    // What a sender does: remember every prekeyId a seal returns, pass them all back.
+    const used: string[] = [];
+    const envelopes: SjeEnvelope[] = [];
+    for (let i = 0; i < N; i++) {
+      const r = await sealTraveler(sampleTraveler(), {
+        ...common,
+        excludePrekeyIds: used,
+        requireForwardSecret: true,
+      });
+      assert.equal(r.forwardSecret, true, `seal #${i + 1} is forward-secret`);
+      assert.equal(r.staticReason, undefined);
+      assert.ok(r.prekeyId !== undefined && prekeyIds.includes(r.prekeyId), "reports the prekey it spent");
+      assert.equal((r.envelope as FsEnvelope).recipients[0]!.prekey_id, r.prekeyId, "…the one in the envelope");
+      assert.ok(!used.includes(r.prekeyId), `seal #${i + 1} must not reuse a prekey`);
+      used.push(r.prekeyId);
+      envelopes.push(r.envelope);
+    }
+    assert.equal(new Set(used).size, N, "N seals spent N distinct prekeys");
+    assert.deepEqual([...used].sort(), [...prekeyIds].sort(), "…exactly the bundle's");
+
+    // The (N+1)th: every prekey is spent, so there is no usable prekey — exactly the
+    // reported static fallback, never a reused prekey reported as forward-secret.
+    const next = await sealTraveler(sampleTraveler(), { ...common, excludePrekeyIds: used });
+    assert.equal(next.forwardSecret, false);
+    assert.equal(next.prekeyId, undefined);
+    assert.equal(next.staticReason, "prekeys-exhausted");
+    assert.equal(next.envelope.spec, "sje-envelope/0.1.0");
+    // …and under requireForwardSecret, a refusal that says why.
+    await assert.rejects(
+      () => sealTraveler(sampleTraveler(), { ...common, excludePrekeyIds: used, requireForwardSecret: true }),
+      /forward secrecy required.*prekeys-exhausted/,
+    );
+
+    // Nothing was lost: the recipient opens all N forward-secret envelopes and the
+    // static one. (Untracked, the same seals collide and most are unopenable.)
+    for (const e of [...envelopes, next.envelope]) {
+      assert.deepEqual(await openTraveler(e, unlocked), sampleTraveler());
+    }
+  });
+
+  it("an explicitly requested prekey that is excluded, or not in the bundle, is not used", async () => {
+    const { directory, rootPublicKeyHex, unlocked, signer } = await setup();
+    const { bundle, prekeyIds } = signedBundle(unlocked, signer, 2);
+    const common = { directory, rootPublicKeyHex, recipientOrg: "org_recipient", prekeyBundle: bundle };
+    const spent = await sealTraveler(sampleTraveler(), {
+      ...common,
+      prekeyId: prekeyIds[0],
+      excludePrekeyIds: [prekeyIds[0]!],
+    });
+    assert.equal(spent.forwardSecret, false);
+    assert.equal(spent.staticReason, "prekey-unavailable");
+    const absent = await sealTraveler(sampleTraveler(), { ...common, prekeyId: "no-such-prekey" });
+    assert.equal(absent.forwardSecret, false);
+    assert.equal(absent.staticReason, "prekey-unavailable");
+    // The other prekey is still usable when asked for by id.
+    const ok = await sealTraveler(sampleTraveler(), {
+      ...common,
+      prekeyId: prekeyIds[1],
+      excludePrekeyIds: [prekeyIds[0]!],
+    });
+    assert.equal(ok.forwardSecret, true);
+    assert.equal(ok.prekeyId, prekeyIds[1]);
+  });
+
+  it("a static seal always says why it was not forward-secret", async () => {
+    const { directory, rootPublicKeyHex, unlocked, signer } = await setup();
+    const { bundle, prekeyIds } = signedBundle(unlocked, signer, 1);
+    const common = { directory, rootPublicKeyHex, recipientOrg: "org_recipient" };
+    const reason = async (o: Partial<Parameters<typeof sealTraveler>[1]>) => {
+      const r = await sealTraveler(sampleTraveler(), { ...common, ...o });
+      assert.equal(r.forwardSecret, false);
+      assert.equal(r.prekeyId, undefined);
+      return r.staticReason;
+    };
+    assert.equal(await reason({}), "no-bundle");
+    const badSig: PrekeyBundle = { ...bundle, sig: (bundle.sig![0] === "a" ? "b" : "a") + bundle.sig!.slice(1) };
+    assert.equal(await reason({ prekeyBundle: badSig }), "bundle-not-verified");
+    // "Exhausted" is only said of a bundle that verifies.
+    assert.equal(await reason({ prekeyBundle: badSig, excludePrekeyIds: prekeyIds }), "bundle-not-verified");
+    assert.equal(await reason({ prekeyBundle: bundle, excludePrekeyIds: prekeyIds }), "prekeys-exhausted");
+    // Expired: outside the bundle's own validity window (the directory's too — so use a
+    // bundle that expires earlier than the directory does).
+    const shortLived: PrekeyBundle = { ...bundle, valid_until: "2026-06-01T00:00:00.000Z" };
+    shortLived.sig = signPrekeyBundle(shortLived, signer.secretKey);
+    assert.equal(
+      await reason({ prekeyBundle: shortLived, at: new Date("2027-01-01T00:00:00.000Z") }),
+      "bundle-not-verified",
+    );
+    // A value that is not a bundle at all falls back the same way — never a TypeError
+    // out of reading its `prekeys`.
+    for (const junk of [{}, { prekeys: "all of them" }, { ...bundle, prekeys: null }, { ...bundle, prekeys: [null] }]) {
+      assert.equal(await reason({ prekeyBundle: junk as unknown as PrekeyBundle }), "bundle-not-verified");
+    }
+  });
+
   it("requireForwardSecret throws instead of silently downgrading to static", async () => {
     const { directory, rootPublicKeyHex } = await setup();
     await assert.rejects(
@@ -316,6 +423,58 @@ describe("two-phase open: decrypting is not accepting", () => {
       },
     });
     await assert.rejects(opened.commit(), /storage is full/);
+  });
+
+  it("stores the deletion before forgetting the prekey: a failed store changes nothing, and can be retried", async () => {
+    // It used to delete in memory first. After a failed write the session had lost a
+    // prekey the stored blob still had, and a second commit() returned at once having
+    // done nothing: the deletion was never stored, and nothing said so again.
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 2);
+    const envelope = await fsSeal(ctx, bundle, prekeyIds[0]!);
+    let fail = true;
+    const stored: Keystore[] = [];
+    const opened = await openTravelerDeferred(envelope, ctx.unlocked, {
+      persistKeystore: (ks) => {
+        if (fail) throw new Error("storage is full");
+        stored.push(ks);
+      },
+    });
+
+    await assert.rejects(opened.commit(), /storage is full/);
+    assert.ok(ctx.unlocked.peekPrekey(prekeyIds[0]!), "the session still holds the prekey");
+    // …so the same envelope still opens in this session, as it would after a reload.
+    assert.deepEqual((await openTravelerDeferred(envelope, ctx.unlocked)).traveler, sampleTraveler());
+
+    fail = false;
+    await opened.commit(); // the retry does the work the first call could not
+    assert.equal(stored.length, 1);
+    assert.equal(ctx.unlocked.peekPrekey(prekeyIds[0]!), undefined, "forgotten once stored");
+    // What was stored is the keystore without that prekey, and with the other one.
+    const reopened = await unlock(stored[0]!, PASS);
+    assert.equal(reopened.peekPrekey(prekeyIds[0]!), undefined);
+    assert.ok(reopened.peekPrekey(prekeyIds[1]!));
+  });
+
+  it("two commits at once store the deletion once", async () => {
+    const ctx = await setup();
+    const { bundle, prekeyIds } = signedBundle(ctx.unlocked, ctx.signer, 1);
+    const envelope = await fsSeal(ctx, bundle, prekeyIds[0]!);
+    let writes = 0;
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const opened = await openTravelerDeferred(envelope, ctx.unlocked, {
+      persistKeystore: async () => {
+        writes++;
+        await held;
+      },
+    });
+    const both = Promise.all([opened.commit(), opened.commit()]);
+    release();
+    await both;
+    await opened.commit();
+    assert.equal(writes, 1);
+    assert.equal(ctx.unlocked.peekPrekey(prekeyIds[0]!), undefined);
   });
 
   it("a static envelope has nothing to spend", async () => {

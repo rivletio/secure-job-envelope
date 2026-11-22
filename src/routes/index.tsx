@@ -145,8 +145,15 @@ function Desk() {
       opened = await openTravelerDeferred(envelope, unlocked, {
         persistKeystore: (ks) => useKeysStore.getState().persistKeystore(ks),
       });
-    } catch {
-      toast.error("Could not open envelope (wrong recipient, tampered, or not addressed to this desk)");
+    } catch (err) {
+      // Our own refusals only — never text from the envelope. One of them is worth
+      // telling apart: an envelope this desk has already opened cannot be opened twice.
+      const spent = err instanceof Error && /one-time prekey already consumed/.test(err.message);
+      toast.error(
+        spent
+          ? "This envelope's one-time key is not held here any more: either this desk already opened it, or another envelope sealed to the same key was opened first. The key was deleted then (that is what forward secrecy means), so this envelope cannot be opened. Ask the sender to seal it again."
+          : "Could not open envelope (wrong recipient, tampered, or not addressed to this desk)",
+      );
       return;
     }
     // Decrypted — which says nothing about who sealed it. The receive policy decides.
