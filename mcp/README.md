@@ -44,10 +44,11 @@ overridden, by a tool call.
 |---|---|---|---|
 | `SJE_TRUST_ROOT` | The pinned trust-root public key: 5184 lowercase hex characters (a 2592-byte ML-DSA-87 key). Read once, at startup. | No root: `sje_seal` refuses; `sje_open` and `sje_evaluate` report authenticity as *unverifiable*. | **The server does not start.** |
 | `SJE_TRUST_ROOT_FILE` | Path of a file holding that hex (surrounding whitespace is ignored). Alternative to `SJE_TRUST_ROOT`; setting both is an error. | as above | **The server does not start** (unreadable, or not a key). |
-| `SJE_DIRECTORY_FILE` | Path of the operator's signed key directory: the default when a tool is not given a `directory` argument. **Re-read on every call** — replace the file (atomically: write a new file, rename it over the old one) to publish a new directory; no restart. It is still verified against the pinned root on every use. Requires a pinned root. | Tools need a `directory` argument to verify or seal. | Set without a root, or empty: the server does not start. A file that is missing, unreadable, expired or not signed by the root is reported per call, in operator-facing terms. |
+| `SJE_DIRECTORY_FILE` | Path of the operator's signed key directory: the default when a tool is not given a `directory` argument, and the **floor** for one that is — an argument is accepted only if it is this directory or was issued strictly after it. **Re-read on every call** — replace the file (atomically: write a new file, rename it over the old one) to publish a new directory; no restart. It is still verified against the pinned root on every use. Requires a pinned root. | Tools need a `directory` argument to verify or seal. | Set without a root, or empty: the server does not start. A file that is missing, unreadable, expired or not signed by the root is reported per call, in operator-facing terms, and logged. An expired file that is the root's is still the floor; while the file cannot be authenticated at all, **no** `directory` argument is accepted. |
 | `SJE_REQUIRE_VERIFIED_AWARD` | `1`: an award that is not verified as the buyer's is never admitted — `accept_unverified_award` is refused outright. `0`: default. | Unverified awards are refused by default, and admitted with `accept_unverified_award: true`. | Any other value: the server does not start. |
 | `SJE_KEYSTORE` | Path of this desk's passphrase-encrypted keystore. `sje_identity` creates it (exclusively, mode 0600); `sje_open` loads it and rewrites it when a one-time prekey is spent. | `sje_open` and `sje_identity` refuse. | `sje_open` reports the keystore as unavailable. |
 | `SJE_KEYSTORE_PASSPHRASE` | The passphrase that protects the keystore at rest (at least 12 characters). | as above | `sje_identity` refuses a passphrase that is too short; `sje_open` fails to unlock. |
+| `SJE_ORG` | The `org_id` this desk acts as. It decides one thing: a quote that names this org as its seller is the desk's own, and travels with whatever the desk seals (see `sje_seal`). | No quote is the desk's own: a quote is sealed only to the buyer org its traveler names, or to the seller org the quote names. | Not an `org_id`: the server does not start. |
 | `SJE_COMPANY` | A label for the server's name and its log line. | `unnamed-desk` | Shown sanitized. |
 
 On startup the server writes one line to stderr naming the pinned root's
@@ -75,8 +76,37 @@ are reported.
 | `sje_evaluate` | buyer | Every quote, with everything an award would commit to: each price line, NRE, freight, tax, currency, lead time, validity and expiry, `need_by_feasible`, each exception's `price_delta`, whether assumptions/capacity are present, the quote's content hash, an itemized total at the target quantity, award blockers, and — with a root and a directory — the seller's signature check. The quote itself is returned whole under `quote` |
 | `sje_award` | buyer | Award one bound, unexpired quote + ops + ship-to → **L2, locked**. `expected_traveler_hash` is **required**; `qty` must be a JSON integer the quote has a price line for. The award is **not signed** (see below) |
 | `sje_identity` | any | Mint this desk's ML-KEM identity **on the server**: writes the keystore to `SJE_KEYSTORE` (never overwrites one), returns only the public `directory_entry` and, if asked, up to 64 public one-time prekeys. Takes no passphrase; returns no keystore |
-| `sje_seal` | any | Encrypt a traveler to a recipient org whose key comes from a directory that verifies against the pinned root. Refuses an `itar: true` traveler unless the directory attests the recipient for ITAR (or the recipient is the buyer the traveler names). Reports `recipient_org`, the key used, `forward_secret` — and `not_forward_secret_because` when it is not |
+| `sje_seal` | any | Encrypt a traveler to a recipient org whose key comes from a directory that verifies against the pinned root. **Seals only the recipient's part** (see below) and says what it left out (`sent`, `withheld`). Refuses an `itar: true` traveler unless the directory attests the recipient for ITAR (or the recipient is the buyer the traveler names). Reports `recipient_org`, the key used, `forward_secret` — with the `prekey_id` it spent, or `not_forward_secret_because`. Takes `exclude_prekey_ids` |
 | `sje_open` | any | Decrypt a received `.sje` with this desk's keystore, run the full defensive import, verify, and apply the receive policy. Reports `authenticity`. Takes `expected_traveler_hash`, `expected_buyer_org`, `accept_unverified_award` |
+
+### What `sje_seal` sends
+
+A traveler accumulates every seller's quote. Sealing used to encrypt all of it to
+whoever was named, so a buyer's agent re-sending an RFQ handed one seller another's
+price, and a losing bidder was told who won and where the parts ship. `sje_seal` now
+seals what the recipient is entitled to see — the rule is the library's
+(`sealTraveler`, `projection.ts`), not this server's:
+
+- the **buyer org the traveler names** receives all of it;
+- **anyone else** receives the quoteable body and its signatures, the quotes that name
+  the recipient as seller, the quotes that name this desk's own org as seller
+  (`SJE_ORG`), and the award — with ship-to, ops and as-built data — only when the
+  awarded quote is one of those.
+
+The result says what went into the envelope: `sent: { quotes, award }` and
+`withheld: { quotes, award }`, with a note when anything was withheld. The body, its hash
+and the buyer's signatures are unchanged, so what the recipient opens still verifies.
+**No argument widens this**: an agent cannot be talked into sending a competitor's quote.
+Org ids here are the document's own claims — the rule decides what to disclose, not whom
+to trust — so it holds for the document as the caller handed it in.
+
+**One-time prekeys are the caller's to track.** A forward-secret seal spends one prekey
+of the recipient's bundle and returns its `prekey_id`. A prekey opens exactly one
+envelope, and this server remembers nothing between calls: pass every `prekey_id` you
+have been given for a bundle as `exclude_prekey_ids` on later seals to it. Without the
+list a later seal can pick a prekey already used — an envelope the recipient can never
+open, reported as forward-secret. When every prekey is excluded the seal says so and
+falls back to a static envelope (or refuses, under `require_forward_secret`).
 
 ### What `sje_open` tells you
 
@@ -91,10 +121,19 @@ established:
   "authorship": [{ "ok": true, "kid": "northline-2026", "org_id": "org_northline", "reason": null }],
   "award": null,                   // a check, or null when the traveler carries no award
   "quotes": [{ "quote_id": "qot_…", "signed": false, "check": null }],
+  "status_covers": "the buyer's authorship of the traveler and, if it carries one, the buyer's award. …",
+  "directory_source": "operator",  // or "argument": WHICH directory the verdict stood on
+  "directory_issued_at": "2026-01-01T00:00:00.000Z",
+  "directory_valid_until": "2030-01-01T00:00:00.000Z",
   "trust_root_fingerprint": "09cb 9e82 d269 7c0c 6307 78c7 9a06 1c46",
   "demo_anchor": false
 }
 ```
+
+`status` is about the **buyer**: who wrote the traveler and, if there is one, the award.
+It says nothing about the quotes — each quote's seller signature is its own answer under
+`quotes`, and a quote can be unsigned, or signed with a key this directory does not list,
+on a traveler whose status is `verified`.
 
 - **verified** — a buyer signature verifies and, if there is an award, so does
   the buyer's award signature. It names the org that *signed*, which is not
@@ -104,13 +143,29 @@ established:
   established (unsigned, or signed with a key the directory does not list).
 - **unverifiable** — the server had no trust root or no usable directory.
 
-A signature that is present and **fails** is refused. An award that is not
-verified as the buyer's is **refused by default**, with the statements the
-caller must accept; after confirming the award with the buyer out of band,
-retry with `accept_unverified_award: true` and the result carries those
-statements verbatim under `unverified`. A one-time prekey is spent only when the
-traveler is admitted: a refusal spends nothing, and the same envelope can be
-opened again.
+A signature that is present and **fails** is refused — the buyer's, the award's,
+or a seller's on a quote: a changed body, a signer from another org, or a key the
+directory lists as **revoked** (reported as such, with the key and the org it
+belonged to; no acknowledgment covers it). A signature that cannot be *checked* —
+a key the directory does not list, or one outside its window — is not a failure:
+the result says so and nothing is established. The refusal carries `authenticity`,
+so the caller can see which check failed without being handed the document.
+
+An award that is not verified as the buyer's is **refused by default**, with the
+statements the caller must accept; after confirming the award with the buyer out
+of band, retry with `accept_unverified_award: true` and the result carries those
+statements verbatim under `unverified`.
+
+A ship-to, an ops list or as-built data on a traveler that carries **no award** is
+returned as it arrived, and `notes` says what it is: nothing signed covers it, and
+whoever sealed the copy could have written it. (A buyer may send draft ops with an
+RFQ; a seller can as easily return a ship-to of its own. The hash and the buyer's
+signature cover the quoteable body only, so every expectation still matches.)
+
+A one-time prekey is spent only when the traveler is admitted and the result has
+been built: a refusal spends nothing, and the same envelope can be opened again.
+The keystore file is rewritten without the prekey *before* the prekey is forgotten,
+so a failed write also spends nothing.
 
 ## What statelessness means
 
@@ -136,8 +191,12 @@ Other limits of this surface:
   org key elsewhere (the demo does this in-process).
 - **Directory freshness.** Without `SJE_DIRECTORY_FILE`, a root-signed directory
   passed as an argument is accepted for as long as its own validity window lasts,
-  even if a newer one exists. With it, an argument older than the operator's is
-  refused.
+  even if a newer one exists — a superseded directory that still lists a since-revoked
+  key verifies, and nothing here can know. With it, an argument is accepted only if it
+  is the operator's directory or was issued strictly after it (an expired operator
+  file still counts; one that cannot be authenticated blocks every argument). "Newer"
+  is the directory's own `issued_at`: the format has no serial number, so an argument
+  newer than the operator's file may itself have been superseded.
 - **ITAR.** `sje_quote` and `sje_award` apply the traveler's self-declared ITAR
   consistency rule only. The directory's attestation gates `sje_seal`, and is
   reported per quote by `sje_evaluate`.
@@ -146,7 +205,11 @@ Other limits of this surface:
 - **Verification work.** A call verifies the key directory once (twice for an
   ITAR evaluation), whatever the traveler carries, and then each signature
   present: at most 8 on the traveler, one on the award and one on each of at
-  most 64 quotes. Every signed quote gets a real verdict; none is skipped.
+  most 64 quotes. Every signed quote gets a real verdict; none is skipped. The
+  traveler's own state is established once per call, not once per quote.
+- **Result size.** Results are one line of compact JSON, at most a small multiple of
+  the (capped) inputs, with a 4 MiB backstop. `sje_open` builds its result before
+  it spends the one-time prekey.
 
 ## The demo
 

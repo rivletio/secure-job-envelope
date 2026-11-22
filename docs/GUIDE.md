@@ -167,6 +167,21 @@ Three parts cooperate:
   fallback to the static envelope is explicit, and `requireForwardSecret` refuses
   to downgrade.
 
+`sealTraveler` also decides **what** is sent and **to whom**, so that no caller has to
+remember to:
+
+- **Each recipient is sealed its part of the traveler.** The buyer org the traveler
+  names receives all of it. Anyone else receives the quoteable body (same hash, same
+  buyer signature), the quotes that are its own or the sender's (`senderOrg`), and the
+  award — with ship-to, ops and as-built data — only if the awarded quote is one of
+  those. What was left out is reported (`withheld`). A seller is never sent another
+  seller's price by default; sending the whole traveler to a non-buyer has to be
+  asked for by name (`disclose: "everything"`).
+- **A traveler marked ITAR** is sealed only to an org the directory attests for ITAR,
+  or back to the buyer org it names; anything else is refused (`SealRefused`). This is
+  a consistency rule over a self-declared flag and a directory attestation — it is not
+  export control.
+
 ### On the browser desk
 
 1. Open **Keys**. Create an identity (passphrase) — it is stored encrypted; the
@@ -174,9 +189,14 @@ Three parts cooperate:
 2. Load a **trust anchor** (`{ root_public_key_hex, directory, bundles? }`),
    obtained out of band. Confirm the root public key out of band — a swapped root
    lets an attacker forge a directory.
-3. On a traveler, **Seal & send** to a directory-attested recipient. The download
-   is an encrypted `.sje` with a random filename (it never embeds the traveler
-   id). The plaintext `.zip`/JSON exports remain, relabeled "local copy".
+3. On a traveler, **Seal & send** to a directory-attested recipient. Before anything
+   is sealed the dialog says what that recipient will **not** be sent — other sellers'
+   quotes, and the award unless its quote won — and whether the envelope will be
+   forward-secret. Sending the whole traveler instead is a tick you give per envelope.
+   A traveler marked ITAR cannot be sealed to an org your directory does not attest
+   for ITAR. The download is an encrypted `.sje` with a random filename (it never
+   embeds the traveler id). The plaintext `.zip`/JSON exports remain, relabeled
+   "local copy" — they are the whole traveler, every quote included.
 4. To receive, **unlock** your identity, then **Open .traveler / .sje** — the desk
    decrypts and runs the defensive import.
 

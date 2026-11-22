@@ -35,6 +35,7 @@ import {
   saveKeystoreFile,
   KeystoreFileChangedError,
   rootFingerprint,
+  MAX_RESULT_BYTES,
   SERVER_INSTRUCTIONS,
 } from "./server.ts";
 import { parseTraveler } from "../src/lib/traveler/conformance.ts";
@@ -885,6 +886,14 @@ describe("trust root: pinned by the operator (MCP-3)", () => {
     const absent = await seal();
     assert.match(errorOf(absent), /SJE_DIRECTORY_FILE\) could not be read as a signed directory/);
     assert.ok(!textOf(absent).includes(workdir), "no filesystem path in a tool result");
+    // While the operator's file cannot be authenticated there is nothing to compare an
+    // argument with — so none is accepted, however validly the root signed it.
+    const NO_FLOOR = /cannot be authenticated right now.*accepts none/;
+    assert.match(errorOf(await seal({ directory })), NO_FLOOR);
+    writeFileSync(dirFile, JSON.stringify(signedDirectory(entries, WINDOW, evilSigner.secretKey)));
+    assert.match(errorOf(await seal({ directory })), NO_FLOOR, "a file another root signed is no floor either");
+    writeFileSync(dirFile, "{ not a directory");
+    assert.match(errorOf(await seal({ directory })), NO_FLOOR);
 
     // The operator publishes a directory that does not list this recipient…
     writeFileSync(dirFile, JSON.stringify(signedDirectory(entries.slice(1))));
@@ -903,12 +912,29 @@ describe("trust root: pinned by the operator (MCP-3)", () => {
     assert.equal(out.authenticity.status, "verified");
     assert.equal(out.authenticity.verified_buyer_org, BUYER_ORG);
 
-    // A directory ARGUMENT still works when it is the operator's own or newer…
+    assert.equal(out.authenticity.directory_source, "operator");
+    assert.equal(out.authenticity.directory_issued_at, "2026-01-02T00:00:00.000Z");
+
+    // A directory ARGUMENT still works when it is the operator's own, or issued after it…
     assert.equal(okOf(await seal({ directory: newer })).directory_source, "argument");
+    const later = signedDirectory(entries, { ...WINDOW, issued_at: "2026-01-03T00:00:00.000Z" });
+    assert.equal(okOf(await seal({ directory: later })).directory_issued_at, "2026-01-03T00:00:00.000Z");
     // …but a root-signed directory OLDER than the operator's is a rollback, and refused.
+    const NOT_NEWER = /not newer than the directory this server's operator configured/;
     const rollback = await seal({ directory }); // issued a day before the operator's
-    assert.match(errorOf(rollback), /older than the directory this server's operator configured/);
+    assert.match(errorOf(rollback), NOT_NEWER);
     assert.equal(payload(rollback).sje, undefined);
+    // So is one with the SAME issue time and different contents: `issued_at` is the
+    // start of a window, not a version, and only the operator's copy is known current.
+    // (Here: the directory as it stood before EVIL_ORG's entry was withdrawn.)
+    writeFileSync(dirFile, JSON.stringify(signedDirectory(entries.slice(0, 3), { ...WINDOW, issued_at: newer.issued_at })));
+    assert.match(errorOf(await seal({ directory: newer })), NOT_NEWER);
+    assert.match(
+      errorOf(await desk.call("sje_seal", { traveler: EXAMPLE, recipient_org: EVIL_ORG, directory: newer })),
+      NOT_NEWER,
+      "a withdrawn entry does not come back through an argument",
+    );
+    writeFileSync(dirFile, JSON.stringify(newer));
 
     // An expired operator directory is said to be expired: sealing stops, and opening
     // reports that nothing could be checked.
@@ -925,6 +951,25 @@ describe("trust root: pinned by the operator (MCP-3)", () => {
     const unchecked = okOf(await desk.call("sje_open", { sje: await sealToDesk(signedByBuyer(rfq())) }));
     assert.equal(unchecked.authenticity.status, "unverifiable");
     assert.match(unchecked.authenticity.unverifiable_because, /has expired/);
+
+    // An operator directory that has LAPSED is still the floor. It used to stop being
+    // one the moment it expired, and every older root-signed directory still inside its
+    // own window verified again — revoked keys and withdrawn attestations included.
+    const lapsed = signedDirectory(entries, {
+      issued_at: "2026-01-02T00:00:00.000Z",
+      valid_until: "2026-01-02T00:00:01.000Z",
+    });
+    writeFileSync(dirFile, JSON.stringify(lapsed));
+    const stale = await seal({ directory }); // issued 2026-01-01, valid until 2030
+    assert.match(errorOf(stale), NOT_NEWER);
+    assert.match(errorOf(stale), /operator's own directory is not usable right now/);
+    assert.match(
+      errorOf(await desk.call("sje_open", { sje: await sealToDesk(signedByBuyer(rfq())), directory })),
+      NOT_NEWER,
+    );
+    // One issued after the lapsed file is how a caller carries on until the operator
+    // replaces it.
+    assert.equal(okOf(await seal({ directory: later })).directory_source, "argument");
   });
 
   it("a directory argument that does not verify is refused, and the refusal says why", async () => {
@@ -1091,11 +1136,19 @@ describe("sje_open: authenticity and the receive policy (MCP-1)", () => {
       "authorship",
       "award",
       "demo_anchor",
+      "directory_issued_at",
+      "directory_source",
+      "directory_valid_until",
       "quotes",
       "status",
+      "status_covers",
       "trust_root_fingerprint",
       "verified_buyer_org",
     ]);
+    // Which directory the verdict stood on, and what "verified" is a statement about.
+    assert.equal(a.directory_source, "argument");
+    assert.equal(a.directory_issued_at, directory.issued_at);
+    assert.match(a.status_covers, /buyer's authorship.*says nothing about the quotes/);
     assert.equal(a.status, "verified");
     assert.equal(a.verified_buyer_org, BUYER_ORG);
     assert.deepEqual(a.authorship, [{ ok: true, kid: BUYER_KID, org_id: BUYER_ORG, reason: null }]);
@@ -1111,6 +1164,113 @@ describe("sje_open: authenticity and the receive policy (MCP-1)", () => {
     assert.equal(a.trust_root_fingerprint, rootFingerprint(rootHex));
     assert.equal(a.demo_anchor, false);
     assert.match(out.notes.join(" "), /Signed by org_northline \(key northline-2026\)/);
+  });
+
+  it("a quote whose seller signature is present and fails refuses the traveler, and spends nothing", async () => {
+    const mine = signedByBuyer(rfq());
+    const q = quoteFor(mine, "qot_signedq0001"); // names DESK_ORG as seller
+    const signed: Quote = { ...q, sig: signQuote(q, DESK_KID, deskSigner.secretKey) };
+    // Control: signed by the seller it names, it opens, and the quote's check says so.
+    const fine = okOf(await call("sje_open", { sje: await sealToDesk(withQuotes(mine, signed)), directory }));
+    assert.equal(fine.authenticity.quotes[0].check.ok, true);
+
+    // The price changed after the seller signed; and a quote naming the buyer's org,
+    // signed with another enrolled org's real key.
+    const altered: Quote = { ...signed, pricing: { currency: "USD", lines: [{ qty: 250, unit: 99 }] } };
+    const other = quoteFor(mine, "qot_signedq0002", { seller: { org_id: BUYER_ORG, name: "N" } });
+    const wrongKey: Quote = { ...other, sig: signQuote(other, EVIL_KID, evilSigner.secretKey) };
+    const cases: Array<[Quote, string, Json]> = [
+      [altered, "signature does not verify", { ok: false, kid: DESK_KID, org_id: DESK_ORG, reason: "signature does not verify" }],
+      [wrongKey, "signer org does not match author org", { ok: false, kid: EVIL_KID, org_id: EVIL_ORG, reason: "signer org does not match author org" }],
+    ];
+    for (const [quote, why, check] of cases) {
+      const sje = await sealToDeskOnce(withQuotes(mine, quote), freshPrekey());
+      for (const attempt of [1, 2]) {
+        const res = await call("sje_open", { sje, directory });
+        assert.equal(
+          errorOf(res),
+          `sje_open: refused. The seller's signature on quote ${quote.quote_id} does not verify (${why}). That quote is not the seller's it names. Nothing was admitted, and no one-time prekey was spent.`,
+          `attempt ${attempt}: refused for the same reason, so the prekey was not spent by the first`,
+        );
+        assert.equal(payload(res).traveler, undefined);
+        // The buyer's signature is good, and `status` says only that.
+        assert.equal(payload(res).authenticity.status, "verified");
+        assert.deepEqual(payload(res).authenticity.quotes[0].check, check);
+      }
+    }
+  });
+
+  it("an award signed with a key the directory lists as revoked is refused, and no acknowledgment covers it", async () => {
+    // The buyer's old signing key: stolen, then revoked. The CURRENT directory says so.
+    const stolen = keypairFromSeed(seed32(77));
+    const current = signedDirectory([
+      ...entries,
+      entry(BUYER_ORG, "northline-old", stolen, kemPublicHex(24), { status: "revoked" }),
+    ]);
+    const q = quoteFor(rfq(), "qot_revokedkey01");
+    const base = awarded(withQuotes(rfq(), q), q.quote_id, { ...SHIP, line1: "1 Attacker Dock" });
+    const withSig = (kid: string) =>
+      parseTraveler({ ...base, award: { ...base.award!, sig: { ...signAward(base, kid, stolen.secretKey), kid } } });
+
+    for (const accept of [false, true]) {
+      const res = await call("sje_open", {
+        sje: await sealToDesk(withSig("northline-old")),
+        directory: current,
+        ...(accept ? { accept_unverified_award: true } : {}),
+      });
+      assert.match(
+        errorOf(res),
+        /^sje_open: refused\. The award on this traveler does not verify \(signing key is revoked in the directory\)\. It is not the buyer's\./,
+        `accept_unverified_award=${accept}`,
+      );
+      // The caller is told WHICH key, whose it was, and that it is revoked — it used to
+      // be told "no active in-window directory entry for kid", with no key and no org.
+      assert.deepEqual(payload(res).authenticity.award, {
+        ok: false,
+        kid: "northline-old",
+        org_id: BUYER_ORG,
+        reason: "signing key is revoked in the directory",
+      });
+      assert.equal(payload(res).traveler, undefined);
+    }
+    // Control: the same award under a key the directory has never listed is "cannot
+    // tell" — refused by default, admitted once the caller has confirmed it elsewhere.
+    const unknown = await sealToDesk(withSig("nobody-2026"));
+    assert.match(errorOf(await call("sje_open", { sje: unknown, directory: current })), /^sje_open: refused by default\./);
+    const accepted = okOf(await call("sje_open", { sje: unknown, directory: current, accept_unverified_award: true }));
+    assert.equal(accepted.authenticity.award.reason, "no active in-window directory entry for kid");
+  });
+
+  it("a ship-to and ops that come back on an un-awarded traveler are said to be nobody's signed word", async () => {
+    // The seller returns the buyer's signed RFQ with its quote — and a ship-to and an
+    // ops list of its own. Every expectation the buyer can state still matches: the
+    // hash covers the quoteable body, and the buyer's signature covers the same.
+    const mine = signedByBuyer(rfq());
+    const quote = quoteFor(mine, "qot_sellerback01");
+    const back = parseTraveler({
+      ...withQuotes(mine, quote),
+      ops: [{ seq: 1, code: "laser", notes: "seller-written" }],
+      ship_to: { ...SHIP, name: "Seller-chosen dock", line1: "99 Diversion Rd" },
+    });
+    const out = okOf(
+      await call("sje_open", {
+        sje: await sealToDesk(back),
+        directory,
+        expected_traveler_hash: travelerHash(mine),
+        expected_buyer_org: BUYER_ORG,
+      }),
+    );
+    assert.equal(out.authenticity.status, "verified");
+    assert.equal(out.traveler.ship_to.name, "Seller-chosen dock", "returned as it arrived, under the labelled member");
+    assert.ok(
+      (out.notes as string[]).includes(
+        "This traveler carries a ship-to address and an ops list and no award. Nothing signed covers them: whoever sealed this copy could have written them. Treat them as a draft, not as the buyer's instruction.",
+      ),
+      (out.notes as string[]).join(" | "),
+    );
+    // Without them there is nothing to flag.
+    const plain = okOf(await call("sje_open", { sje: await sealToDesk(withQuotes(mine, quote)), directory }));
+    assert.ok(!(plain.notes as string[]).some((n) => n.includes("Nothing signed covers")));
   });
 
   it("an unsigned RFQ opens, and says that nothing shows who wrote it", async () => {
@@ -2279,11 +2439,19 @@ describe("bounded work (MCP-4)", () => {
     ]);
 
     const started = performance.now();
-    const out = okOf(await call("sje_open", { sje: await sealToDesk(t), directory: large }));
+    const opened = await call("sje_open", { sje: await sealToDesk(t), directory: large });
     const ev = okOf(await call("sje_evaluate", { traveler: t, directory: large }));
     const elapsed = performance.now() - started;
 
-    assert.equal(out.authenticity.status, "verified");
+    // A seller signature that is present and fails refuses the traveler — and the
+    // refusal carries every verdict, so the caller can see which quotes failed.
+    assert.match(
+      errorOf(opened),
+      /^sje_open: refused\. The seller's signature on quote qot_bulk000000 does not verify \(signature does not verify\)/,
+    );
+    const out = payload(opened);
+    assert.equal(out.traveler, undefined);
+    assert.equal(out.authenticity.status, "verified", "the buyer's authorship does verify; that is all status covers");
     assert.equal(out.authenticity.verified_buyer_org, BUYER_ORG);
     assert.equal(out.authenticity.quotes.length, 64);
     for (const [i, q] of (out.authenticity.quotes as Json[]).entries()) {
@@ -2313,6 +2481,86 @@ describe("bounded work (MCP-4)", () => {
 /* ====================================================================================
  * 8. sje_seal gates
  * ================================================================================== */
+
+describe("bounded work: results, and the work per quote (MCP-4)", () => {
+  /** A free-form object just under the 8 KiB cap. */
+  const fatBlob = (): Json => {
+    const blob: Json = {};
+    for (let i = 0; JSON.stringify(blob).length < 8100; i++) blob[`k${i.toString(36)}`] = 0;
+    return blob;
+  };
+  const sixty = (base: Traveler, assumptions: Json): Traveler =>
+    withQuotes(
+      base,
+      ...Array.from({ length: 60 }, (_, i) =>
+        quoteFor(base, `qot_heavy${String(i).padStart(5, "0")}`, {
+          seller: { org_id: `org_s${i}`, name: "S", itar: true },
+          assumptions,
+        }),
+      ),
+    );
+
+  it("a result is compact and bounded: deep nesting does not multiply it", async () => {
+    // ~3,900 zeros inside 118 nested arrays: under the 8 KiB blob cap, and the format
+    // allows 127 levels. Pretty-printed, every 2-byte element became a ~250-byte line:
+    // a 9.5 KB envelope came back as a 61 MB result, which an MCP client cannot hold.
+    let nested: unknown = new Array(3950).fill(0);
+    for (let i = 0; i < 118; i++) nested = [nested];
+    const t = sixty(rfq(), { a: nested });
+    const size = JSON.stringify(t).length;
+    assert.ok(size > 500_000 && size <= 512 * 1024, "a valid traveler inside every cap");
+    const sje = await sealToDesk(t);
+    assert.ok(JSON.stringify(sje).length < 12_000, "about 9.5 KB on the wire");
+
+    const results: Array<[string, ToolResult]> = [
+      ["sje_open", await call("sje_open", { sje })],
+      ["sje_evaluate", await call("sje_evaluate", { traveler: t })],
+      ["sje_validate", await call("sje_validate", { traveler: t })],
+      ["sje_amend", await call("sje_amend", { traveler: t, patch: { incoterms: "EXW" } })],
+    ];
+    for (const [tool, res] of results) {
+      assert.ok(!res.isError, tool);
+      const text = textOf(res);
+      assert.ok(!text.includes("\n"), `${tool}: a result is one line of JSON`);
+      // The traveler once, a quote copy for evaluate, and what the server computed.
+      assert.ok(text.length < 1.5 * size, `${tool}: ${text.length} bytes for a ${size}-byte traveler`);
+      assert.ok(Buffer.byteLength(text) < MAX_RESULT_BYTES, tool);
+    }
+  });
+
+  it("evaluating a traveler costs a few validations of it, not one per quote", async () => {
+    // 60 unsigned quotes, each with an 8 KiB free-form object: a valid traveler inside
+    // every cap. The award guard used to re-derive the traveler's state — validating
+    // every quote — once per quote: 6 seconds, or 11 for an ITAR traveler, during
+    // which the server answers nothing else. Measured against one validation of the
+    // same document, so the bound does not depend on how fast the machine is.
+    const blob = fatBlob();
+    for (const itar of [false, true]) {
+      const t = sixty(rfq(itar ? { itar: true } : {}), blob);
+      assert.ok(JSON.stringify(t).length > 500_000);
+      let started = performance.now();
+      okOf(await call("sje_validate", { traveler: t }));
+      const once = performance.now() - started;
+      started = performance.now();
+      const ev = okOf(await call("sje_evaluate", { traveler: t, directory }));
+      const evaluated = performance.now() - started;
+      assert.equal(ev.evaluation.length, 60);
+      assert.ok((ev.evaluation as Json[]).every((e) => e.award_blocker === null), "each quote got its answer");
+      if (itar) {
+        assert.ok(
+          (ev.evaluation as Json[]).every(
+            (e) => e.itar_attestation_blocker === "ITAR traveler: quote is not signed by the seller it names",
+          ),
+        );
+      }
+      const allowed = Math.max(10 * once, 2000);
+      assert.ok(
+        evaluated < allowed,
+        `itar=${itar}: sje_evaluate took ${Math.round(evaluated)} ms; one validation takes ${Math.round(once)} ms`,
+      );
+    }
+  });
+});
 
 describe("sje_seal gates", () => {
   it("an ITAR traveler is sealed only to an attested org — or back to its own buyer", async () => {

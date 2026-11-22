@@ -54,7 +54,7 @@ import {
   parseTravelerJson,
   staleQuotes,
 } from "../src/lib/traveler/conformance.ts";
-import { cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/traveler/guards.ts";
+import { awardBlockers, cannotAward, cannotQuote, isQuoteExpired, locked } from "../src/lib/traveler/guards.ts";
 import { newQuoteId, newTravelerId } from "../src/lib/traveler/ids.ts";
 import { decideImport } from "../src/lib/traveler/import-policy.ts";
 import {
@@ -100,6 +100,7 @@ import {
   type PrekeyBundle,
 } from "../src/lib/traveler/prekeys.ts";
 import { recipientByOrg } from "../src/lib/traveler/envelope.ts";
+import { canonicalJson } from "../src/lib/traveler/canonical.ts";
 import { isoDateTimeMs } from "../src/lib/traveler/datetime.ts";
 import { isDemoTrustRoot } from "../src/lib/traveler/demo-trust.ts";
 import { rootFingerprint } from "../src/lib/traveler/fingerprint.ts";
@@ -346,8 +347,25 @@ class Refusal extends Error {
 
 type ToolResult = { isError?: boolean; content: Array<{ type: "text"; text: string }> };
 
+/** No result is larger than this.
+ *
+ *  Results are serialized compactly. They used to be pretty-printed, and a free-form
+ *  blob may nest 127 deep: every 2-byte element became a line of some 250 bytes, so a
+ *  9.5 KB envelope came back as a 61 MB result — which an MCP client cannot hold (the
+ *  SDK's stdio reader stops at 10 MiB and drops the connection, with no error for the
+ *  caller to learn from). Compact, a result is at most a small multiple of its capped
+ *  inputs, and nothing should come near this limit; it is the backstop for the day
+ *  something does. */
+export const MAX_RESULT_BYTES = 4 * 1024 * 1024;
+
 function ok(payload: unknown): ToolResult {
-  return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
+  const text = JSON.stringify(payload);
+  if (exceedsUtf8Bytes(text, MAX_RESULT_BYTES)) {
+    throw new Refusal(
+      `The result would be larger than this server returns (${MAX_RESULT_BYTES} bytes). Nothing was done.`,
+    );
+  }
+  return { content: [{ type: "text" as const, text }] };
 }
 
 function fail(message: string, details: Record<string, unknown> = {}): ToolResult {
@@ -594,7 +612,15 @@ function directoryProblem(dir: unknown, rootPublicKeyHex: string, now: Date): st
   return "is not signed by the trust root pinned on this server";
 }
 
-type OperatorDirectory = { ok: true; directory: Directory } | { ok: false; why: string };
+/** The operator's directory as it stands right now.
+ *
+ *  `issuedAt` is its issue time whenever the file is AUTHENTIC — signed by the pinned
+ *  root — whether or not it is usable at this moment. A directory that expired yesterday
+ *  still says how new a directory has to be to supersede it; only a file that cannot be
+ *  authenticated at all (`issuedAt: null`) says nothing. */
+type OperatorDirectory =
+  | { ok: true; directory: Directory; issuedAt: number }
+  | { ok: false; why: string; issuedAt: number | null };
 
 /** The operator's directory, read from SJE_DIRECTORY_FILE on EVERY call (never cached):
  *  the operator replaces the file to publish a new directory, and the next call uses
@@ -607,25 +633,53 @@ function readOperatorDirectory(path: string, rootPublicKeyHex: string, now: Date
     directory = parseDirectoryJson(readFileSync(path));
   } catch (e) {
     logLine("operator directory unusable", e);
-    return { ok: false, why: `${subject} could not be read as a signed directory` };
+    return { ok: false, why: `${subject} could not be read as a signed directory`, issuedAt: null };
   }
+  const issued = isoDateTimeMs(directory.issued_at);
   const problem = directoryProblem(directory, rootPublicKeyHex, now);
-  return problem === null ? { ok: true, directory } : { ok: false, why: `${subject} ${problem}` };
+  if (problem === null) return { ok: true, directory, issuedAt: issued! };
+  logLine("operator directory unusable", new Error(problem));
+  // Is it the root's, though not usable now? Checked at its own issue time, which is
+  // inside its own window: that leaves the signature and the shape, and nothing else.
+  const authentic = issued !== null && verifyDirectory(directory, rootPublicKeyHex, new Date(issued));
+  return { ok: false, why: `${subject} ${problem}`, issuedAt: authentic ? issued : null };
 }
 
 type Trust =
   | { ok: true; rootPublicKeyHex: string; directory: Directory; source: "argument" | "operator" }
   | { ok: false; why: string };
 
+/** WHICH directory a verdict or a seal stood on: where it came from and its window.
+ *  Two root-signed directories can disagree about a key; a result has to say which one
+ *  it used. */
+function directoryFields(trust: Trust): Record<string, unknown> {
+  if (!trust.ok) return {};
+  return {
+    directory_source: trust.source,
+    directory_issued_at: trust.directory.issued_at,
+    directory_valid_until: trust.directory.valid_until,
+  };
+}
+
 /** Resolve what this call may verify against. The root is the pinned one or nothing.
  *  The directory is the `directory` argument if one was passed, else the operator's
  *  file; either way it is used only after `verifyDirectory` against the pinned root.
  *
  *  A directory ARGUMENT that does not verify is a refusal, not a fallback: the caller
- *  asked for that directory, and quietly using another would hide the problem. An
- *  argument OLDER than the operator's own directory is refused too — a root-signed but
- *  superseded directory is exactly what an attacker holding a since-revoked key would
- *  supply. */
+ *  asked for that directory, and quietly using another would hide the problem.
+ *
+ *  Where the operator configured a directory, an argument is accepted only if it IS
+ *  that directory or was issued strictly after it. A root-signed but superseded
+ *  directory is exactly what an attacker holding a since-revoked key would supply, and
+ *  it verifies: only the operator's copy says it has been superseded. That has to hold
+ *  when the operator's copy is not usable itself:
+ *    - expired or not yet valid, but the root's: its issue time is still the floor (it
+ *      used to stop being one the moment it lapsed, and every older directory still
+ *      inside its own window was accepted again);
+ *    - the same issue time and different contents: not newer, so refused (`issued_at`
+ *      is the start of a validity window, not a version: two directories can share it);
+ *    - unreadable, or not the root's: there is no floor to compare with, so no argument
+ *      is accepted until the operator's file is one this server can authenticate. */
 function resolveTrust(tool: string, cfg: DeskConfig, directoryArg: unknown, now: Date): Trust {
   if (cfg.rootPublicKeyHex === null) return { ok: false, why: NO_ROOT };
   const rootPublicKeyHex = cfg.rootPublicKeyHex;
@@ -640,14 +694,20 @@ function resolveTrust(tool: string, cfg: DeskConfig, directoryArg: unknown, now:
       );
     }
     const directory = directoryArg as Directory;
-    if (
-      operator?.ok &&
-      isoDateTimeMs(directory.issued_at)! < isoDateTimeMs(operator.directory.issued_at)!
-    ) {
-      throw new Refusal(
-        `${tool}: refused. The \`directory\` argument is older than the directory this server's operator configured. A superseded directory may still list keys that have since been revoked. Omit \`directory\` to use the operator's. Nothing was done.`,
-        trustFields(cfg),
-      );
+    if (operator !== null) {
+      if (operator.issuedAt === null) {
+        throw new Refusal(
+          `${tool}: refused. This server's operator configured a key directory (SJE_DIRECTORY_FILE) that cannot be authenticated right now, so this server cannot tell a current \`directory\` argument from a superseded one, and accepts none. (Operator: see the server log.) Nothing was done.`,
+          trustFields(cfg),
+        );
+      }
+      const isTheOperators = operator.ok && canonicalJson(directory) === canonicalJson(operator.directory);
+      if (!isTheOperators && isoDateTimeMs(directory.issued_at)! <= operator.issuedAt) {
+        throw new Refusal(
+          `${tool}: refused. The \`directory\` argument is not newer than the directory this server's operator configured. A superseded directory may still list keys that have since been revoked. ${operator.ok ? "Omit `directory` to use the operator's." : "(The operator's own directory is not usable right now — operator: see the server log.)"} Nothing was done.`,
+          trustFields(cfg),
+        );
+      }
     }
     return { ok: true, rootPublicKeyHex, directory, source: "argument" };
   }
@@ -1066,7 +1126,10 @@ function evaluateTool(a: Args, { cfg, now }: Ctx): ToolResult {
   );
   const bound = new Set(boundQuotes(t).map((q) => q.quote_id));
   const target = t.part.qty.target;
-  const evaluation = quotes.map((q) => {
+  // The traveler's own state (locked; which quotes are bound) is established once for
+  // all of them, like the directory above: per quote, it made this tool quadratic.
+  const awardBlocker = awardBlockers(t, now);
+  const evaluation = quotes.map((q, i) => {
     let quoteHash: string | null;
     try {
       quoteHash = quoteContentHash(q);
@@ -1101,7 +1164,7 @@ function evaluateTool(a: Args, { cfg, now }: Ctx): ToolResult {
       assumptions_present: q.assumptions !== undefined,
       capacity_present: q.capacity !== undefined,
       total_at_target: costAt(q, target),
-      award_blocker: cannotAward(t, q, now),
+      award_blocker: awardBlocker[i]!.blocker,
       ...(t.itar === true
         ? {
             itar_attestation_blocker: trust.ok ? (itarBlockers.get(q.quote_id) ?? null) : NOT_CHECKED,
@@ -1391,13 +1454,14 @@ async function sealTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
       : {}),
     itar: t.itar === true,
     itar_gate: sealed.itarBasis === undefined ? "not_itar" : ITAR_GATE[sealed.itarBasis],
-    directory_source: trust.source,
-    directory_issued_at: directory.issued_at,
-    directory_valid_until: directory.valid_until,
+    ...directoryFields(trust),
     ...trustFields(cfg),
     sje: envelope,
   });
 }
+
+const STATUS_COVERS =
+  "the buyer's authorship of the traveler and, if it carries one, the buyer's award. It says nothing about the quotes: each quote's seller signature is reported separately under `quotes`.";
 
 /** What verification established, as `sje_open` reports it. `status`:
  *    verified      at least one buyer signature verifies and, if there is an award,
@@ -1415,6 +1479,11 @@ function authenticityOf(
   if (verification) {
     return {
       status: verification.verified ? "verified" : "unverified",
+      // `status` is about the BUYER: who wrote the traveler and, if there is one, the
+      // award. Each quote's seller signature is its own answer, under `quotes` — a
+      // quote can be unsigned, or signed with a key this directory does not list, on a
+      // traveler whose status is "verified". (One that is signed and FAILS is refused.)
+      status_covers: STATUS_COVERS,
       // The org the directory binds the buyer's signing key to — the only thing here
       // that identifies who wrote the traveler. null: nothing does.
       verified_buyer_org: verification.authorship.find((c) => c.ok)?.org_id ?? null,
@@ -1425,6 +1494,7 @@ function authenticityOf(
         signed: isSigned(i),
         check: check ? shownCheck(check) : null,
       })),
+      ...directoryFields(trust),
       ...trustFields(cfg),
     };
   }
@@ -1541,17 +1611,11 @@ async function openTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
     );
   }
 
-  // Admitted. Only now is the one-time prekey spent (and that recorded on disk).
-  try {
-    await opened.commit();
-  } catch (e) {
-    logLine("one-time prekey not recorded as spent", e);
-    throw new Refusal(
-      "sje_open: the traveler was not released: the spent one-time prekey could not be recorded in the keystore file (operator: see the server log).",
-    );
-  }
+  // Admitted. The result is built BEFORE the one-time prekey is spent: if it cannot be
+  // returned (see MAX_RESULT_BYTES), the call is refused with nothing spent, instead of
+  // spending the prekey on a traveler the caller never receives.
   const admitted = decision.traveler;
-  return ok({
+  const result = ok({
     ...counterparty("traveler"),
     // Statements the caller accepted without proof. They are still true.
     ...(decision.acknowledge.length > 0 ? { unverified: decision.acknowledge } : {}),
@@ -1569,6 +1633,28 @@ async function openTool(a: Args, { cfg, now }: Ctx): Promise<ToolResult> {
     ...report(admitted, now),
     traveler: admitted,
   });
+  // Only now is the one-time prekey spent, and that recorded on disk — in that order:
+  // the keystore file is rewritten without the prekey first, and only then is it
+  // forgotten. A failure leaves it held, in memory and on disk.
+  try {
+    await opened.commit();
+  } catch (e) {
+    logLine("one-time prekey not recorded as spent", e);
+    throw commitRefusal(e);
+  }
+  return result;
+}
+
+/** What `sje_open` says when the spent prekey could not be recorded. Nothing was spent
+ *  in either case (transport.ts stores the deletion before forgetting the prekey). */
+export function commitRefusal(e: unknown): Error {
+  const unspent =
+    "The traveler was not released, and the one-time prekey was not spent: the same envelope can be opened again.";
+  return new Refusal(
+    e instanceof KeystoreFileChangedError
+      ? `sje_open: another process changed this desk's keystore file while the envelope was being opened, so this server's copy of it was not written over the other's. ${unspent} Call sje_open again: the keystore is reloaded from the file first.`
+      : `sje_open: the keystore file could not be rewritten to record the spent one-time prekey (operator: see the server log). ${unspent}`,
+  );
 }
 
 /* ---------------- tool definitions ---------------- */
