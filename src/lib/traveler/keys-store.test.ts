@@ -69,7 +69,7 @@ describe("keys store (desk custody)", () => {
     const entry = await useKeysStore.getState().createIdentity(PASS, "org_me");
     const s = useKeysStore.getState();
     assert.ok(s.identity, "identity stored");
-    assert.equal(s.identity!.spec, "sje-keystore/0.1.0");
+    assert.equal(s.identity!.spec, "sje-keystore/0.2.0");
     assert.equal(entry.kid, s.identity!.kid);
     assert.equal(s.identity!.org_id, "org_me");
     assert.ok(s.isUnlocked(), "left unlocked after create");
