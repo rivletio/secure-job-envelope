@@ -673,6 +673,7 @@ button.danger {
 }
 .sample .out {
   margin: 10px 0 0;
+  max-height: none;
 }
 .sample .src {
   font-size: 12px;
