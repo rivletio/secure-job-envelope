@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Secure Job Envelope — Demos</title>
+    <title>Secure Job Envelope</title>
     <meta
       name="description"
-      content="Run the Secure Job Envelope reference library in your browser: the traveler lifecycle and a post-quantum encrypted exchange. Installable, works offline."
+      content="An open format for sending a manufacturing job package between a buyer and a shop. Run the reference demos in your browser: the traveler lifecycle and a post-quantum encrypted exchange. Installable, works offline."
     />
     <meta name="theme-color" content="#0b1b30" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -28,30 +28,79 @@
 
       <h1>Secure Job <em>Envelope</em></h1>
       <p class="lede">
+        A Secure Job Envelope is an open format for sending a manufacturing job package between a
+        buyer and a shop. The package is a <em>traveler</em>: the part, material, quantity, drawing
+        revision, dates, quotes, and the award. Shops seal that record into an encrypted
+        <span class="mono">.sje</span> file and send it over whatever channel they already use. The
+        format is Apache 2.0. It is not a shop operating system and not a marketplace.
+      </p>
+      <p class="lede">
         When a buyer orders custom parts, two things are easy to get wrong: the price has to match
-        the <em>exact</em> spec, and the details shouldn't leak on the way to the shop. Secure Job
-        Envelope is a shared record for that job — a price is always pinned to one exact spec, and
-        what's sent is encrypted. The demos below run the <strong>real thing</strong> in your
-        browser: read the plain-language walkthrough, then poke at it yourself. New here? Start with
-        <a href="lifecycle.html">Lifecycle</a>.
+        the <em>exact</em> spec, and the details shouldn't leak on the way to the shop. A price is
+        always pinned to one exact spec, and what's sent is encrypted.
+      </p>
+      <p class="lede">
+        The specification and reference implementations are on
+        <a href="https://github.com/rivletio/secure-job-envelope">GitHub</a>.
       </p>
 
-      <div class="row links">
-        <button id="install" hidden>Install these demos</button>
-        <a
-          class="pill"
-          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/GUIDE.md"
-          >Guide</a
-        >
-        <a
-          class="pill"
-          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/ARCHITECTURE.md"
-          >Architecture</a
-        >
-        <a
-          class="pill"
-          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/CLAIMS.md"
-          >Claims &amp; conformance</a
+      <section class="sample" aria-labelledby="sample-heading">
+        <h2 id="sample-heading" class="section-title">What a traveler looks like</h2>
+        <p>
+          This is the job record that gets sealed into an encrypted <span class="mono">.sje</span>
+          envelope. It is a trimmed copy of the CNC bracket example in the repository.
+        </p>
+        <pre class="out" tabindex="0">
+{
+  "spec": "sje/0.1.0",
+  "traveler_id": "tvl_example01",
+  "revision": 1,
+  "buyer": {
+    "name": "Northline Equipment",
+    "city": "Reno",
+    "region": "NV"
+  },
+  "part": {
+    "family": "CNC bracket",
+    "part_number": "NL-BRK-4410",
+    "description": "Mounting bracket, brushed, deburred",
+    "drawing_rev": "C",
+    "material": {
+      "spec": "6061-T6",
+      "form": "plate",
+      "thickness_mm": 6.35
+    },
+    "qty": {
+      "target": 250,
+      "breaks": [100, 250, 500]
+    },
+    "processes": ["laser", "cnc-mill", "deburr"],
+    "finish": "brushed",
+    "tolerances": "±0.13 mm unless noted"
+  },
+  "need_by": "2026-10-30"
+}</pre>
+        <p class="src">
+          Full example:
+          <a
+            href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/examples/bracket.traveler.json"
+            >examples/bracket.traveler.json</a
+          >
+        </p>
+      </section>
+
+      <h2 class="section-title">Try the demos</h2>
+      <p class="lede">
+        The demos below run the <strong>real thing</strong> in your browser: read the plain-language
+        walkthrough, then poke at it yourself. New here? Start with
+        <a href="lifecycle.html">Lifecycle</a>.
+      </p>
+      <div class="btns demo-cta">
+        <a class="action" href="lifecycle.html">Lifecycle demo</a>
+        <a class="action secondary" href="exchange.html">Encrypted exchange</a>
+        <a class="action secondary" href="desk/">The desk</a>
+        <a class="action secondary" href="https://github.com/rivletio/secure-job-envelope"
+          >GitHub repo</a
         >
       </div>
 
@@ -86,11 +135,45 @@
         </p>
       </a>
 
+      <div class="row links">
+        <button id="install" hidden>Install these demos</button>
+        <a
+          class="pill"
+          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/GUIDE.md"
+          >Guide</a
+        >
+        <a
+          class="pill"
+          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/ARCHITECTURE.md"
+          >Architecture</a
+        >
+        <a
+          class="pill"
+          href="https://github.com/rivletio/secure-job-envelope/blob/HEAD/docs/CLAIMS.md"
+          >Claims &amp; conformance</a
+        >
+      </div>
+
       <p class="note">
         Everything you see is computed locally with the same modules shipped in the library, the
         Rust CLI and the MCP server. The demos never transmit a traveler; the “encrypted exchange”
         seals and opens entirely within this one tab.
       </p>
+
+      <section class="about" aria-labelledby="about-rivlet">
+        <h2 id="about-rivlet" class="section-title">About Rivlet</h2>
+        <p>
+          Secure Job Envelope is written by
+          <a href="https://rivlet.io">Rivlet</a>. Rivlet is also an integration partner: Rivlet
+          consults to help shops integrate a secure pipeline for tracking their work through the
+          shop, alongside Rivlet's other services. See <a href="https://rivlet.io">rivlet.io</a>.
+        </p>
+        <p>
+          <a href="https://os.rivlet.io">os.rivlet.io</a> is an early open-source project still in
+          progress, not a finished product.
+        </p>
+      </section>
+
       <p class="foot">
         Secure Job Envelope ·
         <a href="https://github.com/rivletio/secure-job-envelope"
