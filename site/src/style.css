@@ -715,3 +715,18 @@ a.action.secondary:hover {
 .row.links {
   margin: 20px 0 16px;
 }
+
+.about-consult {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin: 0 0 8px;
+}
+.about-consult p {
+  flex: 1 1 28ch;
+  margin: 0;
+}
+.about-consult .action {
+  flex: 0 0 auto;
+}
